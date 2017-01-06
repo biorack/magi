@@ -3,3 +3,4 @@
 *.ipynb_checkpoints
 *.db
 user_settings*
+local_settings.py

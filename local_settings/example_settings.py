@@ -1,4 +1,6 @@
 """
+Two files need to be created.  Neither of these will be in the repo.
+
 A file called "local_settings.py" should be put in this directory with a single line in it.
 This line will define a settings.py file that has all the variables declared to interact with the database
 
