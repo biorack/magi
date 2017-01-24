@@ -1,0 +1,29 @@
+#!/bin/bash
+# Set SGE options:
+## specify an email address
+#$ -M oerbilgin@lbl.gov
+## specify when to send the email when job is (a)borted, (b)egins or (e)nds normally
+#$ -m abe
+## Specify a run time
+#$ -l h_rt=24:00:00
+## This says that you want a 32-core machine
+#$ -pe pe_32 32 
+## This sets your memory requirements, x32. so 7.5*32=240GB, meaning a guarantee on a 32 slot, 256G Memory machine
+#$ -l ram.c=7.5G,h_vmem=7.5G
+## This says what kind of machine you want; exclusive.c says you want any kind of exclusive node, first available
+#$ -q exclusive.c
+## Where to save the log files
+#$ -wd /global/projectb/scratch/erbilgin/MAGI
+## These are commented out, but rename them if you want
+## -o /global/projectb/scratch/erbilgin/MAGI/<path to custom>_out.txt
+## -e /global/projectb/scratch/erbilgin/MAGI/<path to custom>_err.txt
+## Your job info goes here
+
+module switch python/2.7.4 python/2.7-anaconda_4.2.0
+
+time python <path to>/MAGI_NERSCworkflow_20170123.py \
+--fasta <path to the fasta file> \
+--gene_info <path to the gene annotation file> \
+--pactolus <path to the pactolus output> \
+## This mutes the pandas and rdkit warnings, which is desirable for normal use, but not debugging.
+--mute 
