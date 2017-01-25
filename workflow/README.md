@@ -2,11 +2,6 @@
 * The entire process is wrapped in `MAGI_NERSCworkflow<date>.py`
 * Helper functions called in the workflow `.py` file are stored in `helpertools/`
 * Important database files are stored in `database/`
-    * MRS-Reaction
-    * Reaction Reference Sequences
-    * BLAST database for reference sequences
-    * EC numbers in human-readable form
-    * InChIKey to InChI lookup dictionary
 * BLAST binary files are stored in `blastbin/`
 * `TEMPLATE_QSUB.qsub` is a read-only template with which to build Genepool submission scripts
 * `test_coelicolor.qsub` is a Genepool submission script that runs the entire workflow on *Streptomyces coelicolor* C18-neg data, but only for the first 24 compounds
