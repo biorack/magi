@@ -4,3 +4,4 @@
 *.db
 user_settings*
 local_settings.py
+*.pyc
