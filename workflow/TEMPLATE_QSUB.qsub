@@ -21,7 +21,7 @@
 
 module switch python/2.7.4 python/2.7-anaconda_4.2.0
 
-time python <path to>/MAGI_NERSCworkflow_20170123.py \
+time python <path to>/MAGI_NERSCworkflow_20170303.py \
 --fasta <path to the fasta file> \
 --gene_info <path to the gene annotation file> \
 --pactolus <path to the pactolus output> \
