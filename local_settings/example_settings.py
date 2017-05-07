@@ -44,4 +44,13 @@ Finally, for production setup as database user, in the SETTINGS_FILE 'user_setti
 	sql_program = 'mysql+pymysql'
 	#db_path = '%s://%s:%s@scidb1.nersc.gov/%s' % (sql_program,db_username,pw, db_name)
 
+To use these settings in code in this repo, simply do this:
+	from local_settings import local_settings as settings_loc
+	my_settings = getattr(__import__('local_settings', fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
+
+	blastbin = my_settings['blastbin'] # path to blast binary
+	fasta_path = my_settings['fasta_path'] #path to fasta file
+	magi_blast_path = my_settings['magi_blast_path'] #where you want the db stored
+	refseq_db_path = my_settings['refseq_db_path']
+
 """ 
