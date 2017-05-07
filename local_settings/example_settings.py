@@ -9,16 +9,21 @@ For example:
 
 In this directory the 
 For local setup, in the SETTINGS_FILE 'user_settings_bpb_laptop.py' you might find content like this:
-	metatlas_rxn_path = '/Users/bpb/repos/metatlas_reactions/'
 	db_password_file = None
 	if db_password_file:
 	     with open(db_passwd_file) as fid:
 	         pw = fid.read().strip()
+
 	db_username = None
+
 	db_name = 'bpb_workspace.db'
+
+	blastbin = '/Users/bpb/repos/metatlas_reactions/bin/mac_ncbi_blast_2.6.0/bin' # path to blast binary
+	fasta_path = '/Users/bpb/repos/metatlas_reactions/docs/example_notebooks/magi_refseq.fa' #path to fasta file
+	magi_blast_path = '/Users/bpb/repos/metatlas_reactions/data' #where you want the db stored
+	refseq_db_path = '/Users/bpb/repos/metatlas_reactions/data/BLAST_dbs/magi_refseq.db'
+
 	sql_program = 'sqlite'
-	sql_program = 'mysql+pymysql'
-	db_path = '%s:///%s'%(sql_program,db_name)
 
 For production setup as database administrator, in the SETTINGS_FILE 'user_settings_admin_NERSC.py' you might find content like this:
 	import os
