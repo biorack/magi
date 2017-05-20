@@ -104,6 +104,7 @@ print '\n'
 
 # path to MAGI data storage
 MAGI_PATH = '/global/project/projectdirs/openmsi/projects/temp_chem_net_data/MAGI_data'
+#~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # set up where the results will be stored
 if args.output is None:
@@ -121,8 +122,6 @@ if not os.path.isdir(experiment_path):
 print '@@@ Using %s CPUs' %(args.cpu_count)
 
 main_start = time.time() # overall program timer
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # load genome
 print '\n*** LOADING GENOME ***'
@@ -177,9 +176,15 @@ start = time.time()
 def connect_compound_to_reaction_mp_helper(inchikey, 
 										tautomer=args.tautomer, 
 										neighbor_level=args.level):
-    out = mg.connect_compound_to_reaction(inchikey, 
+    try:
+    	out = mg.connect_compound_to_reaction(inchikey, 
 								    	tautomer=tautomer, 
 								    	neighbor_level=neighbor_level)
+    except Exception as e:
+    	print inchikey
+    	sys.stdout.flush()
+    	raise RuntimeError('offending inchikey: %s; error message: %s' \
+    						%(inchikey, e.args))
     return out
 
 input_compounds = compounds['original_compound'].unique()
