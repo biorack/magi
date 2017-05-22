@@ -47,11 +47,11 @@ parser.add_argument('--debug',
 # jump-start the script after certain computations
 # after the initial level 0 tautomer and blast search
 parser.add_argument('--gene_to_reaction', 
-	help='')
+	help='path to gene_to_reaction file, must be in pickle format')
 parser.add_argument('--compound_to_reaction', 
-	help='')
+	help='path to compound_to_reaction file, must be in pickle format')
 parser.add_argument('--reaction_to_gene', 
-	help='')
+	help='path to reaction_to_gene file, must be in pickle format')
 
 args = parser.parse_args()
 
@@ -151,109 +151,122 @@ else:
 	compounds['compound_score'] = compounds['compound_score'].apply(float)
 
 # Conduct gene to reaction search
-print 'Conducting gene to reaction search'
-start = time.time()
-gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
-	experiment_path, raise_blast_error=False, cpu=args.cpu_count)
+if args.gene_to_reaction is None:
+	print 'Conducting gene to reaction search'
+	start = time.time()
+	gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
+		experiment_path, raise_blast_error=False, cpu=args.cpu_count)
 
-print '!@# Homology searching done in %s minutes' %((time.time() - start) / 60)
-gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
-print '... scored blast results saved to %s' \
-		%(os.path.join(experiment_path, 'gene_blast.csv'))
+	print '!@# Homology searching done in %s minutes' %((time.time() - start) / 60)
+	gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
+	print '... scored blast results saved to %s' \
+			%(os.path.join(experiment_path, 'gene_blast.pkl'))
 
-start = time.time()
-gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.', 
-	cpu=args.cpu_count)
-gene_groups = gene_to_reaction.groupby('query acc.')
-multidx = gene_groups['e_score'].apply(mg.keep_top_blast).index
-idx = multidx.levels[1]
-gene_to_reaction_top = gene_to_reaction.loc[idx]
-print '!@# gene_to_reaction table completed in %s minutes' \
-		%((time.time() - start) / 60)
+	start = time.time()
+	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.', 
+		cpu=args.cpu_count)
+	gene_groups = gene_to_reaction.groupby('query acc.')
+	multidx = gene_groups['e_score'].apply(mg.keep_top_blast).index
+	idx = multidx.levels[1]
+	gene_to_reaction_top = gene_to_reaction.loc[idx]
+	print '!@# gene_to_reaction table completed in %s minutes' \
+			%((time.time() - start) / 60)
 
-gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
-										'gene_to_reaction.pkl'))
+	gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
+											'gene_to_reaction.pkl'))
+else:
+	gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
+	print 'gene_to_reaction successfully loaded'
+
 
 # compound to reaction search
-print 'Conducting compound to reaction search'
-sys.stdout.flush()
-start = time.time()
+if compound_to_reaction is None:
+	print 'Conducting compound to reaction search'
+	sys.stdout.flush()
+	start = time.time()
 
-def connect_compound_to_reaction_mp_helper(inchikey, 
-										tautomer=args.tautomer, 
-										neighbor_level=args.level):
-    try:
-    	out = mg.connect_compound_to_reaction(inchikey, 
-								    	tautomer=tautomer, 
-								    	neighbor_level=neighbor_level)
-    except Exception as e:
-    	print inchikey
-    	sys.stdout.flush()
-    	raise RuntimeError('offending inchikey: %s; error message: %s' \
-    						%(inchikey, e.args))
-    return out
+	def connect_compound_to_reaction_mp_helper(inchikey, 
+											tautomer=args.tautomer, 
+											neighbor_level=args.level):
+	    try:
+	    	out = mg.connect_compound_to_reaction(inchikey, 
+									    	tautomer=tautomer, 
+									    	neighbor_level=neighbor_level)
+	    except Exception as e:
+	    	print inchikey
+	    	sys.stdout.flush()
+	    	raise RuntimeError('offending inchikey: %s; error message: %s' \
+	    						%(inchikey, e.args))
+	    return out
 
-input_compounds = compounds['original_compound'].unique()
+	input_compounds = compounds['original_compound'].unique()
 
-p = mp.Pool(args.cpu_count)
-out = p.map(connect_compound_to_reaction_mp_helper, input_compounds)
-p.close()
-p.terminate()
+	p = mp.Pool(args.cpu_count)
+	out = p.map(connect_compound_to_reaction_mp_helper, input_compounds)
+	p.close()
+	p.terminate()
 
-compound_to_reaction = pd.concat(out)
-compound_to_reaction.reset_index(inplace=True, drop=True)
+	compound_to_reaction = pd.concat(out)
+	compound_to_reaction.reset_index(inplace=True, drop=True)
 
-# connect the compound score
-compounds['original_compound'] = compounds['original_compound'].apply(
-									lambda x: '-'.join(x.split('-')[:2]))
-compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
-								on='original_compound', how='inner')
+	# connect the compound score
+	compounds['original_compound'] = compounds['original_compound'].apply(
+										lambda x: '-'.join(x.split('-')[:2]))
+	compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
+									on='original_compound', how='inner')
 
-compound_to_reaction.to_pickle(os.path.join(experiment_path, 
-										'compound_to_reaction.pkl'))
+	compound_to_reaction.to_pickle(os.path.join(experiment_path, 
+											'compound_to_reaction.pkl'))
 
-print '!@# compound_to_reaction table done in %s minutes and saved to %s'\
-		%((time.time()-start)/60, os.path.join(experiment_path, 
-											'compound_to_reaction.csv'))
+	print '!@# compound_to_reaction table done in %s minutes and saved to %s'\
+			%((time.time()-start)/60, os.path.join(experiment_path, 
+												'compound_to_reaction.pkl'))
+else:
+	compound_to_reaction = pd.read_pickle(args.compound_to_reaction)
+	print 'compound_to_reaction successfully loaded'
 
 # reaction to gene search
-print 'Conducting reaction to gene search'
-sys.stdout.flush()
-start = time.time()
+if args.reaction_to_gene is None:
+	print 'Conducting reaction to gene search'
+	sys.stdout.flush()
+	start = time.time()
 
-# set up a list of reference sequences to blast against the genome
-reactions = compound_to_reaction[compound_to_reaction['reaction_id'] != '']\
-					['reaction_id'].tolist()
-reactions_refseqs = mg.mrs_reaction.loc[reactions, 'refseq_id']
-reactions_refseqs = reactions_refseqs[reactions_refseqs != '']
-rseq_list = []
-for reaction in reactions_refseqs:
-    for rseq in reaction.split('|'):
-        if rseq != '':
-            rseq_list.append(rseq)
-rseq_list = list(set(rseq_list))
+	# set up a list of reference sequences to blast against the genome
+	reactions = compound_to_reaction[compound_to_reaction['reaction_id'] != '']\
+						['reaction_id'].tolist()
+	reactions_refseqs = mg.mrs_reaction.loc[reactions, 'refseq_id']
+	reactions_refseqs = reactions_refseqs[reactions_refseqs != '']
+	rseq_list = []
+	for reaction in reactions_refseqs:
+	    for rseq in reaction.split('|'):
+	        if rseq != '':
+	            rseq_list.append(rseq)
+	rseq_list = list(set(rseq_list))
 
-# rseq_list is the "query_list" for multi_blast()
-# query_full_table is the refseq table
-# database_path is the path to the genome's blast database
-print len(rseq_list), 'reference sequences to search'
-sys.stdout.flush()
+	# rseq_list is the "query_list" for multi_blast()
+	# query_full_table is the refseq table
+	# database_path is the path to the genome's blast database
+	print len(rseq_list), 'reference sequences to search'
+	sys.stdout.flush()
 
-reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, genome_db_path, 
-	experiment_path, cpu=args.cpu_count, raise_blast_error=False)
+	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, genome_db_path, 
+		experiment_path, cpu=args.cpu_count, raise_blast_error=False)
 
-reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast, 'query acc.', 
-	cpu=args.cpu_count)
+	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast, 'query acc.', 
+		cpu=args.cpu_count)
 
-reaction_groups = reaction_to_gene.groupby('query acc.')
-multidx = reaction_groups['e_score'].apply(mg.keep_top_blast).index
-idx = multidx.levels[1]
-reaction_to_gene_top = reaction_to_gene.loc[idx]
-reaction_to_gene_top.to_pickle(os.path.join(experiment_path, 
-										'reaction_to_gene.pkl'))
-print '!@# reaction_to_gene table done in %s minutes and saved to %s'\
-		%((time.time()-start)/60, os.path.join(experiment_path, 
-											'reaction_to_gene.csv'))
+	reaction_groups = reaction_to_gene.groupby('query acc.')
+	multidx = reaction_groups['e_score'].apply(mg.keep_top_blast).index
+	idx = multidx.levels[1]
+	reaction_to_gene_top = reaction_to_gene.loc[idx]
+	reaction_to_gene_top.to_pickle(os.path.join(experiment_path, 
+											'reaction_to_gene.pkl'))
+	print '!@# reaction_to_gene table done in %s minutes and saved to %s'\
+			%((time.time()-start)/60, os.path.join(experiment_path, 
+												'reaction_to_gene.pkl'))
+else:
+	reaction_to_gene = pd.read_pickle(args.reaction_to_gene)
+	print 'reaction_to_gene successfully loaded'
 
 print 'Merging final table'
 sys.stdout.flush()
@@ -263,8 +276,9 @@ compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top,
 							on='reaction_id', how='left')
 
 
-compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', 'e_score', 'compound_score', 'original_compound', 'level','neighbor', 'note']]
+compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', 'e_score', 'compound_score', 'original_compound', 'level', 'neighbor', 'note']]
 del compound_to_gene
+
 # okay to drop duplicates, because i only care about these columns 
 # anyway; if these are duplicated then other information doesn't really 
 # matter or can easily be re-expanded by joining 
@@ -283,7 +297,7 @@ df.to_pickle(os.path.join(experiment_path, 'merged_before_score.pkl'))
 
 print '!@#Final Merged table done in %s minutes and saved to %s'\
 	%((time.time() - start) / 60, os.path.join(experiment_path, 
-											'merged_before_score.csv'))
+											'merged_before_score.pkl'))
 
 print 'Calculating final scores...'
 start = time.time()
