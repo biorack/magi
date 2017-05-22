@@ -16,13 +16,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--fasta', 
 	help='path to fasta file of genes in sample', 
 	required=True)
-parser.add_argument('-a', '--annotations', 
-	help='path to annotation file for genes in sample', 
-	default=None)
 parser.add_argument('-c', '--compounds', 
 	help='path to observed compounds file', 
 	required=True)
 # optional runtime variables
+parser.add_argument('-a', '--annotations', 
+	help='path to annotation file for genes in sample', 
+	default=None)
 parser.add_argument('-n', '--cpu_count', 
 	help='number of cpus to use for multiprocessing. Default is to use max!', 
 	type=int, default=0)
@@ -30,22 +30,21 @@ parser.add_argument('-o', '--output',
 	help='path to a custom output', 
 	type=str)
 parser.add_argument('--test', 
-	help='run MAGI only on the first # of pactolus compounds', 
+	help='TBD: run MAGI only on the first # of pactolus compounds', 
 	type=int)
 parser.add_argument('-l', '--level', 
 	help='how many levels deep to search the chemical network', 
 	type=int, choices=[1,2,3], default=2)
 parser.add_argument('-t', '--tautomer', 
-	help='include tautomers in search; devault is true', 
+	help='include tautomers in search; default is true', 
 	choices=[True, False], default=True)
 parser.add_argument('--mute', 
 	help='mutes pandas warnings', 
 	action='store_true')
 parser.add_argument('--debug', 
-	help='prints a lot of info', 
+	help='TBD: prints a lot of info', 
 	action='store_true')
 # jump-start the script after certain computations
-# after the initial level 0 tautomer and blast search
 parser.add_argument('--gene_to_reaction', 
 	help='path to gene_to_reaction file, must be in pickle format')
 parser.add_argument('--compound_to_reaction', 
@@ -91,6 +90,9 @@ if args.mute:
 	print '!!! Warnings are muted !!!'
 	warnings.filterwarnings('ignore')
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#local_settings file stuff
+
 # import these after all the argument checking, because it takes so long
 import sys
 sys.path.insert(0, '/project/projectdirs/metatlas/projects/metatlas_reactions/workflow/helpertools')
@@ -101,9 +103,6 @@ import time
 import pickle
 import datetime
 print '\n'
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#local_settings file stuff
 
 # path to MAGI data storage
 MAGI_PATH = '/global/project/projectdirs/openmsi/projects/temp_chem_net_data/MAGI_data'
@@ -157,7 +156,8 @@ if args.gene_to_reaction is None:
 	gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
 		experiment_path, raise_blast_error=False, cpu=args.cpu_count)
 
-	print '!@# Homology searching done in %s minutes' %((time.time() - start) / 60)
+	print '!@# Homology searching done in %s minutes' \
+			%((time.time() - start) / 60)
 	gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
 	print '... scored blast results saved to %s' \
 			%(os.path.join(experiment_path, 'gene_blast.pkl'))
@@ -165,10 +165,12 @@ if args.gene_to_reaction is None:
 	start = time.time()
 	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.', 
 		cpu=args.cpu_count)
+	del gene_blast
 	gene_groups = gene_to_reaction.groupby('query acc.')
 	multidx = gene_groups['e_score'].apply(mg.keep_top_blast).index
 	idx = multidx.levels[1]
 	gene_to_reaction_top = gene_to_reaction.loc[idx]
+	del gene_to_reaction
 	print '!@# gene_to_reaction table completed in %s minutes' \
 			%((time.time() - start) / 60)
 
@@ -177,11 +179,11 @@ if args.gene_to_reaction is None:
 else:
 	gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
 	print 'gene_to_reaction successfully loaded'
-
+del genome
 
 # compound to reaction search
 if args.compound_to_reaction is None:
-	print 'Conducting compound to reaction search'
+	print 'Conducting compound to reactio#!n search'
 	sys.stdout.flush()
 	start = time.time()
 
@@ -207,6 +209,7 @@ if args.compound_to_reaction is None:
 	p.terminate()
 
 	compound_to_reaction = pd.concat(out)
+	del out
 	compound_to_reaction.reset_index(inplace=True, drop=True)
 
 	# connect the compound score
@@ -215,6 +218,7 @@ if args.compound_to_reaction is None:
 	compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
 									on='original_compound', how='inner')
 
+	del compounds
 	compound_to_reaction.to_pickle(os.path.join(experiment_path, 
 											'compound_to_reaction.pkl'))
 
@@ -232,9 +236,10 @@ if args.reaction_to_gene is None:
 	start = time.time()
 
 	# set up a list of reference sequences to blast against the genome
-	reactions = compound_to_reaction[compound_to_reaction['reaction_id'] != '']\
-						['reaction_id'].tolist()
+	reactions = compound_to_reaction[compound_to_reaction\
+						['reaction_id'] != '']['reaction_id'].tolist()
 	reactions_refseqs = mg.mrs_reaction.loc[reactions, 'refseq_id']
+	del reactions
 	reactions_refseqs = reactions_refseqs[reactions_refseqs != '']
 	rseq_list = []
 	for reaction in reactions_refseqs:
@@ -249,16 +254,20 @@ if args.reaction_to_gene is None:
 	print len(rseq_list), 'reference sequences to search'
 	sys.stdout.flush()
 
-	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, genome_db_path, 
-		experiment_path, cpu=args.cpu_count, raise_blast_error=False)
+	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, 
+		genome_db_path, experiment_path, cpu=args.cpu_count, 
+		raise_blast_error=False)
 
-	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast, 'query acc.', 
-		cpu=args.cpu_count)
+	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast, 
+		'query acc.', cpu=args.cpu_count)
+	del reaction_to_gene_blast
 
 	reaction_groups = reaction_to_gene.groupby('query acc.')
 	multidx = reaction_groups['e_score'].apply(mg.keep_top_blast).index
+	del reaction_groups
 	idx = multidx.levels[1]
 	reaction_to_gene_top = reaction_to_gene.loc[idx]
+	del reaction_to_gene
 	reaction_to_gene_top.to_pickle(os.path.join(experiment_path, 
 											'reaction_to_gene.pkl'))
 	print '!@# reaction_to_gene table done in %s minutes and saved to %s'\
@@ -274,9 +283,12 @@ start = time.time()
 
 compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top, 
 							on='reaction_id', how='left')
+del reaction_to_gene_top
+del compound_to_reaction
 
-
-compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', 'e_score', 'compound_score', 'original_compound', 'level', 'neighbor', 'note']]
+compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', \
+							'e_score', 'compound_score', 'original_compound', \
+							'level', 'neighbor', 'note']]
 del compound_to_gene
 
 # okay to drop duplicates, because i only care about these columns 
@@ -284,13 +296,16 @@ del compound_to_gene
 # matter or can easily be re-expanded by joining 
 compound_to_gene_small.drop_duplicates(inplace=True)
 
-gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id', 'e_score']]
+gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id', \
+												'e_score']]
+del gene_to_reaction_top
 gene_to_reaction_small.drop_duplicates(inplace=True)
 
 # Make an integrated dataframe, joining on the gene
-df = pd.merge(compound_to_gene_small, gene_to_reaction_top, 
+df = pd.merge(compound_to_gene_small, gene_to_reaction_small, 
 	left_on='subject acc.', right_on='query acc.', 
 	suffixes=('_r2g', '_g2r'), how='outer')
+
 df.reset_index(inplace=True, drop=True)
 df.drop_duplicates(inplace=True)
 df.to_pickle(os.path.join(experiment_path, 'merged_before_score.pkl'))
@@ -303,41 +318,25 @@ print 'Calculating final scores...'
 start = time.time()
 sys.stdout.flush()
 
-# delete unused variables to prevent memory error
-del compounds
-del reaction_to_gene
-del reaction_to_gene_top
-del reaction_groups
-del reactions
-del compound_to_reaction
-del gene_to_reaction_top
-del gene_to_reaction
-del genome
-del gene_blast
-del out
-del reaction_to_gene_blast
-
-
 # score reciprocal agreement
 # find agreement
 agree_idx = df[df['reaction_id_r2g'] == df['reaction_id_g2r']].index
 df.loc[agree_idx, 'reciprocal_score'] = 2.
-
 # disagreement
 disagree = df[df['reaction_id_r2g'] != df['reaction_id_g2r']].index
 slc = df.loc[disagree]
-
 # close disagreements get a medium score
-close = slc[['e_score_r2g', 'e_score_g2r']].min(axis=1) > (slc[['e_score_r2g', 'e_score_g2r']].max(axis=1)*0.75)
+close = slc[['e_score_r2g', 'e_score_g2r']].min(axis=1) > (slc[['e_score_r2g',\
+			'e_score_g2r']].max(axis=1)*0.75)
 close_idx = slc.loc[close].index
 df.loc[close_idx, 'reciprocal_score'] = 1
-
 # very different disagreements get a low score
 wrong_idx = df[pd.isnull(df['reciprocal_score'])].index
 df.loc[wrong_idx, 'reciprocal_score'] = 0.01
-
-# if one direction did not get a blast score, change reciprocal score to 0.1 - not wrong, but not close either.
-incomparable_idx = df.loc[pd.isnull(df[['e_score_r2g', 'e_score_g2r']]).any(axis=1)].index
+# if one direction did not get a blast score, 
+# change reciprocal score to 0.1 - not wrong, but not close either.
+incomparable_idx = df.loc[pd.isnull(df[['e_score_r2g', 'e_score_g2r']]
+	).any(axis=1)].index
 df.loc[incomparable_idx, 'reciprocal_score'] = 0.1
 
 df.sort_values(['original_compound', 'level'])
@@ -358,7 +357,8 @@ sys.stdout.flush()
 start = time.time()
 
 # calculate final MAGI integrated score
-scoring_data = ['level_adjusted_compound_score', 'reciprocal_score', 'homology_score']
+scoring_data = ['level_adjusted_compound_score', 'reciprocal_score', \
+				'homology_score']
 scores = []
 to_score = df[scoring_data].values
 data = []
