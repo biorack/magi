@@ -132,7 +132,7 @@ genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH,
 										annotation_file=args.annotations)
 
 # load pactolus results
-print '\n*** PACTOLUS RESULTS ***'
+print '\n*** LOADING COMPOUNDS ***'
 compounds = mg.load_dataframe(args.compounds)
 compounds.fillna('', inplace=True)
 
@@ -180,7 +180,7 @@ else:
 
 
 # compound to reaction search
-if compound_to_reaction is None:
+if args.compound_to_reaction is None:
 	print 'Conducting compound to reaction search'
 	sys.stdout.flush()
 	start = time.time()
