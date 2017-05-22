@@ -41,6 +41,9 @@ parser.add_argument('-t', '--tautomer',
 parser.add_argument('--mute', 
 	help='mutes pandas warnings', 
 	action='store_true')
+parser.add_argument('--debug', 
+	help='prints a lot of info', 
+	action='store_true')
 # jump-start the script after certain computations
 # after the initial level 0 tautomer and blast search
 parser.add_argument('--gene_to_reaction', 
@@ -152,18 +155,20 @@ print 'Conducting gene to reaction search'
 start = time.time()
 gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
 	experiment_path, raise_blast_error=False, cpu=args.cpu_count)
-print '... Homology searching done in %s minutes' %((time.time() - start) / 60)
+
+print '!@# Homology searching done in %s minutes' %((time.time() - start) / 60)
 gene_blast.to_csv(os.path.join(experiment_path, 'gene_blast.csv'))
 print '... scored blast results saved to %s' \
 		%(os.path.join(experiment_path, 'gene_blast.csv'))
 
+start = time.time()
 gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.', 
 	cpu=args.cpu_count)
 gene_groups = gene_to_reaction.groupby('query acc.')
 multidx = gene_groups['e_score'].apply(mg.keep_top_blast).index
 idx = multidx.levels[1]
 gene_to_reaction_top = gene_to_reaction.loc[idx]
-print '... gene_to_reaction table completed in %s minutes' \
+print '!@# gene_to_reaction table completed in %s minutes' \
 		%((time.time() - start) / 60)
 
 gene_to_reaction_top.to_csv(os.path.join(experiment_path, 
@@ -171,6 +176,7 @@ gene_to_reaction_top.to_csv(os.path.join(experiment_path,
 
 # compound to reaction search
 print 'Conducting compound to reaction search'
+sys.stdout.flush()
 start = time.time()
 
 def connect_compound_to_reaction_mp_helper(inchikey, 
@@ -206,12 +212,13 @@ compound_to_reaction = pd.merge(compounds, compound_to_reaction,
 compound_to_reaction.to_csv(os.path.join(experiment_path, 
 										'compound_to_reaction.csv'))
 
-print '... compound_to_reaction table done in %s minutes and saved to %s'\
+print '!@# compound_to_reaction table done in %s minutes and saved to %s'\
 		%((time.time()-start)/60, os.path.join(experiment_path, 
 											'compound_to_reaction.csv'))
 
 # reaction to gene search
 print 'Conducting reaction to gene search'
+sys.stdout.flush()
 start = time.time()
 
 # set up a list of reference sequences to blast against the genome
@@ -230,6 +237,7 @@ rseq_list = list(set(rseq_list))
 # query_full_table is the refseq table
 # database_path is the path to the genome's blast database
 print len(rseq_list), 'reference sequences to search'
+sys.stdout.flush()
 
 reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, genome_db_path, 
 	experiment_path, cpu=args.cpu_count, raise_blast_error=False)
@@ -243,20 +251,58 @@ idx = multidx.levels[1]
 reaction_to_gene_top = reaction_to_gene.loc[idx]
 reaction_to_gene_top.to_csv(os.path.join(experiment_path, 
 										'reaction_to_gene.csv'))
-print '... reaction_to_gene table done in %s minutes and saved to %s'\
+print '!@# reaction_to_gene table done in %s minutes and saved to %s'\
 		%((time.time()-start)/60, os.path.join(experiment_path, 
 											'reaction_to_gene.csv'))
+
+print 'Merging final table'
+sys.stdout.flush()
+start = time.time()
 
 compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top, 
 							on='reaction_id', how='left')
 
+
+compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', 'e_score', 'compound_score', 'original_compound', 'level','neighbor', 'note']]
+del compound_to_gene
+# okay to drop duplicates, because i only care about these columns 
+# anyway; if these are duplicated then other information doesn't really 
+# matter or can easily be re-expanded by joining 
+compound_to_gene_small.drop_duplicates(inplace=True)
+
+gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id', 'e_score']]
+gene_to_reaction_small.drop_duplicates(inplace=True)
+
 # Make an integrated dataframe, joining on the gene
-df = pd.merge(compound_to_gene, gene_to_reaction_top, 
+df = pd.merge(compound_to_gene_small, gene_to_reaction_top, 
 	left_on='subject acc.', right_on='query acc.', 
 	suffixes=('_r2g', '_g2r'), how='outer')
 df.reset_index(inplace=True, drop=True)
+df.drop_duplicates(inplace=True)
+df.to_csv(os.path.join(experiment_path, 'merged_before_score.csv'))
+
+print '!@#Final Merged table done in %s minutes and saved to %s'\
+	%((time.time() - start) / 60, os.path.join(experiment_path, 
+											'merged_before_score.csv'))
 
 print 'Calculating final scores...'
+start = time.time()
+sys.stdout.flush()
+
+# delete unused variables to prevent memory error
+del compounds
+del reaction_to_gene
+del reaction_to_gene_top
+del reaction_groups
+del reactions
+del compound_to_reaction
+del gene_to_reaction_top
+del gene_to_reaction
+del genome
+del gene_blast
+del out
+del reaction_to_gene_blast
+
 
 # score reciprocal agreement
 # find agreement
@@ -291,6 +337,12 @@ df['homology_score'] = score
 # adjust compound score by leveled search
 df['level_adjusted_compound_score'] = df['compound_score'].values / \
 											(10 ** df['level'].values)
+
+print '!@# Pre-scoring done in %s minutes' %((time.time() - start) / 60)
+print 'Calculating final integrated MAGI score'
+sys.stdout.flush()
+start = time.time()
+
 # calculate final MAGI integrated score
 scoring_data = ['level_adjusted_compound_score', 'reciprocal_score', 'homology_score']
 scores = []
@@ -301,20 +353,19 @@ for s in to_score:
 scores.append(data)
 df['MAGI_score'] = scores[0] / (10. ** df['level'].values)
 
-# merge with annotation table
 # find gene ids that are floats, convert those to strings, without the decimal
-float_entries = df['subject acc._r2g'].apply(lambda x: isinstance(x, float))
-df.loc[float_entries, 'subject acc._r2g'] = df.loc[float_entries, \
-				'subject acc._r2g'].apply(lambda x: "{:.0f}".format(x))
-# merge with genome table
-df = df.merge(genome, left_on='subject acc._r2g', right_index=True, how='left')
+float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
+df.loc[float_entries, 'subject acc.'] = df.loc[float_entries, \
+				'subject acc.'].apply(lambda x: "{:.0f}".format(x))
 
 # sort the final table
 df.sort_values(['original_compound', 'MAGI_score'], 
 				ascending=[True, False], inplace=True)
 
+# save the dataframe
 df.to_csv(os.path.join(experiment_path, 'magi_results.csv'))
 
+print '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60)
 print 'MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
 print 'final results stored to %s' \
 		%(os.path.join(experiment_path, 'magi_results.csv'))
