@@ -157,7 +157,7 @@ gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath,
 	experiment_path, raise_blast_error=False, cpu=args.cpu_count)
 
 print '!@# Homology searching done in %s minutes' %((time.time() - start) / 60)
-gene_blast.to_csv(os.path.join(experiment_path, 'gene_blast.csv'))
+gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
 print '... scored blast results saved to %s' \
 		%(os.path.join(experiment_path, 'gene_blast.csv'))
 
@@ -171,8 +171,8 @@ gene_to_reaction_top = gene_to_reaction.loc[idx]
 print '!@# gene_to_reaction table completed in %s minutes' \
 		%((time.time() - start) / 60)
 
-gene_to_reaction_top.to_csv(os.path.join(experiment_path, 
-										'gene_to_reaction.csv'))
+gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
+										'gene_to_reaction.pkl'))
 
 # compound to reaction search
 print 'Conducting compound to reaction search'
@@ -209,8 +209,8 @@ compounds['original_compound'] = compounds['original_compound'].apply(
 compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
 								on='original_compound', how='inner')
 
-compound_to_reaction.to_csv(os.path.join(experiment_path, 
-										'compound_to_reaction.csv'))
+compound_to_reaction.to_pickle(os.path.join(experiment_path, 
+										'compound_to_reaction.pkl'))
 
 print '!@# compound_to_reaction table done in %s minutes and saved to %s'\
 		%((time.time()-start)/60, os.path.join(experiment_path, 
@@ -249,8 +249,8 @@ reaction_groups = reaction_to_gene.groupby('query acc.')
 multidx = reaction_groups['e_score'].apply(mg.keep_top_blast).index
 idx = multidx.levels[1]
 reaction_to_gene_top = reaction_to_gene.loc[idx]
-reaction_to_gene_top.to_csv(os.path.join(experiment_path, 
-										'reaction_to_gene.csv'))
+reaction_to_gene_top.to_pickle(os.path.join(experiment_path, 
+										'reaction_to_gene.pkl'))
 print '!@# reaction_to_gene table done in %s minutes and saved to %s'\
 		%((time.time()-start)/60, os.path.join(experiment_path, 
 											'reaction_to_gene.csv'))
@@ -279,7 +279,7 @@ df = pd.merge(compound_to_gene_small, gene_to_reaction_top,
 	suffixes=('_r2g', '_g2r'), how='outer')
 df.reset_index(inplace=True, drop=True)
 df.drop_duplicates(inplace=True)
-df.to_csv(os.path.join(experiment_path, 'merged_before_score.csv'))
+df.to_pickle(os.path.join(experiment_path, 'merged_before_score.pkl'))
 
 print '!@#Final Merged table done in %s minutes and saved to %s'\
 	%((time.time() - start) / 60, os.path.join(experiment_path, 
