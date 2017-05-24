@@ -274,7 +274,7 @@ if args.reaction_to_gene is None:
 			%((time.time()-start)/60, os.path.join(experiment_path, 
 												'reaction_to_gene.pkl'))
 else:
-	reaction_to_gene = pd.read_pickle(args.reaction_to_gene)
+	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
 	print 'reaction_to_gene successfully loaded'
 
 print 'Merging final table'
@@ -308,7 +308,8 @@ df = pd.merge(compound_to_gene_small, gene_to_reaction_small,
 
 df.reset_index(inplace=True, drop=True)
 df.drop_duplicates(inplace=True)
-df.to_pickle(os.path.join(experiment_path, 'merged_before_score.pkl'))
+df.to_hdf(os.path.join(experiment_path, 'merged_before_score.h5'),
+	'merged_before_score', mode='w', complib='blosc', complevel=9)
 
 print '!@#Final Merged table done in %s minutes and saved to %s'\
 	%((time.time() - start) / 60, os.path.join(experiment_path, 
