@@ -3,6 +3,32 @@ Metabolites Annotations and Genes Integrated (MAGI)
 
 MAGI 1.0a workflow script
 
+Required inputs are a FASTA file and a Compounds file.
+The FASTA file should be in standard FASTA format, E.g.:
+'''fasta
+> UNIQUE_GENE_ID OTHER_INFORMATION
+AMINO_ACID_SEQUENCE
+
+> UNIQUE_GENE_ID OTHER_INFORMATION
+AMINO_ACID_SEQUENCE
+'''
+*Please note the space in between UNIQUE_GENE_ID and OTHER_INFORMATION*
+
+The FASTA file will be used to make a BLAST database, and to make a
+gene table with these columns:
+Gene_ID        | header                           | sequence
+-----------------------------------------------------------------------
+UNIQUE_GENE_ID | UNIQUE_GENE_ID OTHER_INFORMATION | AMINO_ACID_SEQUENCE
+
+The Compounds file should be in some standard table format (CSV, tab-
+delimited, etc.), and is required to have a column named 
+"original_compound" (case-sensitive). In this column should be standard
+InChI Keys representing a compound structure.
+
+The Compounds table may also have a column named "compound_score" 
+(case-sensitive), where the user can provide a score for each 
+compound-row. If this column name does not exist, one will be created
+and populated with 1.0
 """
 
 import argparse
@@ -133,6 +159,8 @@ genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH,
 # load pactolus results
 print '\n*** LOADING COMPOUNDS ***'
 compounds = mg.load_dataframe(args.compounds)
+# remove any missing compounds
+compounds = compounds[~pd.isnull(compounds['original_compound'])]
 compounds.fillna('', inplace=True)
 
 if 'original_compound' not in compounds.columns:
@@ -159,7 +187,7 @@ if args.gene_to_reaction is None:
 	print '!@# Homology searching done in %s minutes' \
 			%((time.time() - start) / 60)
 	gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
-	print '... scored blast results saved to %s' \
+	print '!@# scored blast results saved to %s' \
 			%(os.path.join(experiment_path, 'gene_blast.pkl'))
 
 	start = time.time()
@@ -176,6 +204,8 @@ if args.gene_to_reaction is None:
 
 	gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
 											'gene_to_reaction.pkl'))
+	print '!@# gene to reaction results saved to %s' \
+			%(os.path.join(experiment_path, 'gene_to_reaction.pkl'))
 else:
 	gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
 	print 'gene_to_reaction successfully loaded'
@@ -183,7 +213,7 @@ del genome
 
 # compound to reaction search
 if args.compound_to_reaction is None:
-	print 'Conducting compound to reactio#!n search'
+	print 'Conducting compound to reaction search'
 	sys.stdout.flush()
 	start = time.time()
 
