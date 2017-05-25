@@ -191,8 +191,7 @@ if args.gene_to_reaction is None:
 			%(os.path.join(experiment_path, 'gene_blast.pkl'))
 
 	start = time.time()
-	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.', 
-		cpu=args.cpu_count)
+	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
 	del gene_blast
 	gene_groups = gene_to_reaction.groupby('query acc.')
 	multidx = gene_groups['e_score'].apply(mg.keep_top_blast).index
@@ -288,8 +287,8 @@ if args.reaction_to_gene is None:
 		genome_db_path, experiment_path, cpu=args.cpu_count, 
 		raise_blast_error=False)
 
-	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast, 
-		'query acc.', cpu=args.cpu_count)
+	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast,
+		'query acc.')
 	del reaction_to_gene_blast
 
 	reaction_groups = reaction_to_gene.groupby('query acc.')
