@@ -45,6 +45,15 @@ parser.add_argument('-f', '--fasta',
 parser.add_argument('-c', '--compounds', 
 	help='path to observed compounds file', 
 	required=True)
+
+# jump-start the script after certain computations
+parser.add_argument('--gene_to_reaction', 
+	help='path to gene_to_reaction file, must be in pickle format')
+parser.add_argument('--compound_to_reaction', 
+	help='path to compound_to_reaction file, must be in pickle format')
+parser.add_argument('--reaction_to_gene', 
+	help='path to reaction_to_gene file, must be in pickle format')
+
 # optional runtime variables
 parser.add_argument('-a', '--annotations', 
 	help='path to annotation file for genes in sample', 
@@ -55,9 +64,6 @@ parser.add_argument('-n', '--cpu_count',
 parser.add_argument('-o', '--output', 
 	help='path to a custom output', 
 	type=str)
-parser.add_argument('--test', 
-	help='TBD: run MAGI only on the first # of pactolus compounds', 
-	type=int)
 parser.add_argument('-l', '--level', 
 	help='how many levels deep to search the chemical network', 
 	type=int, choices=[1,2,3], default=2)
@@ -67,16 +73,15 @@ parser.add_argument('-t', '--tautomer',
 parser.add_argument('--mute', 
 	help='mutes pandas warnings', 
 	action='store_true')
+parser.add_argument('--pactolus', 
+	help='Flag to tell MAGI that the compounds input is a pactolus file', 
+	action='store_true')
+parser.add_argument('--test', 
+	help='TBD: run MAGI only on the first # of pactolus compounds', 
+	type=int)
 parser.add_argument('--debug', 
 	help='TBD: prints a lot of info', 
 	action='store_true')
-# jump-start the script after certain computations
-parser.add_argument('--gene_to_reaction', 
-	help='path to gene_to_reaction file, must be in pickle format')
-parser.add_argument('--compound_to_reaction', 
-	help='path to compound_to_reaction file, must be in pickle format')
-parser.add_argument('--reaction_to_gene', 
-	help='path to reaction_to_gene file, must be in pickle format')
 
 args = parser.parse_args()
 
@@ -159,6 +164,9 @@ genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH,
 # load pactolus results
 print '\n*** LOADING COMPOUNDS ***'
 compounds = mg.load_dataframe(args.compounds)
+# auto-rename pactolus columns
+if args.pactolus:
+	compounds = mg.reformat_pactolus(compounds)
 # remove any missing compounds
 compounds = compounds[~pd.isnull(compounds['original_compound'])]
 compounds.fillna('', inplace=True)
