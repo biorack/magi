@@ -345,8 +345,23 @@ df = pd.merge(compound_to_gene_small, gene_to_reaction_small,
 
 df.reset_index(inplace=True, drop=True)
 df.drop_duplicates(inplace=True)
+
+# Clean up stupid NaNs in string columns
+def check_str(x):
+    if isinstance(x, str):
+        return True
+    else:
+        return False
+
+for c in df.columns:
+    if len(df[c].apply(type).unique()) > 1:
+        string_checked = df[c].apply(check_str)
+        if string_checked.any():
+            df[c].fillna('', inplace=True)
+
 df.to_hdf(os.path.join(experiment_path, 'merged_before_score.h5'),
-	'merged_before_score', mode='w', complib='blosc', complevel=9)
+	'merged_before_score', mode='w', format='table',
+	complib='blosc', complevel=9)
 
 print '!@#Final Merged table done in %s minutes and saved to %s'\
 	%((time.time() - start) / 60, os.path.join(experiment_path, 
