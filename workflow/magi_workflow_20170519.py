@@ -382,27 +382,7 @@ start = time.time()
 sys.stdout.flush()
 
 # score reciprocal agreement
-# find agreement
-agree_idx = df[df['reaction_id_r2g'] == df['reaction_id_g2r']].index
-df.loc[agree_idx, 'reciprocal_score'] = 2.
-# disagreement
-disagree = df[df['reaction_id_r2g'] != df['reaction_id_g2r']].index
-slc = df.loc[disagree]
-# close disagreements get a medium score
-close = slc[['e_score_r2g', 'e_score_g2r']].min(axis=1) > (slc[['e_score_r2g',\
-			'e_score_g2r']].max(axis=1)*0.75)
-close_idx = slc.loc[close].index
-df.loc[close_idx, 'reciprocal_score'] = 1
-# very different disagreements get a low score
-wrong_idx = df[pd.isnull(df['reciprocal_score'])].index
-df.loc[wrong_idx, 'reciprocal_score'] = 0.01
-# if one direction did not get a blast score, 
-# change reciprocal score to 0.1 - not wrong, but not close either.
-incomparable_idx = df.loc[pd.isnull(df[['e_score_r2g', 'e_score_g2r']]
-	).any(axis=1)].index
-df.loc[incomparable_idx, 'reciprocal_score'] = 0.1
-
-df.sort_values(['original_compound', 'level'])
+df = mg.reciprocal_agreement(df)
 
 # calculate homology score
 score = mg.homology_score(df)
