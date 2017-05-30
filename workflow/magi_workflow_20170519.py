@@ -327,9 +327,10 @@ if args.merged_prescore is None:
 	del reaction_to_gene_top
 	del compound_to_reaction
 
-	compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', \
-								'e_score', 'compound_score', 'original_compound', \
-								'level', 'neighbor', 'note']]
+	compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id',
+								'e_score', 'compound_score',
+								'original_compound', 'level', 'neighbor',
+								'note']]
 	del compound_to_gene
 
 	# okay to drop duplicates, because i only care about these columns 
@@ -337,7 +338,7 @@ if args.merged_prescore is None:
 	# matter or can easily be re-expanded by joining 
 	compound_to_gene_small.drop_duplicates(inplace=True)
 
-	gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id', \
+	gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id',
 													'e_score']]
 	del gene_to_reaction_top
 	gene_to_reaction_small.drop_duplicates(inplace=True)
