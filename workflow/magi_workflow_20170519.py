@@ -53,6 +53,9 @@ parser.add_argument('--compound_to_reaction',
 	help='path to compound_to_reaction file, must be in pickle format')
 parser.add_argument('--reaction_to_gene', 
 	help='path to reaction_to_gene file, must be in pickle format')
+parser.add_argument('--merged_before_score', 
+	help='path to merged_before_score table, must be in hdf5 format,\
+	with the key "merged_before_score"')
 
 # optional runtime variables
 parser.add_argument('-a', '--annotations', 
@@ -314,58 +317,65 @@ else:
 	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
 	print 'reaction_to_gene successfully loaded'
 
-print 'Merging final table'
-sys.stdout.flush()
-start = time.time()
+if args.merged_prescore is None:
+	print 'Merging final table'
+	sys.stdout.flush()
+	start = time.time()
 
-compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top, 
-							on='reaction_id', how='left')
-del reaction_to_gene_top
-del compound_to_reaction
+	compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top, 
+								on='reaction_id', how='left')
+	del reaction_to_gene_top
+	del compound_to_reaction
 
-compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', \
-							'e_score', 'compound_score', 'original_compound', \
-							'level', 'neighbor', 'note']]
-del compound_to_gene
+	compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id', \
+								'e_score', 'compound_score', 'original_compound', \
+								'level', 'neighbor', 'note']]
+	del compound_to_gene
 
-# okay to drop duplicates, because i only care about these columns 
-# anyway; if these are duplicated then other information doesn't really 
-# matter or can easily be re-expanded by joining 
-compound_to_gene_small.drop_duplicates(inplace=True)
+	# okay to drop duplicates, because i only care about these columns 
+	# anyway; if these are duplicated then other information doesn't really 
+	# matter or can easily be re-expanded by joining 
+	compound_to_gene_small.drop_duplicates(inplace=True)
 
-gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id', \
-												'e_score']]
-del gene_to_reaction_top
-gene_to_reaction_small.drop_duplicates(inplace=True)
+	gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id', \
+													'e_score']]
+	del gene_to_reaction_top
+	gene_to_reaction_small.drop_duplicates(inplace=True)
 
-# Make an integrated dataframe, joining on the gene
-df = pd.merge(compound_to_gene_small, gene_to_reaction_small, 
-	left_on='subject acc.', right_on='query acc.', 
-	suffixes=('_r2g', '_g2r'), how='outer')
+	# Make an integrated dataframe, joining on the gene
+	df = pd.merge(compound_to_gene_small, gene_to_reaction_small, 
+		left_on='subject acc.', right_on='query acc.', 
+		suffixes=('_r2g', '_g2r'), how='outer')
 
-df.reset_index(inplace=True, drop=True)
-df.drop_duplicates(inplace=True)
+	df.reset_index(inplace=True, drop=True)
+	df.drop_duplicates(inplace=True)
 
-# Clean up stupid NaNs in string columns
-def check_str(x):
-    if isinstance(x, str):
-        return True
-    else:
-        return False
+	# Clean up stupid NaNs in string columns
+	def check_str(x):
+	    if isinstance(x, str):
+	        return True
+	    else:
+	        return False
 
-for c in df.columns:
-    if len(df[c].apply(type).unique()) > 1:
-        string_checked = df[c].apply(check_str)
-        if string_checked.any():
-            df[c].fillna('', inplace=True)
+	for c in df.columns:
+	    if len(df[c].apply(type).unique()) > 1:
+	        string_checked = df[c].apply(check_str)
+	        if string_checked.any():
+	            df[c].fillna('', inplace=True)
 
-df.to_hdf(os.path.join(experiment_path, 'merged_before_score.h5'),
-	'merged_before_score', mode='w', format='table',
-	complib='blosc', complevel=9)
+	df.to_hdf(os.path.join(experiment_path, 'merged_before_score.h5'),
+		'merged_before_score', mode='w', format='table',
+		complib='blosc', complevel=9)
 
-print '!@#Final Merged table done in %s minutes and saved to %s'\
-	%((time.time() - start) / 60, os.path.join(experiment_path, 
-											'merged_before_score.pkl'))
+	print '!@#Final Merged table done in %s minutes and saved to %s'\
+		%((time.time() - start) / 60, os.path.join(experiment_path, 
+												'merged_before_score.pkl'))
+else:
+	del reaction_to_gene_top
+	del compound_to_reaction
+	del gene_to_reaction_top
+	df = pd.read_pickle(args.merged_prescore, 'merged_before_score')
+	print 'merged_before_score successfully loaded'
 
 print 'Calculating final scores...'
 start = time.time()
