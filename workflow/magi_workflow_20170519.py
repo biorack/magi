@@ -30,11 +30,17 @@ The Compounds table may also have a column named "compound_score"
 compound-row. If this column name does not exist, one will be created
 and populated with 1.0
 """
+# TODO: make fixed typing in columns, particularly reaction_id
 
 import argparse
 import os
 import warnings
 import multiprocessing as mp
+import pandas as pd
+import numpy as np
+import time
+import pickle
+import datetime
 
 # parse arguments
 parser = argparse.ArgumentParser()
@@ -124,23 +130,26 @@ if args.mute:
 	print '!!! Warnings are muted !!!'
 	warnings.filterwarnings('ignore')
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#local_settings file stuff
-
-# import these after all the argument checking, because it takes so long
 import sys
-sys.path.insert(0, '/project/projectdirs/metatlas/projects/metatlas_reactions/workflow/helpertools')
+# load local settings
+sys.path.insert(
+    0,
+    '/project/projectdirs/metatlas/projects/metatlas_reactions/')
+from local_settings import local_settings as settings_loc
+my_settings = getattr(
+    __import__(
+        'local_settings',
+        fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
+
+# import workflow helpers after all the argument checking
+sys.path.insert(
+	0,
+	os.path.join(my_settings.repo_location, 'workflow/helpertools'))
 import magitools2 as mg
-import pandas as pd
-import numpy as np
-import time
-import pickle
-import datetime
 print '\n'
 
 # path to MAGI data storage
-MAGI_PATH = '/global/project/projectdirs/openmsi/projects/temp_chem_net_data/MAGI_data'
-#~~~~~~~~~~~~~~~~~~~~~~~~~
+MAGI_PATH = my_settings.magi_results_storage
 
 # set up where the results will be stored
 if args.output is None:
@@ -317,7 +326,7 @@ else:
 	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
 	print 'reaction_to_gene successfully loaded'
 
-if args.merged_prescore is None:
+if args.merged_before_score is None:
 	print 'Merging final table'
 	sys.stdout.flush()
 	start = time.time()
@@ -351,6 +360,11 @@ if args.merged_prescore is None:
 	df.reset_index(inplace=True, drop=True)
 	df.drop_duplicates(inplace=True)
 
+	# Clean up reaction_id_r2g column
+	idx = df[df['reaction_id_r2g'] == ''].index
+	df.loc[idx, 'reaction_id_r2g'] = np.nan
+	df['reaction_id_r2g'] = df['reaction_id_r2g'].astype(float)
+
 	# Clean up stupid NaNs in string columns
 	def check_str(x):
 	    if isinstance(x, str):
@@ -363,6 +377,9 @@ if args.merged_prescore is None:
 	        string_checked = df[c].apply(check_str)
 	        if string_checked.any():
 	            df[c].fillna('', inplace=True)
+
+	# Clean up neighbor column
+	df['neighbor'] = df['neighbor'].astype(str)
 
 	df.to_hdf(os.path.join(experiment_path, 'merged_before_score.h5'),
 		'merged_before_score', mode='w', format='table',
