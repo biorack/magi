@@ -30,7 +30,7 @@ The Compounds table may also have a column named "compound_score"
 compound-row. If this column name does not exist, one will be created
 and populated with 1.0
 """
-# TODO: make fixed typing in columns, particularly reaction_id
+# TODO: make fixed typing in columns, particularly reaction_id and neighor
 
 import argparse
 import os
@@ -94,10 +94,15 @@ parser.add_argument('--debug',
 
 args = parser.parse_args()
 
+# Convert paths to absolute paths
+args.fasta = os.path.abspath(args.fasta)
+args.compounds = os.path.abspath(args.compounds)
+
 # print your paths in stdout for logging
 print '@@@ FASTA file input: %s' %(args.fasta)
 print '@@@ compound input: %s' %(args.compounds)
 if args.annotations is not None:
+	args.annotations =  os.path.abspath(args.annotations)
 	print '@@@ annotations input: %s' %(args.annotations)
 
 max_cpu = mp.cpu_count()
@@ -109,18 +114,21 @@ if args.cpu_count == 0:
 	args.cpu_count = max_cpu
 
 if args.gene_to_reaction is not None:
+	args.gene_to_reaction =  os.path.abspath(args.gene_to_reaction)
 	if not os.path.isfile(args.gene_to_reaction):
 		raise IOError('%s does not exist!' %(args.gene_to_reaction))
 	else:
 		print '@@@ gene_to_reaction input: %s' %(args.gene_to_reaction)
 
 if args.compound_to_reaction is not None:
+	args.compound_to_reaction =  os.path.abspath(args.compound_to_reaction)
 	if not os.path.isfile(args.compound_to_reaction):
 		raise IOError('%s does not exist!' %(args.compound_to_reaction))
 	else:
 		print '@@@ compound_to_reaction input: %s' %(args.compound_to_reaction)
 
 if args.reaction_to_gene is not None:
+	args.reaction_to_gene =  os.path.abspath(args.reaction_to_gene)
 	if not os.path.isfile(args.reaction_to_gene):
 		raise IOError('%s does not exist!' %(args.reaction_to_gene))
 	else:
@@ -159,6 +167,8 @@ if args.output is None:
 	experiment_path = '%s/%s' %(MAGI_PATH, experiment_name)
 else:
 	experiment_path = args.output
+
+experiment_path = os.path.abspath(experiment_path)
 
 print '@@@ Saving all results here:', experiment_path
 if not os.path.isdir(experiment_path):
