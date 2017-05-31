@@ -32,6 +32,7 @@ and populated with 1.0
 """
 # TODO: make fixed typing in columns, particularly reaction_id and neighor
 
+import sys
 import argparse
 import os
 import warnings
@@ -41,6 +42,13 @@ import numpy as np
 import time
 import pickle
 import datetime
+
+# print versions of troublesome modules
+print 'Python version:', sys.version
+print 'numpy version: ', np.__version__
+print 'pandas version:', pd.__version__
+print 'pickle version:', pickle.__version__
+print '#'*80
 
 # parse arguments
 parser = argparse.ArgumentParser()
@@ -138,7 +146,6 @@ if args.mute:
 	print '!!! Warnings are muted !!!'
 	warnings.filterwarnings('ignore')
 
-import sys
 # load local settings
 sys.path.insert(
     0,
