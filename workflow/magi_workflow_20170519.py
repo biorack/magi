@@ -160,7 +160,7 @@ my_settings = getattr(
 sys.path.insert(
 	0,
 	os.path.join(my_settings.repo_location, 'workflow/helpertools'))
-import magitools2 as mg
+import workflow_helpers as mg
 print '\n'
 
 # path to MAGI data storage
