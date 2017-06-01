@@ -31,6 +31,7 @@ compound-row. If this column name does not exist, one will be created
 and populated with 1.0
 """
 # TODO: make fixed typing in columns, particularly reaction_id and neighor
+# TODO: find the best way to level adjust the MAGI score. 10^n is too strong
 
 import sys
 import argparse
@@ -425,9 +426,15 @@ score = mg.homology_score(df)
 score[pd.isnull(score)] = 1
 df['homology_score'] = score
 
-# adjust compound score by leveled search
+# adjust compound score slightly by leveled search
 df['level_adjusted_compound_score'] = df['compound_score'].values / \
-											(10 ** df['level'].values)
+											(df['level'].values + 1)
+
+# reaction connection score says if the compound got connected to any
+# reaction in the database. Can't have zero because that messes up
+# geometric mean, so added a small number.
+df['reaction_connection'] = df[['reaction_id_r2g', 'reaction_id_g2r']]\
+								.apply(pd.notnull).sum(axis=1) + 0.01
 
 print '!@# Pre-scoring done in %s minutes' %((time.time() - start) / 60)
 print 'Calculating final integrated MAGI score'
@@ -436,7 +443,7 @@ start = time.time()
 
 # calculate final MAGI integrated score
 scoring_data = ['level_adjusted_compound_score', 'reciprocal_score', \
-				'homology_score']
+				'homology_score', 'reaction_connection']
 scores = []
 to_score = df[scoring_data].values
 data = []
