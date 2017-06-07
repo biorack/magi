@@ -280,8 +280,6 @@ if args.compound_to_reaction is None:
 	compound_to_reaction.reset_index(inplace=True, drop=True)
 
 	# connect the compound score
-	compounds['original_compound'] = compounds['original_compound'].apply(
-										lambda x: '-'.join(x.split('-')[:2]))
 	compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
 									on='original_compound', how='inner')
 
