@@ -461,8 +461,18 @@ df.loc[float_entries, 'subject acc.'] = df.loc[float_entries, \
 df.sort_values(['original_compound', 'MAGI_score'], 
 				ascending=[True, False], inplace=True)
 
-# save the dataframe
+# save the full dataframe
 df.to_csv(os.path.join(experiment_path, 'magi_results.csv'))
+
+# save a compound-centric dataframe, where only the best row for each
+# original_compound was chosen (this is only for compound scoring, do
+# not use this for any kind of gene function analysis!)
+
+compound_centric = df[pd.notnull(df['original_compound'])]\
+					 .sort_values('MAGI_score', ascending=False)\
+					 .drop_duplicates(['original_compound', 'compound_score'])
+compound_centric.to_csv(os.path.join(experiment_path, 
+	'magi_compound_results.csv'))
 
 print '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60)
 print 'MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
