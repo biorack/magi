@@ -455,9 +455,15 @@ float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
 df.loc[float_entries, 'subject acc.'] = df.loc[float_entries, \
 				'subject acc.'].apply(lambda x: "{:.0f}".format(x))
 
-# sort the final table
-df.sort_values(['original_compound', 'MAGI_score'], 
-				ascending=[True, False], inplace=True)
+# sort the final table and drop key duplicates
+df = df.sort_values(
+	['original_compound', 'MAGI_score'], 
+	ascending=[True, False]
+	).drop_duplicates(
+		['original_compound', 'level', 'neighbor', 'compound_score',
+		 'reciprocal_score', 'query acc.', 'reaction_id_r2g',
+		 'reaction_id_g2r']
+		 )
 
 # save the full dataframe
 df.to_csv(os.path.join(experiment_path, 'magi_results.csv'))
