@@ -283,7 +283,6 @@ if args.compound_to_reaction is None:
 	compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
 									on='original_compound', how='inner')
 
-	del compounds
 	compound_to_reaction.to_pickle(os.path.join(experiment_path, 
 											'compound_to_reaction.pkl'))
 
@@ -475,6 +474,10 @@ df.to_csv(os.path.join(experiment_path, 'magi_results.csv'))
 compound_centric = df[pd.notnull(df['original_compound'])]\
 					 .sort_values('MAGI_score', ascending=False)\
 					 .drop_duplicates(['original_compound', 'compound_score'])
+compound_centric = pd.merge(
+	compound_centric, compounds,
+	on=['original_compound', 'compound_score'],
+	how='right')
 compound_centric.to_csv(os.path.join(experiment_path, 
 	'magi_compound_results.csv'))
 
