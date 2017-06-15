@@ -447,7 +447,7 @@ data = []
 for s in to_score:
     data.append(mg.magi_score(s, weights=None))
 scores.append(data)
-df['MAGI_score'] = scores[0] / (10. ** df['level'].values)
+df['MAGI_score'] = scores[0] / (4. ** df['level'].values)
 
 # find gene ids that are floats, convert those to strings, without the decimal
 float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
