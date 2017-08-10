@@ -518,6 +518,20 @@ df = df.sort_values(
 		 'reaction_id_g2r']
 		 )
 
+df = df.merge(mg.mrs_reaction[['database_id']],
+	left_on='reaction_id_r2g', right_index=True, how='left')
+df = df.merge(mg.mrs_reaction[['database_id']],
+	left_on='reaction_id_g2r', right_index=True, how='left',
+	suffixes=('_r2g', '_g2r'))
+cols = df.columns.values
+idx = pd.np.argwhere(cols == 'query acc.')[0][0]
+cols[idx] = 'gene_id'
+df.columns = cols
+df = df[['MAGI_score','gene_id', 'original_compound', 'neighbor',
+	'note', 'compound_score','level','homology_score','reciprocal_score',
+	'reaction_connection', 'e_score_r2g','database_id_r2g', 'e_score_g2r',
+	'database_id_g2r','level_adjusted_compound_score']]
+
 # save the full dataframe
 df.to_csv(os.path.join(experiment_path, 'magi_results.csv'))
 
