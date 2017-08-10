@@ -100,6 +100,24 @@ parser.add_argument('--test',
 parser.add_argument('--debug', 
 	help='TBD: prints a lot of info', 
 	action='store_true')
+parser.add_argument('--blast_filter', 
+	help='How stringent to filter the top BLAST results, as percent;\
+	default is 85 meaning that only BLAST results within 85% of the top\
+	result will be taken.', 
+	type=int, choices=range(0, 101), default=85)
+parser.add_argument('--reciprocal_closeness', 
+	help='Cutoff to call a reciprocal disagreement as "close", as percent;\
+	default is 75 meaning that a reciprocal disagreement will be classified\
+	as "close" if the lower blast score (e score) is within 75% of the higher\
+	score', 
+	type=int, choices=range(0, 101), default=75)
+parser.add_argument('--final_weights', 
+	help='Defined weights to weight the final scoring for the scores:\
+	compound_score reciprocal_score homology_score reaction_connection', 
+	type=float, nargs=4, default=None)
+parser.add_argument('--chemnet_penalty', 
+	help='Base factor in the chemical network search level penalty', 
+	type=float, default=4)
 
 args = parser.parse_args()
 
@@ -107,12 +125,48 @@ args = parser.parse_args()
 args.fasta = os.path.abspath(args.fasta)
 args.compounds = os.path.abspath(args.compounds)
 
+print '~~~~~PARAMETERS~~~~~~'
+
 # print your paths in stdout for logging
 print '@@@ FASTA file input: %s' %(args.fasta)
 print '@@@ compound input: %s' %(args.compounds)
 if args.annotations is not None:
 	args.annotations =  os.path.abspath(args.annotations)
 	print '@@@ annotations input: %s' %(args.annotations)
+
+# convert parameters
+args.blast_filter = args.blast_filter / 100.
+args.reciprocal_closeness = args.reciprocal_closeness / 100.
+
+# check parameters
+if args.blast_filter < 0:
+	raise RuntimeError('argument blast_filter cannot be negative!')
+if args.reciprocal_closeness < 0:
+	raise RuntimeError('argument reciprocal_closeness cannot be negative!')
+if args.final_weights is not None:
+	for w in args.final_weights:
+		if w < 0:
+			raise RuntimeError('argument final_weights cannot be negative!')
+if args.chemnet_penalty < 0:
+	raise RuntimeError('argument chemnet_penalty cannot be negative!')
+
+# print parameters
+print '@@@ Searching Tautomers: %s' % (args.tautomer)
+print '@@@ Chemnet search to level %s' % (args.level)
+print '@@@ BLAST filter: %s' % (args.blast_filter)
+print '@@@ Reciprocal closeness: %s' % (args.reciprocal_closeness)
+print '@@@ MAGI score weights: %s' % (args.final_weights)
+print '@@@ chemnet base penalty: %s' % (args.chemnet_penalty)
+
+# setup multiprocessing helpers based on input params
+def keep_top_blast_helper(x, param=args.blast_filter):
+	"""
+	x is the normal input
+	param is the defined parameter
+	"""
+	return mg.keep_top_blast(x, filt=param)
+
+
 
 max_cpu = mp.cpu_count()
 
@@ -232,7 +286,7 @@ if args.gene_to_reaction is None:
 	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
 	del gene_blast
 	gene_groups = gene_to_reaction.groupby('query acc.')
-	multidx = gene_groups['e_score'].apply(mg.keep_top_blast).index
+	multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
 	idx = multidx.levels[1]
 	gene_to_reaction_top = gene_to_reaction.loc[idx]
 	del gene_to_reaction
@@ -327,7 +381,7 @@ if args.reaction_to_gene is None:
 	del reaction_to_gene_blast
 
 	reaction_groups = reaction_to_gene.groupby('query acc.')
-	multidx = reaction_groups['e_score'].apply(mg.keep_top_blast).index
+	multidx = reaction_groups['e_score'].apply(keep_top_blast_helper).index
 	del reaction_groups
 	idx = multidx.levels[1]
 	reaction_to_gene_top = reaction_to_gene.loc[idx]
@@ -415,7 +469,7 @@ start = time.time()
 sys.stdout.flush()
 
 # score reciprocal agreement
-df = mg.reciprocal_agreement(df)
+df = mg.reciprocal_agreement(df, closeness_threshold=args.reciprocal_closeness)
 
 # calculate homology score
 score = mg.homology_score(df)
@@ -445,9 +499,9 @@ scores = []
 to_score = df[scoring_data].values
 data = []
 for s in to_score:
-    data.append(mg.magi_score(s, weights=None))
+    data.append(mg.magi_score(s, weights=args.final_weights))
 scores.append(data)
-df['MAGI_score'] = scores[0] / (4. ** df['level'].values)
+df['MAGI_score'] = scores[0] / (args.chemnet_penalty ** df['level'].values)
 
 # find gene ids that are floats, convert those to strings, without the decimal
 float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
