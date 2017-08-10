@@ -549,6 +549,12 @@ compound_centric = pd.merge(
 compound_centric.to_csv(os.path.join(experiment_path, 
 	'magi_compound_results.csv'))
 
+gene_centric = df.sort_values(['MAGI_score', 'e_score_g2r'], 
+	ascending=[False, False])\
+	.drop_duplicates(['gene_id', 'database_id_g2r'])
+gene_centric.to_csv(os.path.join(experiment_path,
+	'magi_gene_results.csv'))
+
 print '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60)
 print 'MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
 print 'final results stored to %s' \
