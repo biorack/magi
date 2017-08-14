@@ -6,3 +6,8 @@ user_settings*
 local_settings.py
 *.pyc
 Icon
+data/delta_mass/
+tests/full_workflow_test/test_output_files/
+*nohup*
+*testlog*
+workflow/database_old/
