@@ -279,8 +279,8 @@ if args.gene_to_reaction is None:
 	print '!@# Homology searching done in %s minutes' \
 			%((time.time() - start) / 60)
 	gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
-	print '!@# scored blast results saved to %s' \
-			%(os.path.join(experiment_path, 'gene_blast.pkl'))
+	print '!@# g2r blast results saved to %s' \
+			%(os.path.join(experiment_path, 'g2r_blast.pkl'))
 
 	start = time.time()
 	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
@@ -379,6 +379,11 @@ if args.reaction_to_gene is None:
 	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast,
 		'query acc.')
 	del reaction_to_gene_blast
+
+	reaction_to_gene.to_pickle(os.path.join(experiment_path,
+		'reaction_blast.pkl'))
+	print '!@# r2g blast results saved to %s' \
+			%(os.path.join(experiment_path, 'r2g_blast.pkl'))
 
 	reaction_groups = reaction_to_gene.groupby('query acc.')
 	multidx = reaction_groups['e_score'].apply(keep_top_blast_helper).index
