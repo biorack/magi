@@ -19,7 +19,6 @@ do
 	SEQ="$CWD/tmp_seq_$i.faa"
 	OUT="$CWD/tmp_out_blasted_$i.txt"
 	START=$(date +%s.%N)
-	echo "!@# starting blast query $i at $START"
 	$BLASTP -query $SEQ -db $DB -outfmt '10 qacc sacc qcovs length ppos evalue bitscore' -evalue 1 -max_target_seqs 10 > $OUT &
 done
 
