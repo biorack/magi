@@ -3,6 +3,10 @@ Metabolites Annotations and Genes Integrated (MAGI)
 
 MAGI 1.0a workflow script
 
+Lines beginning with "@@@" are input job parameters
+Lines beginning with "!!!" are verbose log info
+Lines beginning with "!@#" are checkpoints/announcements
+
 Required inputs are a FASTA file and a Compounds file.
 The FASTA file should be in standard FASTA format, E.g.:
 '''fasta
@@ -45,10 +49,10 @@ import pickle
 import datetime
 
 # print versions of troublesome modules
-print 'Python version:', sys.version
-print 'numpy version: ', np.__version__
-print 'pandas version:', pd.__version__
-print 'pickle version:', pickle.__version__
+print '!!! Python version:', sys.version
+print '!!! numpy version: ', np.__version__
+print '!!! pandas version:', pd.__version__
+print '!!! pickle version:', pickle.__version__
 print '#'*80
 
 # parse arguments
@@ -157,6 +161,7 @@ print '@@@ BLAST filter: %s' % (args.blast_filter)
 print '@@@ Reciprocal closeness: %s' % (args.reciprocal_closeness)
 print '@@@ MAGI score weights: %s' % (args.final_weights)
 print '@@@ chemnet base penalty: %s' % (args.chemnet_penalty)
+print '@@@ Using %s CPUs' % (args.cpu_count)
 
 # setup multiprocessing helpers based on input params
 def keep_top_blast_helper(x, param=args.blast_filter):
@@ -198,7 +203,7 @@ if args.reaction_to_gene is not None:
 		print '@@@ reaction_to_gene input: %s' %(args.reaction_to_gene)
 
 if args.mute:
-	print '!!! Warnings are muted !!!'
+	print '!!! Warnings are muted'
 	warnings.filterwarnings('ignore')
 
 # load local settings
@@ -215,8 +220,8 @@ my_settings = getattr(
 sys.path.insert(
 	0,
 	os.path.join(my_settings.repo_location, 'workflow/helpertools'))
+print '!!! importing workflow helpers'
 import workflow_helpers as mg
-print '\n'
 
 # path to MAGI data storage
 MAGI_PATH = my_settings.magi_results_storage
@@ -232,21 +237,19 @@ else:
 
 experiment_path = os.path.abspath(experiment_path)
 
-print '@@@ Saving all results here:', experiment_path
+print '!!! Saving all results here:', experiment_path
 if not os.path.isdir(experiment_path):
 	os.makedirs(experiment_path)
-
-print '@@@ Using %s CPUs' %(args.cpu_count)
 
 main_start = time.time() # overall program timer
 
 # load genome
-print '\n*** LOADING GENOME ***'
+print '\n!!! LOADING GENOME'
 genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH, 
 										annotation_file=args.annotations)
 
 # load pactolus results
-print '\n*** LOADING COMPOUNDS ***'
+print '\n!!! LOADING COMPOUNDS'
 compounds = mg.load_dataframe(args.compounds)
 # auto-rename pactolus columns
 if args.pactolus:
@@ -259,7 +262,7 @@ if 'original_compound' not in compounds.columns:
 	raise RuntimeError('Could not find "original_compound" as a column, please\
 		rename the column corresponding to inchi keys for the compounds')
 u_cpds = compounds['original_compound'].unique()
-print len(u_cpds), 'total compounds to search'
+print '!@#', len(u_cpds), 'total input compounds to search\n'
 
 if 'compound_score' not in compounds.columns:
 	print 'WARNING: "compound_score" not found as a column; assuming that\
@@ -271,7 +274,7 @@ else:
 
 # Conduct gene to reaction search
 if args.gene_to_reaction is None:
-	print 'Conducting gene to reaction search'
+	print '!@# Conducting gene to reaction search'
 	start = time.time()
 	gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
 		experiment_path, raise_blast_error=False, cpu=args.cpu_count)
@@ -279,8 +282,8 @@ if args.gene_to_reaction is None:
 	print '!@# Homology searching done in %s minutes' \
 			%((time.time() - start) / 60)
 	gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
-	print '!@# scored blast results saved to %s' \
-			%(os.path.join(experiment_path, 'gene_blast.pkl'))
+	print '!!! g2r blast results saved to %s' \
+			%(os.path.join(experiment_path, 'g2r_blast.pkl'))
 
 	start = time.time()
 	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
@@ -295,16 +298,16 @@ if args.gene_to_reaction is None:
 
 	gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
 											'gene_to_reaction.pkl'))
-	print '!@# gene to reaction results saved to %s' \
+	print '!!! gene to reaction results saved to %s' \
 			%(os.path.join(experiment_path, 'gene_to_reaction.pkl'))
 else:
 	gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
-	print 'gene_to_reaction successfully loaded'
+	print '\n!@# gene_to_reaction successfully loaded'
 del genome
 
 # compound to reaction search
 if args.compound_to_reaction is None:
-	print 'Conducting compound to reaction search'
+	print '\n!@# Conducting compound to reaction search'
 	sys.stdout.flush()
 	start = time.time()
 
@@ -340,16 +343,17 @@ if args.compound_to_reaction is None:
 	compound_to_reaction.to_pickle(os.path.join(experiment_path, 
 											'compound_to_reaction.pkl'))
 
-	print '!@# compound_to_reaction table done in %s minutes and saved to %s'\
-			%((time.time()-start)/60, os.path.join(experiment_path, 
-												'compound_to_reaction.pkl'))
+	print '!@# compound_to_reaction table done in %s minutes'\
+			%((time.time()-start)/60)
+	print '!!! compound_reaction table saved to %s'\
+			% (os.path.join(experiment_path, 'compound_to_reaction.pkl'))
 else:
 	compound_to_reaction = pd.read_pickle(args.compound_to_reaction)
-	print 'compound_to_reaction successfully loaded'
+	print '\n!@# compound_to_reaction successfully loaded'
 
 # reaction to gene search
 if args.reaction_to_gene is None:
-	print 'Conducting reaction to gene search'
+	print '\n!@# Conducting reaction to gene search'
 	sys.stdout.flush()
 	start = time.time()
 
@@ -369,7 +373,7 @@ if args.reaction_to_gene is None:
 	# rseq_list is the "query_list" for multi_blast()
 	# query_full_table is the refseq table
 	# database_path is the path to the genome's blast database
-	print len(rseq_list), 'reference sequences to search'
+	print '!!!', len(rseq_list), 'reference sequences to search'
 	sys.stdout.flush()
 
 	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, 
@@ -380,6 +384,11 @@ if args.reaction_to_gene is None:
 		'query acc.')
 	del reaction_to_gene_blast
 
+	reaction_to_gene.to_pickle(os.path.join(experiment_path,
+		'reaction_blast.pkl'))
+	print '!!! r2g blast results saved to %s' \
+			%(os.path.join(experiment_path, 'r2g_blast.pkl'))
+
 	reaction_groups = reaction_to_gene.groupby('query acc.')
 	multidx = reaction_groups['e_score'].apply(keep_top_blast_helper).index
 	del reaction_groups
@@ -388,15 +397,16 @@ if args.reaction_to_gene is None:
 	del reaction_to_gene
 	reaction_to_gene_top.to_pickle(os.path.join(experiment_path, 
 											'reaction_to_gene.pkl'))
-	print '!@# reaction_to_gene table done in %s minutes and saved to %s'\
-			%((time.time()-start)/60, os.path.join(experiment_path, 
-												'reaction_to_gene.pkl'))
+	print '!@# reaction_to_gene table done in %s minutes'\
+			%((time.time()-start)/60)
+	print '!!! reaction_to_gene table saved to %s'\
+			% (os.path.join(experiment_path, 'reaction_to_gene.pkl'))
 else:
 	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
-	print 'reaction_to_gene successfully loaded'
+	print '\n!@# reaction_to_gene successfully loaded'
 
 if args.merged_before_score is None:
-	print 'Merging final table'
+	print '\n!@# Merging final table'
 	sys.stdout.flush()
 	start = time.time()
 
@@ -454,17 +464,18 @@ if args.merged_before_score is None:
 		'merged_before_score', mode='w', format='table',
 		complib='blosc', complevel=9)
 
-	print '!@#Final Merged table done in %s minutes and saved to %s'\
-		%((time.time() - start) / 60, os.path.join(experiment_path, 
-												'merged_before_score.h5'))
+	print '!@# Final Merged table done in %s minutes'\
+		%((time.time() - start) / 60)
+	print '!!! Final Merged table saved to %s'\
+			% (os.path.join(experiment_path, 'merged_before_score.pkl'))
 else:
 	del reaction_to_gene_top
 	del compound_to_reaction
 	del gene_to_reaction_top
 	df = pd.read_pickle(args.merged_prescore, 'merged_before_score')
-	print 'merged_before_score successfully loaded'
+	print '\n!@# merged_before_score successfully loaded'
 
-print 'Calculating final scores...'
+print '\n!@# Calculating final scores...'
 start = time.time()
 sys.stdout.flush()
 
@@ -484,7 +495,7 @@ df['reaction_connection'] = df[['reaction_id_r2g', 'reaction_id_g2r']]\
 								.apply(pd.notnull).sum(axis=1) + 0.01
 
 print '!@# Pre-scoring done in %s minutes' %((time.time() - start) / 60)
-print 'Calculating final integrated MAGI score'
+print '!@# Calculating final integrated MAGI score'
 sys.stdout.flush()
 start = time.time()
 
@@ -552,6 +563,6 @@ gene_centric.to_csv(os.path.join(experiment_path,
 	'magi_gene_results.csv'))
 
 print '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60)
-print 'MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
-print 'final results stored to %s' \
+print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
+print '!!! final results stored to %s' \
 		%(os.path.join(experiment_path, 'magi_results.csv'))

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Set SGE options:
+## specify an email address
+#$ -M oerbilgin@lbl.gov
+## specify when to send the email when job is (a)borted, (b)egins or (e)nds normally
+#$ -m abe
+## Specify a run time
+#$ -l h_rt=00:10:00
+## This says that you want a 32-core machine
+#$ -pe pe_32 32
+## This sets your memory requirements, x32. so 7.5*32=240GB, meaning a guarantee on a 32 slot, 256G Memory machine
+#$ -l ram.c=7.5G,h_vmem=7.5G
+## This says what kind of machine you want; exclusive.c says you want any kind of exclusive node, first available
+#$ -q exclusive.c
+## Where to save the log files
+#$ -wd /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/coelicolor_test_data/test_outputs
+## These are commented out, but rename them if you want
+#$ -o /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/genepooltestlog_out.txt
+#$ -e /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/genepooltestlog_err.txt
+## Your job info goes here
+
+module switch python/2.7.4 python/2.7-anaconda_4.2.0
+
+time python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/magi_workflow_20170519.py \
+--fasta /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/s_coelicolor_genes_fasta_smallset.faa \
+--compounds /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/s_coelicolor_pactolus_data_smallset.csv \
+--annotations /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/s_coelicolor_genes_annotations_smallset.tab \
+--cpu_count 24 \
+--final_weights 1 2 3 4 \
+--blast_filter 100 \
+--reciprocal_closeness 100 \
+--chemnet_penalty 2 \
+--output /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/test_output_files --mute
