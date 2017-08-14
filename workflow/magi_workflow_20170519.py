@@ -488,10 +488,6 @@ score = mg.homology_score(df)
 score[pd.isnull(score)] = 1
 df['homology_score'] = score
 
-# adjust compound score slightly by leveled search
-df['level_adjusted_compound_score'] = df['compound_score'].values / \
-											(df['level'].values + 1)
-
 # reaction connection score says if the compound got connected to any
 # reaction in the database. Can't have zero because that messes up
 # geometric mean, so added a small number.
@@ -504,7 +500,7 @@ sys.stdout.flush()
 start = time.time()
 
 # calculate final MAGI integrated score
-scoring_data = ['level_adjusted_compound_score', 'reciprocal_score', \
+scoring_data = ['compound_score', 'reciprocal_score', \
 				'homology_score', 'reaction_connection']
 scores = []
 to_score = df[scoring_data].values
@@ -541,11 +537,11 @@ df.columns = cols
 df = df[['MAGI_score','gene_id', 'original_compound', 'neighbor',
 	'note', 'compound_score','level','homology_score','reciprocal_score',
 	'reaction_connection', 'e_score_r2g','database_id_r2g', 'e_score_g2r',
-	'database_id_g2r','level_adjusted_compound_score']]
+	'database_id_g2r']]
 
 # save the full dataframe
 df.to_csv(os.path.join(experiment_path, 'magi_results.csv'))
-
+print 'full results saved to', os.path.join(experiment_path, 'magi_results.csv')
 # save a compound-centric dataframe, where only the best row for each
 # original_compound was chosen (this is only for compound scoring, do
 # not use this for any kind of gene function analysis!)
