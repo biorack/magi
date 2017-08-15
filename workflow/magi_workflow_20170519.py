@@ -540,7 +540,7 @@ df = df[['MAGI_score','gene_id', 'original_compound', 'neighbor',
 	'database_id_g2r']]
 
 # save the full dataframe
-df.to_csv(os.path.join(experiment_path, 'magi_results.csv'))
+df.to_csv(os.path.join(experiment_path, 'magi_results.csv'), index=False)
 print 'full results saved to', os.path.join(experiment_path, 'magi_results.csv')
 # save a compound-centric dataframe, where only the best row for each
 # original_compound was chosen (this is only for compound scoring, do
@@ -554,13 +554,13 @@ compound_centric = pd.merge(
 	on=['original_compound', 'compound_score'],
 	how='right')
 compound_centric.to_csv(os.path.join(experiment_path, 
-	'magi_compound_results.csv'))
+	'magi_compound_results.csv'), index=False)
 
 gene_centric = df.sort_values(['MAGI_score', 'e_score_g2r'], 
 	ascending=[False, False])\
 	.drop_duplicates(['gene_id', 'database_id_g2r'])
 gene_centric.to_csv(os.path.join(experiment_path,
-	'magi_gene_results.csv'))
+	'magi_gene_results.csv'), index=False)
 
 print '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60)
 print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
