@@ -24,30 +24,33 @@ Local Installation
     $ pip install .
 
 Local Settings
----------------
+--------------
 Local settings folder should have 3 files:
+
 - local_settings.py
 - user_settings.py
 - __init__.py
 
 local_settings.py should just have one line in it describing the name of the user_settings.py file:
-.. code-block:: python
 
-	SETTINGS_FILE = 'user_settings'
+.. code:: python
+
+    SETTINGS_FILE = 'user_settings'
 
 user_settings.py should have the following paths and variables defined:
-.. code-block:: python
-	blastbin = '' # path to BLAST binary
 
- refseq_path = 		'' # path to reaction reference sequence library
- refseq_db = 		'' # path to BLAST database for reference sequence library
+.. code:: python
+
+ blastbin = '' # path to BLAST binary
+ refseq_path = '' # path to reaction reference sequence library
+ refseq_db = '' # path to BLAST database for reference sequence library
  mrs_reaction_path = '' # path to metabolite-reaction-refseq database
- compounds_df = 		'' # path to compounds database
- mst_path = 			'' # path to chemical similarity network graph
- chemnet_pickle = 	'' # path to chemical similarity network descriptions
+ compounds_df = '' # path to compounds database
+ mst_path = '' # path to chemical similarity network graph
+ chemnet_pickle = '' # path to chemical similarity network descriptions
 
- magi_results_storage = 	'' # path to where to store magi outputs and blast databases
- repo_location = 		'' # path to repo location
-	# The next 2 lines are only required if you are interfacing with magi_web repo 
+ magi_results_storage = '' # path to where to store magi outputs and blast databases
+ repo_location = '' # path to repo location
+ # The next 2 lines are only required if you are interfacing with magi_web repo 
  magiwebsuperuser = '' # admin username for magi_web
  magiwebsuperuserpass = '' # admin password for magi_web
