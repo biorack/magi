@@ -32,7 +32,8 @@ Local settings folder should have 3 files:
 
 local_settings.py should just have one line in it describing the name of the user_settings.py file:
 .. code-block:: python
-	$ SETTINGS_FILE = 'user_settings'
+
+	SETTINGS_FILE = 'user_settings'
 
 user_settings.py should have the following paths and variables defined:
 .. code-block:: python
