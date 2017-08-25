@@ -18,6 +18,9 @@ my_settings = getattr(
         'local_settings',
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
 
+# set umask for python process
+os.umask(002)
+
 # get jobs from magiweb
 all_jobs = utils.retrieve_jobs()
 

@@ -29,6 +29,8 @@ def retrieve_jobs(
 	Retrieves jobs json from magi web.
 	Output is a python list of dictionaries representing the json of all
 	jobs.
+
+    TODO: filter json by jobs that need to be run
 	"""
 
 	auth_url = base_url + admin_suffix
@@ -41,15 +43,59 @@ def retrieve_jobs(
 	              'password': password,
 	              'csrfmiddlewaretoken': csrftoken}
 	client.post(auth_url, data=login_data,
-		headers=dict(Referer=auth_url),verify=False
+		headers=dict(Referer=auth_url)
 		)
 
 	r = client.get(os.path.join(base_url,'admin/ids/?filter=all&json=True'))
-
 	# Keep jobs that don't have a job script yet
 	# load jobs json
 	all_jobs = json.loads(r.text)
 	return all_jobs
+def mirror_inputs(all_jobs, verbose=False):
+    for job in all_jobs:
+        base_url='https://magi-dev.nersc.gov/files/input'
+        dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
+
+        try:
+            fasta_file = job['fields']['fasta_file'].split('input/')[1]
+            metabolite_file = job['fields']['metabolite_file'].split(
+                'input/')[1]
+        except IndexError:
+            print('WARNING: job %s input path not properly formatted; skipping' 
+                % (job['pk']))
+            continue
+        job_path = '/'.join(fasta_file.split('/')[:-1])
+        job_path = os.path.join(dir_root, job_path)
+
+        if os.path.isfile(os.path.join(dir_root, fasta_file)) and \
+            os.path.isfile(os.path.join(dir_root, metabolite_file)):
+            if verbose:
+                print('job inputs exist for %s' % (job['pk']))
+            continue
+
+        if not os.path.isdir(job_path):
+            if verbose:
+                print('making %s' % (job_path))
+            os.makedirs(job_path)
+
+        if not os.path.isfile(os.path.join(dir_root, fasta_file)):
+            if verbose:
+                print('getting %s' % os.path.join(base_url, fasta_file))
+            fasta_data = requests.get(os.path.join(base_url, fasta_file))
+            if verbose:
+                print('writing %s' % os.path.join(dir_root, fasta_file))
+            with open(os.path.join(dir_root, fasta_file), 'w') as f:
+                f.write(fasta_data.text)
+        if not os.path.isfile(os.path.join(dir_root, metabolite_file)):
+            if verbose:
+                print('getting %s' % (os.path.join(base_url, metabolite_file)))
+            metabolite_data = requests.get(os.path.join(base_url,
+                                           metabolite_file))
+            if verbose:
+                print('writing %s' % (os.path.join(dir_root, metabolite_file)))
+            with open(os.path.join(dir_root, metabolite_file), 'w') as f:
+                f.write(metabolite_data.text)
+    return None
 
 def jobs_to_script(
 		all_jobs,
@@ -84,15 +130,15 @@ def jobs_to_script(
 	            job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
 	            job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
 	        except IndexError:
-	            print('ERROR: could not find input file(s) for job %s index %s; not making a job script' % (pk, i))
+	            print('WARNING: could not find input file(s) for job %s index %s; not making a job script' % (pk, i))
 	            continue
 	        
 	        # check to make sure the files exist
 	        if not os.path.isfile(job['fields']['fasta_file']):
-	            print('ERROR: fasta file for job %s does not exist; not making a job script' % (pk))
+	            print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
 	            continue
 	        if not os.path.isfile(job['fields']['metabolite_file']):
-	            print('ERROR: fasta file for job %s does not exist; not making a job script' % (pk))
+	            print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
 	            continue
 	        
 	        # add job json to todo list
@@ -236,21 +282,39 @@ def job_script(job_data):
     uses job data json to create a magi job submission script for cori
     """
     account_id = 'm2650' # metatlas
+    partition = 'debug'
     
     # where to write the job script to
     out_path = '/'.join(job_data['fields']['fasta_file'].split('/')[:-1])
     
+    ###################
+    # TEMPORARY BLOCK #
+    ###################
+    job_data['fields']['score_weights'] = [1, 2, 3, 4]
+    job_data['fields']['blast_cutoff'] = 100
+    job_data['fields']['reciprocal_cutoff'] = 75
+    job_data['fields']['chemnet_penalty'] = 3
+    ###################
+    # TEMPORARY BLOCK #
+    ###################
+
     # need to convert this into string so we can join it later
     job_data['fields']['score_weights'] = [str(i) for i in job_data['fields']['score_weights']]
     
+    # need to interpret tautomer flag
+    if  job_data['fields']['is_tautomers']:
+        tautomer = '--tautomer'
+    else:
+        tautomer = ''
+
     job_lines = [
         '#!/bin/bash -l',
         '#SBATCH --account=%s' % (account_id),
-        '#SBATCH --job-name=%s' % (job_data['job_id'].split('-')[0]),
+        '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
         '#SBATCH --time=0:10:00',
         '#SBATCH --output=%s/log_out.txt' % (out_path),
         '#SBATCH --error=%s/log_err.txt' % (out_path),
-        '#SBATCH --partition=debug',
+        '#SBATCH --partition=%s' % (partition),
         '#SBATCH --constraint=haswell',
         '#SBATCH --license=project',
         '#SBATCH --mail-user=%s' %(job_data['fields']['email']),
@@ -264,7 +328,7 @@ def job_script(job_data):
         '--level %s \\' % (job_data['fields']['network_level']),
         # not sure if this line will break anything at nersc
         # if it does, put it at the end of the previous line
-        '%s \\' % (['--tautomer' for i in [job_data['fields']['is_tautomers']] if i][0]),
+        '%s \\' % (tautomer),
         '--final_weights %s \\' % (' '.join(job_data['fields']['score_weights'])),
         '--blast_filter %s \\' % (job_data['fields']['blast_cutoff']),
         '--reciprocal_closeness %s \\' % (job_data['fields']['reciprocal_cutoff']),

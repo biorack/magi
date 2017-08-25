@@ -1,0 +1,5 @@
+# mirror every minute
+*/1 * * * * /project/projectdirs/metatlas/projects/metatlas_reactions/magi_job/mirror.sh  
+
+# process every 3 minutes
+*/3 * * * * /project/projectdirs/metatlas/projects/metatlas_reactions/magi_job/proscript.sh
