@@ -337,8 +337,13 @@ def job_script(job_data):
     ]
     
     job = '\n'.join(job_lines)
+
+    # change umask temporarily; don't want job script to be world-read
+    old_mask = os.umask(007)
+    # write job
     with open(os.path.join(out_path, 'job_script.sbatch'), 'w') as f:
         f.write(job)
+    os.umask(old_mask)
     return None
 
 def ppm_window(mass, ppm=5, result='bounds'):
