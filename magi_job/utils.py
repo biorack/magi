@@ -20,37 +20,139 @@ my_settings = getattr(
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
 
 def retrieve_jobs(
-		username=my_settings.magiwebsuperuser,
-		password=my_settings.magiwebsuperuserpass,
-		base_url='https://magi-dev.nersc.gov/',
-		admin_suffix='admin/login'
-	):
-	"""
-	Retrieves jobs json from magi web.
-	Output is a python list of dictionaries representing the json of all
-	jobs.
+        username=my_settings.magiwebsuperuser,
+        password=my_settings.magiwebsuperuserpass,
+        base_url='https://magi-dev.nersc.gov/',
+        admin_logon='admin/login',
+        sift=('filter', 'all')
+    ):
+    """
+    Retrieves jobs json from magi web.
+    Output is a python list of dictionaries representing the json of all
+    jobs.
 
-    TODO: filter json by jobs that need to be run
-	"""
+    sift: tuple to construct url query filter.
+          first element of tuple is the variable
+          second element is the value
+          example ('filter', 'all'):
+              admin/ids/?filter=all&json=True
+          example ('pk', 'b823fd89-ed34-48d6-a657-258c90542088'):
+              admin/ids/?pk=b823fd89-ed34-48d6-a657-258c90542088&json=True
 
-	auth_url = base_url + admin_suffix
+    """
 
-	client = requests.session()
-	# Retrieve the CSRF token first
-	client.get(auth_url,verify=False)  # sets cookie
-	csrftoken = client.cookies['csrftoken']
-	login_data = {'username': username,
-	              'password': password,
-	              'csrfmiddlewaretoken': csrftoken}
-	client.post(auth_url, data=login_data,
-		headers=dict(Referer=auth_url)
-		)
+    auth_url = base_url + admin_logon
 
-	r = client.get(os.path.join(base_url,'admin/ids/?filter=all&json=True'))
-	# Keep jobs that don't have a job script yet
-	# load jobs json
-	all_jobs = json.loads(r.text)
-	return all_jobs
+    client = requests.session()
+    # Retrieve the CSRF token first
+    client.get(auth_url,verify=False)  # sets cookie
+    csrftoken = client.cookies['csrftoken']
+    login_data = {'username': username,
+                  'password': password,
+                  'csrfmiddlewaretoken': csrftoken}
+    r = client.post(auth_url, data=login_data,
+        headers=dict(Referer=auth_url)
+        )
+    if r.status_code not in [200, 404]:
+        raise RuntimeError(
+            'Could not authenticate; status code %s' % (r.status_code))
+    filter_string = '%s=%s' %(sift[0], sift[1])
+    get_url = os.path.join(base_url,'admin/ids/?%s&json=True' % (filter_string))
+    r = client.get(get_url)
+    if r.status_code not in [200]:
+        raise RuntimeError(
+            'GET request failed; status code %s; url: %s'
+            % (r.status_code, get_url))
+    # Keep jobs that don't have a job script yet
+    # load jobs json
+    try:
+        all_jobs = json.loads(r.text)
+    except ValueError as e:
+        if 'No JSON object could be decoded' in e.args:
+            return None
+        else:
+            raise e
+    if len(all_jobs) == 0:
+        return None
+    return all_jobs
+
+def change_params(
+        job_id, field, value,
+        username=my_settings.magiwebsuperuser,
+        password=my_settings.magiwebsuperuserpass,
+        base_url='https://magi-dev.nersc.gov/',
+        admin_logon='admin/login',
+        post_suffix='admin/',
+        verify=True
+        ):
+    """
+    changes a parameter in the data model at server via POST.
+
+    Inputs
+    ------
+    job_id: uuid of the magi job
+    field: field in the data model to change, e.g. "runflag"
+    value: value to change the field to, e.g. "True"
+    verify: retrieves the job and verifies that the field was changed
+    """
+
+    auth_url = base_url + admin_logon
+
+    client = requests.session()
+    # authenticate
+    # Retrieve the CSRF token first
+    client.get(auth_url,verify=False)  # sets cookie
+    csrftoken = client.cookies['csrftoken']
+    login_data = {'username': username,
+                  'password': password,
+                  'csrfmiddlewaretoken': csrftoken}
+    r = client.post(auth_url, data=login_data,
+        headers=dict(Referer=auth_url)
+        )
+    if r.status_code not in [200, 404]:
+        raise RuntimeError(
+            'Could not authenticate; status code %s' % (r.status_code))
+
+    # change parameters
+    # Retrieve new CSRF token
+    client.get(auth_url,verify=False)  # sets cookie
+    csrftoken = client.cookies['csrftoken']
+    post_url = auth_url = base_url + 'admin/'
+    payload = {
+        'job_id': job_id,
+        'field': field,
+        'value': value,
+        'csrfmiddlewaretoken': csrftoken
+    }
+    r = client.post(post_url, data=payload,
+        headers=dict(Referer=auth_url)
+        )
+
+    if r.status_code not in [200]:
+        raise RuntimeError(
+    'Change job POST request failed with status code %s. URL: %s; Payload: %s'
+    % (r.status_code, post_url, payload)
+    )
+
+    if verify:
+        # verify that the field changed
+        # get the one job
+        job = retrieve_jobs(
+            username=username,
+            password=password,
+            base_url=base_url,
+            admin_logon=admin_logon,
+            sift=('pk', job_id)
+            )
+        if job is None:
+            return False
+        if job[0]['fields'][field] == value:
+            return True
+        else:
+            return False
+    else:
+        return None
+
 def mirror_inputs(all_jobs, verbose=False):
     for job in all_jobs:
         base_url='https://magi-dev.nersc.gov/files/input'
@@ -98,54 +200,54 @@ def mirror_inputs(all_jobs, verbose=False):
     return None
 
 def jobs_to_script(
-		all_jobs,
-		dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
-	):
-	"""
-	Determine which jobs need an SBATCH script.
-	
-	Inputs
-	all_jobs: a list of dictionaries that represents the json of magi
-			  web jobs.
-	dir_root: the full path prefix to where the input files are located
-			  at NERSC.
+        all_jobs,
+        dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
+    ):
+    """
+    Determine which jobs need an SBATCH script.
+    
+    Inputs
+    all_jobs: a list of dictionaries that represents the json of magi
+              web jobs.
+    dir_root: the full path prefix to where the input files are located
+              at NERSC.
 
-	Output is a list of python dictionaries representing the json of all
-	jobs that do not have an SBATCH script already written for them, and
-	a boolean describing whether or not there are any jobs that require
-	accurate mass searching (so that main program can load up the
-	compound dataframe for accurate mass searching)
-	"""
+    Output is a list of python dictionaries representing the json of all
+    jobs that do not have an SBATCH script already written for them, and
+    a boolean describing whether or not there are any jobs that require
+    accurate mass searching (so that main program can load up the
+    compound dataframe for accurate mass searching)
+    """
 
-	to_script = []
-	mass_search = []
-	for i, job in enumerate(all_jobs):
-	    year = job['fields']['uploaded_at'].split('-')[0]
-	    month = job['fields']['uploaded_at'].split('-')[1]
-	    pk = job['pk']
-	    job_path = os.path.join(dir_root, year, month, pk)
-	    if not os.path.isfile(os.path.join(job_path, 'job_script.sbatch')):
-	        # adjust paths
-	        try:
-	            job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
-	            job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
-	        except IndexError:
-	            print('WARNING: could not find input file(s) for job %s index %s; not making a job script' % (pk, i))
-	            continue
-	        
-	        # check to make sure the files exist
-	        if not os.path.isfile(job['fields']['fasta_file']):
-	            print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
-	            continue
-	        if not os.path.isfile(job['fields']['metabolite_file']):
-	            print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
-	            continue
-	        
-	        # add job json to todo list
-	        mass_search.append(job['fields']['is_mass_search'])
-	        to_script.append(job)
-	mass_search = any(mass_search)
-	return to_script, mass_search
+    to_script = []
+    mass_search = []
+    for i, job in enumerate(all_jobs):
+        year = job['fields']['uploaded_at'].split('-')[0]
+        month = job['fields']['uploaded_at'].split('-')[1]
+        pk = job['pk']
+        job_path = os.path.join(dir_root, year, month, pk)
+        if not os.path.isfile(os.path.join(job_path, 'job_script.sbatch')):
+            # adjust paths
+            try:
+                job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
+                job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
+            except IndexError:
+                print('WARNING: could not find input file(s) for job %s index %s; not making a job script' % (pk, i))
+                continue
+            
+            # check to make sure the files exist
+            if not os.path.isfile(job['fields']['fasta_file']):
+                print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
+                continue
+            if not os.path.isfile(job['fields']['metabolite_file']):
+                print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
+                continue
+            
+            # add job json to todo list
+            mass_search.append(job['fields']['is_mass_search'])
+            to_script.append(job)
+    mass_search = any(mass_search)
+    return to_script, mass_search
 
 def protein_translate(seq, warnings=False):
     """
@@ -162,23 +264,23 @@ def protein_translate(seq, warnings=False):
     protein_seq: Translated protein sequence
     """
     codons = {
-		'AAA': 'K', 'AAC': 'N', 'AAG': 'K', 'AAT': 'N', 'ACA': 'T', 'ACC': 'T',
-		'ACG': 'T', 'ACT': 'T', 'AGA': 'R', 'AGC': 'S', 'AGG': 'R', 'AGT': 'S',
-		'ATA': 'I', 'ATC': 'I', 'ATG': 'M', 'ATT': 'I', 'CAA': 'Q', 'CAC': 'H',
-		'CAG': 'Q', 'CAT': 'H', 'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
-		'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R', 'CTA': 'L', 'CTC': 'L',
-		'CTG': 'L', 'CTT': 'L', 'GAA': 'E', 'GAC': 'D', 'GAG': 'E', 'GAT': 'D',
-		'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A', 'GGA': 'G', 'GGC': 'G',
-		'GGG': 'G', 'GGT': 'G', 'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
-		'TAA': '*', 'TAC': 'Y', 'TAG': '*', 'TAT': 'Y', 'TCA': 'S', 'TCC': 'S',
-		'TCG': 'S', 'TCT': 'S', 'TGA': '*', 'TGC': 'C', 'TGG': 'W', 'TGT': 'C',
-		'TTA': 'L', 'TTC': 'F', 'TTG': 'L', 'TTT': 'F'
+        'AAA': 'K', 'AAC': 'N', 'AAG': 'K', 'AAT': 'N', 'ACA': 'T', 'ACC': 'T',
+        'ACG': 'T', 'ACT': 'T', 'AGA': 'R', 'AGC': 'S', 'AGG': 'R', 'AGT': 'S',
+        'ATA': 'I', 'ATC': 'I', 'ATG': 'M', 'ATT': 'I', 'CAA': 'Q', 'CAC': 'H',
+        'CAG': 'Q', 'CAT': 'H', 'CCA': 'P', 'CCC': 'P', 'CCG': 'P', 'CCT': 'P',
+        'CGA': 'R', 'CGC': 'R', 'CGG': 'R', 'CGT': 'R', 'CTA': 'L', 'CTC': 'L',
+        'CTG': 'L', 'CTT': 'L', 'GAA': 'E', 'GAC': 'D', 'GAG': 'E', 'GAT': 'D',
+        'GCA': 'A', 'GCC': 'A', 'GCG': 'A', 'GCT': 'A', 'GGA': 'G', 'GGC': 'G',
+        'GGG': 'G', 'GGT': 'G', 'GTA': 'V', 'GTC': 'V', 'GTG': 'V', 'GTT': 'V',
+        'TAA': '*', 'TAC': 'Y', 'TAG': '*', 'TAT': 'Y', 'TCA': 'S', 'TCC': 'S',
+        'TCG': 'S', 'TCT': 'S', 'TGA': '*', 'TGC': 'C', 'TGG': 'W', 'TGT': 'C',
+        'TTA': 'L', 'TTC': 'F', 'TTG': 'L', 'TTT': 'F'
         }
     # check input sequence
     if len(seq) % 3 != 0:
         raise RuntimeError(
-        	'The nucelotide sequence is not a multiple of 3: %s' % (seq)
-        	)
+            'The nucelotide sequence is not a multiple of 3: %s' % (seq)
+            )
     
     # replace all Uracil with Thymine
     seq = seq.upper()
