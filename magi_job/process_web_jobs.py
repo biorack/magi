@@ -21,8 +21,8 @@ my_settings = getattr(
 # set umask for python process
 os.umask(002)
 
-# get jobs from magiweb
-all_jobs = utils.retrieve_jobs()
+# get jobs from magiweb that havent been submitted yet
+all_jobs = utils.retrieve_jobs(sift=[('runflag', False)])
 
 # keep only jobs that need a job script made
 all_jobs, mass_search = utils.jobs_to_script(all_jobs)
@@ -36,6 +36,11 @@ for job in all_jobs:
     job = utils.determine_fasta_language(job)
     # conduct accurate mass search if needed
     if job['fields']['is_mass_search']:
+        email = job['fields']['email']
         job = utils.accurate_mass_search_wrapper(job, reference_compounds)
+        if job == 'too many compounds':
+            msg = 'Your compound search resulted in too many compounds, please reduce the number of adducts or lower the ppm'
+            utils.email_user(email, msg)
+            continue
     # create job script
     utils.job_script(job)

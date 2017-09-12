@@ -8,7 +8,11 @@ import os
 import subprocess
 import json
 import requests
+import smtplib
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
 import sys
+
 # load local settings
 sys.path.insert(
     0,
@@ -401,17 +405,6 @@ def job_script(job_data):
     
     # where to write the job script to
     out_path = '/'.join(job_data['fields']['fasta_file'].split('/')[:-1])
-    
-    ###################
-    # TEMPORARY BLOCK #
-    ###################
-    job_data['fields']['score_weights'] = [1, 2, 3, 4]
-    job_data['fields']['blast_cutoff'] = 100
-    job_data['fields']['reciprocal_cutoff'] = 75
-    job_data['fields']['chemnet_penalty'] = 3
-    ###################
-    # TEMPORARY BLOCK #
-    ###################
 
     # need to convert this into string so we can join it later
     job_data['fields']['score_weights'] = [str(i) for i in job_data['fields']['score_weights']]
@@ -516,19 +509,136 @@ def accurate_mass_match(mass, compound_df=None, ppm=5, extract='inchi_key'):
         cpds = None
     return cpds
 
-def accurate_mass_search_wrapper(job_data, reference_compounds):
+def mz_neutral_transform(val, adduct, transform='neutralize'):
+    """
+    val: m/z or neutral mass
+    adduct: adduct to consider
+    transform: 'neutralize' or 'ionize'
+      if neutralize, neutralizes 'val' by subtracting adduct
+      if ionize, ionizes 'val' by adding adduct
+    list of acceptible adducts:
+      M+H, M+NH4, M+Na, M+CH3OH+H, M+K, M+ACN+H, M+2Na-H,
+      M+IsoProp+H, M+ACN+Na, M+2K-H, M+DMSO+H, M+2ACN+H,
+      M+IsoProp+Na+H, 2M+H, 2M+NH4, 2M+Na, 2M+K, 2M+ACN+H,
+      2M+ACN+Na, M+3H, M+2H+Na, M+H+2Na, M+3Na, M+2H, M+H+NH4,
+      M+H+Na, M+H+K, M+ACN+2H, M+2Na, M+2ACN+2H, M+3ACN+2H, M-H,
+      M+Cl, M+FA-H, M+Hac-H, 2M-H, 2M+FA-H, 2M+Hac-H, 3M-H, M-3H,
+      M-2H, M-H2O-H, M+Na-2H, M+K-2H, M+Br, M+TFA-H
+    """
+    acceptible_adducts = [
+    'M+H', 'M+NH4', 'M+Na', 'M+CH3OH+H', 'M+K', 'M+ACN+H', 'M+2Na-H',
+    'M+IsoProp+H', 'M+ACN+Na', 'M+2K-H', 'M+DMSO+H', 'M+2ACN+H',
+    'M+IsoProp+Na+H', '2M+H', '2M+NH4', '2M+Na', '2M+K', '2M+ACN+H',
+    '2M+ACN+Na', 'M+3H', 'M+2H+Na', 'M+H+2Na', 'M+3Na', 'M+2H', 'M+H+NH4',
+    'M+H+Na', 'M+H+K', 'M+ACN+2H', 'M+2Na', 'M+2ACN+2H', 'M+3ACN+2H', 'M-H',
+    'M+Cl', 'M+FA-H', 'M+Hac-H', '2M-H', '2M+FA-H', '2M+Hac-H', '3M-H',
+    'M-3H', 'M-2H', 'M-H2O-H', 'M+Na-2H', 'M+K-2H', 'M+Br', 'M+TFA-H'
+    ]
+
+    # M + N
+    simple = {
+      'M+H': 1.007276,
+      'M+NH4': 18.033823,
+      'M+Na': 22.989218,
+      'M+CH3OH+H': 33.033489,
+      'M+K': 38.963158,
+      'M+ACN+H': 42.033823,
+      'M+2Na-H': 44.971160,
+      'M+IsoProp+H': 61.06534,
+      'M+ACN+Na': 64.015765,
+      'M+2K-H': 76.919040,
+      'M+DMSO+H': 79.02122,
+      'M+2ACN+H': 83.060370,
+      'M+IsoProp+Na+H': 84.05511,
+      'M-H': -1.007276,
+      'M+Cl': 34.969402,
+      'M+FA-H': 44.998201,
+      'M+Hac-H': 59.013851,
+      'M-H2O-H': -19.01839,
+      'M+Na-2H': 20.974666,
+      'M+K-2H': 36.948606,
+      'M+Br': 78.918885,
+      'M+TFA-H': 112.985586,
+    }
+    # 2M + N
+    two_M = {
+      '2M+H': 1.007276,
+      '2M+NH4': 18.033823,
+      '2M+Na': 22.989218,
+      '2M+K': 38.963158,
+      '2M+ACN+H': 42.033823,
+      '2M+ACN+Na': 64.015765,
+      '2M-H': -1.007276,
+      '2M+FA-H': 44.998201,
+      '2M+Hac-H': 59.013851,
+    }
+    # 3M + N
+    three_M = {
+      '3M-H': -1.007276,
+    }
+    # M/2 + N
+    two_charge = {
+      'M+2H': 1.007276,
+      'M+H+NH4': 9.520550,
+      'M+H+Na': 11.998247,
+      'M+H+K': 19.985217,
+      'M+ACN+2H': 21.520550,
+      'M+2Na': 22.989218,
+      'M+2ACN+2H': 42.033823,
+      'M+3ACN+2H': 62.547097,
+      'M-2H': -1.007276,
+    }
+    # M/3 + N
+    three_charge = {
+      'M+3H': 1.007276,
+      'M+2H+Na': 8.334590,
+      'M+H+2Na': 15.7661904,
+      'M+3Na': 22.989218,
+      'M-3H': -1.007276,
+    }
+    transform = transform.lower()
+    if transform not in ['neutralize', 'ionize']:
+      raise RuntimeError('%s is not an acceptible transformaion;\
+           please use "ionize" or "neutralize"' % (transform))
+    if adduct not in acceptible_adducts:
+      raise RuntimeError('%s not in the list of acceptible adducts'
+           % (adduct))
+    x = None
+    if adduct in simple.keys():
+      if transform == 'neutralize':
+           x = val - simple[adduct]
+      elif transform == 'ionize':
+           x = val + simple[adduct]
+
+    if adduct in two_M.keys():
+      if transform == 'neutralize':
+           x = (val - two_M[adduct]) / 2
+      elif transform == 'ionize':
+           x = 2 * val + two_M[adduct]
+
+    if adduct in three_M.keys():
+      if transform == 'neutralize':
+           x = (val - three_M[adduct]) / 3
+      elif transform == 'ionize':
+           x = 3 * val + three_M[adduct]
+
+    if adduct in two_charge.keys():
+      if transform == 'neutralize':
+           x = (val - two_charge[adduct]) * 2
+      elif transform == 'ionize':
+           x = (val / 2) + two_charge[adduct]
+
+    if adduct in three_charge.keys():
+      if transform == 'neutralize':
+           x = (val - three_charge[adduct]) * 3
+      elif transform == 'ionize':
+           x = (val / 3) + three_charge[adduct]
+    return x
+
+def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=2500):
     """
     performs accurate mass search using unique_compounds table
     """
-
-    # math table for all adducts
-    adduct_table = {
-        'p1' : -1.007276,
-        'p2' : -18.033823,
-        'p3' : -22.989218,
-        'p4' : -38.963158,
-        'p8' : - 42.033823,
-    }
 
     search_ppm = job_data['fields']['ppm']
 
@@ -557,7 +667,7 @@ def accurate_mass_search_wrapper(job_data, reference_compounds):
     # accurate mass search and store results
     for mz in compounds['original_mz'].unique():
         for adduct in adducts:
-            neutral_mass = mz + adduct_table[adduct]
+            neutral_mass = mz_neutral_transform(mz, adduct)
             found_compounds = accurate_mass_match(neutral_mass,
                                                   compound_df=reference_compounds,
                                                   ppm=search_ppm
@@ -571,6 +681,8 @@ def accurate_mass_search_wrapper(job_data, reference_compounds):
     # merge with user input and save
     df = pd.DataFrame(data)
     compounds = compounds.merge(df, on='original_mz', how='left')
+    if compounds['original_compount'].drop_duplicates().shape[0] > max_compounds:
+        raise RuntimeError('too many compounds')
     
     # save the new table
     new_path = job_data['fields']['metabolite_file'].split('.')[0] + '_mass_searched.csv'
@@ -579,3 +691,10 @@ def accurate_mass_search_wrapper(job_data, reference_compounds):
 
     return job_data
 
+def email_user(email, text, cc_magi=False):
+    """
+    emails a MAGI user a specific message, optionally also copying magi_job@lbl.gov
+    """
+    # Create the container (outer) email message.
+    msg = MIMEMultipart()
+    msg['Subject'] = 'Our family reunion'
