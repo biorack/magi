@@ -24,22 +24,29 @@ def retrieve_jobs(
         password=my_settings.magiwebsuperuserpass,
         base_url='https://magi-dev.nersc.gov/',
         admin_logon='admin/login',
-        sift=('filter', 'all')
+        sift=[('filter', 'all')]
     ):
     """
     Retrieves jobs json from magi web.
     Output is a python list of dictionaries representing the json of all
     jobs.
 
-    sift: tuple to construct url query filter.
+    sift: list of tuples to construct url query filter.
           first element of tuple is the variable
           second element is the value
-          example ('filter', 'all'):
+          example [('filter', 'all')]:
               admin/ids/?filter=all&json=True
-          example ('pk', 'b823fd89-ed34-48d6-a657-258c90542088'):
+          example [('pk', 'b823fd89-ed34-48d6-a657-258c90542088')]:
               admin/ids/?pk=b823fd89-ed34-48d6-a657-258c90542088&json=True
+          example [('email', 'magi_web@lbl.gov'), ('year_lte', 2015)]:
+              admin/ids/?email=magi_web@lbl.gov&uploaded_at__year__lte=2015&json=True
 
     """
+    if not isinstance(sift, list):
+        raise ValueError('sift argument must be a list of tuples or lists')
+    for f in sift:
+        if not (isinstance(sift, list) or isinstance(sift, tuple)):
+            raise ValueError('sift argument must be a list of tuples or lists')
 
     auth_url = base_url + admin_logon
 
@@ -56,8 +63,14 @@ def retrieve_jobs(
     if r.status_code not in [200, 404]:
         raise RuntimeError(
             'Could not authenticate; status code %s' % (r.status_code))
-    filter_string = '%s=%s' %(sift[0], sift[1])
-    get_url = os.path.join(base_url,'admin/ids/?%s&json=True' % (filter_string))
+    
+    # build filter string
+    filter_string = ''
+    for f in sift:
+        filter_string += '%s=%s&' %(f[0], f[1])
+
+    get_url = os.path.join(base_url,'admin/ids/?%sjson=True' % (filter_string))
+
     r = client.get(get_url)
     if r.status_code not in [200]:
         raise RuntimeError(
@@ -142,7 +155,7 @@ def change_params(
             password=password,
             base_url=base_url,
             admin_logon=admin_logon,
-            sift=('pk', job_id)
+            sift=[('pk', job_id)]
             )
         if job is None:
             return False
