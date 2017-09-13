@@ -140,11 +140,10 @@ compounds = load_dataframe(my_settings.compounds_df)
 
 #chemnet files
 print '!!! loading chemnet files'
-pickle_file = my_settings.chemnet_pickle
-with open(pickle_file, 'r') as fid:
-    kcf_scores = pickle.load(fid)
-cpd_df = pd.DataFrame(kcf_scores['string_inchi_key'], columns=['inchikey'])
-cpd_group_lookup = kcf_scores['string_inchi_key']
+with open(my_settings.chemnet_pickle, 'r') as fid:
+    cpd_group_data = pickle.load(fid)
+cpd_df = pd.DataFrame(cpd_group_data, columns=['inchikey'])
+cpd_group_lookup = cpd_group_data
 
 # load the MST chemical network
 with open(my_settings.mst_path, 'r') as f:
@@ -787,8 +786,7 @@ def mol_from_inchikey(inchikey):
     else:
         return None
 
-def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2,
-    taut_net_warning=False):
+def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
     """
     Connects a compound, its neighbors, and optionally its and its
     neighbors' tautomers to a reaction
@@ -807,8 +805,6 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2,
                     1: finds the immediate neighbors
                     2: finds the neighbor's neighbors
                     etc.
-    taut_net_warning: Whether or not to print warning message that a
-                      tautomer was not found in the chemical network.
 
     Outputs
     -------
@@ -847,9 +843,8 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2,
         # make an rdkit mol of the compound
         compound_mol = mol_from_inchikey(inchikey)
         if compound_mol is None:
-            if taut_net_warning:
-                print '853 WARNING: Could not find "%s" in the compound database; \
-                    skipping tautomer and neighbor searching' % (inchikey)
+            print 'WARNING: Could not find "%s" in the compound database; \
+                skipping tautomer and neighbor searching' % (inchikey)
             return pd.DataFrame(compound_results)
 
         # get tautomers of the compound
