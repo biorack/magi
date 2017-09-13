@@ -1061,7 +1061,7 @@ def mass_from_inchikey(inchikey_list, compound_db=compounds,
     -------
     df: dataframe with inchi_key and monoisotopic_mass as columns
     """
-    df = compounds.set_index(inchi_key_col).loc[inchikey_list]
+    df = compound_db.set_index(inchi_key_col).loc[inchikey_list]
     df = df.reset_index()[[inchi_key_col, mass_col]]
     df.drop_duplicates(inchi_key_col, inplace=True)
     return df
