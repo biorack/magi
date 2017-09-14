@@ -36,7 +36,7 @@ for job_data in all_jobs:
     listdir = os.listdir(script_dir)
     try:
         job_script = [x for x in listdir if 'job_script' in x][0]
-    except:
+    except Exception as e:
         print script_dir
         print e.args
         continue
