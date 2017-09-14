@@ -38,6 +38,16 @@ and populated with 1.0
 # TODO: find the best way to level adjust the MAGI score. 10^n is too strong
 
 import sys
+# load local settings
+sys.path.insert(
+    0,
+    '/global/homes/e/erbilgin/repos/magi/')
+from local_settings import local_settings as settings_loc
+my_settings = getattr(
+    __import__(
+        'local_settings',
+        fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
+        
 import argparse
 import os
 import warnings
@@ -206,21 +216,7 @@ if args.mute:
 	print '!!! Warnings are muted'
 	warnings.filterwarnings('ignore')
 
-# load local settings
-sys.path.insert(
-    0,
-    '/project/projectdirs/metatlas/projects/metatlas_reactions/')
-from local_settings import local_settings as settings_loc
-my_settings = getattr(
-    __import__(
-        'local_settings',
-        fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
-
 # import workflow helpers after all the argument checking
-sys.path.insert(
-	0,
-	os.path.join(my_settings.repo_location, 'workflow/helpertools'))
-print '!!! importing workflow helpers'
 import workflow_helpers as mg
 
 # path to MAGI data storage

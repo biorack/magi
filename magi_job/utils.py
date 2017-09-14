@@ -487,7 +487,7 @@ def job_script(job_data, n_cpd=None):
     job_lines = [
         'umask 002',
         '',
-        'time python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/magi_workflow_20170519.py \\',
+        'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
         '--fasta %s \\' % (job_data['fields']['fasta_file']),
         '--compounds %s \\' % (job_data['fields']['metabolite_file']),
         '--level %s \\' % (job_data['fields']['network_level']),
