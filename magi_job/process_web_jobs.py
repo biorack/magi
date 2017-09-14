@@ -37,22 +37,31 @@ for job in all_jobs:
             try:
                 job = utils.accurate_mass_search_wrapper(job, reference_compounds)
             except RuntimeError as e:
+                job_link = 'https://magi-dev.nersc.gov/jobs/?id=%s' % (job['pk'])
+                subj = 'Error processing your MAGI job'
                 if e.args[0] == 'too many compounds':
-                    job_link = 'https://magi-dev.nersc.gov/jobs/?id=%s' % (job['pk'])
-                    msg = 'Your compound search resulted in too many compounds, please reduce the number of adducts or lower the ppm by editing your job here: %s. You can reply to this email for more help. Thanks for using MAGI!' % (job_link)
-                    subj = 'Error processing your MAGI job'
-                    utils.email_user(job['fields']['email'], subj, msg)
-                    utils.save_job_params(job)
-                    # need to stop this job from going again until fixed somehow
-                    # idea 1: make a small txt file that is the json of their job
-                    # and titled "email_sent"
-                    # if "email_sent" is present, see if the new job params are the same
-                    # if they are the same, see if their compound file is identical
-                    # if either of those 2 conditionals arent met, delete the email_sent file
-                    # and rerun accurate mass searching
-                    continue
+                    fname = 'too many compounds'
+                    msg = 'Your compound search resulted in too many '
+                    msg += 'compounds, please reduce the number of adducts or '
+                    msg += 'lower the ppm by editing your job here: %s. ' % (job_link)
+                    msg += 'You can reply to this email for more help. '
+                    msg += 'Thanks for using MAGI!' 
+                elif e.args[0] == 'original_compound not floatable':
+                    fname = 'original_compound not floatable'
+                    msg = 'You elected to conduct an accurate mass search, '
+                    msg += 'but at least one of the values in the '
+                    msg += 'original_compound column in your metabolite table '
+                    msg += 'does not look like a number. \nPlease double-check '
+                    msg += 'your input and edit/resubmit your job by '
+                    msg += 'clicking here: %s.\n\n' % (job_link)
+                    msg += 'You can reply to this email for more help. '
+                    msg += 'Thanks for using MAGI!'
                 else:
                     raise e
+                utils.email_user(job['fields']['email'], subj, msg)
+                utils.save_job_params(job, fname=fname)
+                print('emailed \n %s \n %s' % (job['fields']['email'], msg))
+                continue
         else:
             continue
     
