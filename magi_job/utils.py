@@ -8,11 +8,14 @@ import os
 import subprocess
 import json
 import requests
+import smtplib
+from email.mime.text import MIMEText
 import sys
+
 # load local settings
 sys.path.insert(
     0,
-    '/project/projectdirs/metatlas/projects/metatlas_reactions/')
+    '/global/homes/e/erbilgin/repos/magi/')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -191,7 +194,7 @@ def mirror_inputs(all_jobs, verbose=False):
         if not os.path.isdir(job_path):
             if verbose:
                 print('making %s' % (job_path))
-            os.makedirs(job_path)
+            os.makedirs(os.path.join(job_path, 'admin'))
 
         if not os.path.isfile(os.path.join(dir_root, fasta_file)):
             if verbose:
@@ -212,12 +215,39 @@ def mirror_inputs(all_jobs, verbose=False):
                 f.write(metabolite_data.text)
     return None
 
+def adjust_file_paths(
+    all_jobs,
+    dir_root='/project/projectdirs/metatlas/projects/magi_tasks'):
+    """
+    creates appropriate full path for input files after being mirrored to disk
+    """
+    to_pop = []
+    for i, job in enumerate(all_jobs):
+        pk = job['pk']
+        try:
+            job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
+            job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
+        except IndexError:
+            print('WARNING: could not find input file(s) for job %s index %s' % (pk, i))
+            to_pop.append(i)
+        if not os.path.isfile(job['fields']['fasta_file']):
+            print('WARNING: fasta file for job %s does not exist' % (pk))
+            continue
+        if not os.path.isfile(job['fields']['metabolite_file']):
+            print('WARNING: fasta file for job %s does not exist' % (pk))
+            continue
+    # remove the jobs that didn't have input files
+    if len(to_pop) > 0:
+        for i in to_pop:
+            all_jobs.pop(i)
+    return all_jobs
+
 def jobs_to_script(
         all_jobs,
         dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
     ):
     """
-    Determine which jobs need an SBATCH script.
+    Determine which jobs need a job script.
     
     Inputs
     all_jobs: a list of dictionaries that represents the json of magi
@@ -239,24 +269,8 @@ def jobs_to_script(
         month = job['fields']['uploaded_at'].split('-')[1]
         pk = job['pk']
         job_path = os.path.join(dir_root, year, month, pk)
-        if not os.path.isfile(os.path.join(job_path, 'job_script.sbatch')):
-            # adjust paths
-            try:
-                job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
-                job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
-            except IndexError:
-                print('WARNING: could not find input file(s) for job %s index %s; not making a job script' % (pk, i))
-                continue
-            
-            # check to make sure the files exist
-            if not os.path.isfile(job['fields']['fasta_file']):
-                print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
-                continue
-            if not os.path.isfile(job['fields']['metabolite_file']):
-                print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
-                continue
-            
-            # add job json to todo list
+        script_path = os.path.join(job_path, 'admin')
+        if not (os.path.isfile(os.path.join(script_path, 'job_script.sbatch')) or os.path.isfile(os.path.join(script_path, 'job_script.qsub'))):            
             mass_search.append(job['fields']['is_mass_search'])
             to_script.append(job)
     mass_search = any(mass_search)
@@ -392,71 +406,108 @@ def determine_fasta_language(job_data, translate=True):
     else:
         return job_data
 
-def job_script(job_data):
+def job_script(job_data, n_cpd=None):
     """
     uses job data json to create a magi job submission script for cori
     """
+
+    ############################################################################
+    # TEMPORARY STOPGAP BLOCK #
+    ############################################################################
+    job_data['fields']['blast_cutoff'] = int(job_data['fields']['blast_cutoff'])
+    job_data['fields']['reciprocal_cutoff'] = int(job_data['fields']['reciprocal_cutoff'])
+    ############################################################################
+
+
     account_id = 'm2650' # metatlas
-    partition = 'debug'
     
     # where to write the job script to
     out_path = '/'.join(job_data['fields']['fasta_file'].split('/')[:-1])
-    
-    ###################
-    # TEMPORARY BLOCK #
-    ###################
-    job_data['fields']['score_weights'] = [1, 2, 3, 4]
-    job_data['fields']['blast_cutoff'] = 100
-    job_data['fields']['reciprocal_cutoff'] = 75
-    job_data['fields']['chemnet_penalty'] = 3
-    ###################
-    # TEMPORARY BLOCK #
-    ###################
 
+    # prepare score weights
+    score_weights = [
+        job_data['fields']['score_weight_compound'],
+        job_data['fields']['score_weight_reciprocal'],
+        job_data['fields']['score_weight_homology'],
+        job_data['fields']['score_weight_rxnconnect'],
+    ]
     # need to convert this into string so we can join it later
-    job_data['fields']['score_weights'] = [str(i) for i in job_data['fields']['score_weights']]
+    score_weights = [str(i) for i in score_weights]
     
     # need to interpret tautomer flag
     if  job_data['fields']['is_tautomers']:
         tautomer = '--tautomer'
     else:
-        tautomer = ''
+        tautomer = '--no-tautomer'
+
+    # estimate timing:
+    if n_cpd <= 100:
+        t_limit = '00:15:00'
+        partition = 'debug'
+        filetype = 'sbatch'
+    else:
+        t_limit = '24:00:00'
+        partition = 'genepool'
+        filetype = 'qsub'
+
+    if partition == 'genepool':
+        header_lines = [
+            '#!/bin/bash',
+            '#$ -M %s' % (job_data['fields']['email']),
+            '#$ -m abe',
+            '#$ -l h_rt=%s' % (t_limit),
+            '#$ -pe pe_32 32',
+            '#$ -l ram.c=7.5G,h_vmem=7.5G',
+            '#$ -q exclusive.c',
+            '#$ -wd %s' % (out_path),
+            '#$ -o %s/log_out.txt' % (out_path),
+            '#$ -e %s/log_err.txt' % (out_path),
+            '',
+            'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            '',
+        ]
+    else:
+        header_lines = [
+            '#!/bin/bash -l',
+            '#SBATCH --account=%s' % (account_id),
+            '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
+            '#SBATCH --time=0:10:00',
+            '#SBATCH --output=%s/log_out.txt' % (out_path),
+            '#SBATCH --error=%s/log_err.txt' % (out_path),
+            '#SBATCH --partition=%s' % (partition),
+            '#SBATCH --constraint=haswell',
+            '#SBATCH --license=project',
+            '#SBATCH --mail-user=%s' %(job_data['fields']['email']),
+            '#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT',
+            '',
+            'module load python/2.7-anaconda',
+            '',
+        ]
 
     job_lines = [
-        '#!/bin/bash -l',
-        '#SBATCH --account=%s' % (account_id),
-        '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
-        '#SBATCH --time=0:10:00',
-        '#SBATCH --output=%s/log_out.txt' % (out_path),
-        '#SBATCH --error=%s/log_err.txt' % (out_path),
-        '#SBATCH --partition=%s' % (partition),
-        '#SBATCH --constraint=haswell',
-        '#SBATCH --license=project',
-        '#SBATCH --mail-user=%s' %(job_data['fields']['email']),
-        '#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT',
+        'umask 002',
         '',
-        'module load python/2.7-anaconda',
-        '',
-        'time python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/magi_workflow_20170519.py \\',
+        'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
         '--fasta %s \\' % (job_data['fields']['fasta_file']),
         '--compounds %s \\' % (job_data['fields']['metabolite_file']),
         '--level %s \\' % (job_data['fields']['network_level']),
         # not sure if this line will break anything at nersc
         # if it does, put it at the end of the previous line
         '%s \\' % (tautomer),
-        '--final_weights %s \\' % (' '.join(job_data['fields']['score_weights'])),
+        '--final_weights %s \\' % (' '.join(score_weights)),
         '--blast_filter %s \\' % (job_data['fields']['blast_cutoff']),
         '--reciprocal_closeness %s \\' % (job_data['fields']['reciprocal_cutoff']),
         '--chemnet_penalty %s \\' % (job_data['fields']['chemnet_penalty']),
-        '--output %s/output_files --mute' % (out_path),
+        '--output %s --mute' % (out_path),
     ]
     
-    job = '\n'.join(job_lines)
+    job = '\n'.join(header_lines) + '\n' + '\n'.join(job_lines) + '\n'
 
     # change umask temporarily; don't want job script to be world-read
     old_mask = os.umask(007)
     # write job
-    with open(os.path.join(out_path, 'job_script.sbatch'), 'w') as f:
+    script_path = os.path.join(out_path, 'admin')
+    with open(os.path.join(script_path, 'job_script.%s') % (filetype), 'w') as f:
         f.write(job)
     os.umask(old_mask)
     return None
@@ -516,26 +567,143 @@ def accurate_mass_match(mass, compound_df=None, ppm=5, extract='inchi_key'):
         cpds = None
     return cpds
 
-def accurate_mass_search_wrapper(job_data, reference_compounds):
+def mz_neutral_transform(val, adduct, transform='neutralize'):
+    """
+    val: m/z or neutral mass
+    adduct: adduct to consider
+    transform: 'neutralize' or 'ionize'
+      if neutralize, neutralizes 'val' by subtracting adduct
+      if ionize, ionizes 'val' by adding adduct
+    list of acceptible adducts:
+      M+H, M+NH4, M+Na, M+CH3OH+H, M+K, M+ACN+H, M+2Na-H,
+      M+IsoProp+H, M+ACN+Na, M+2K-H, M+DMSO+H, M+2ACN+H,
+      M+IsoProp+Na+H, 2M+H, 2M+NH4, 2M+Na, 2M+K, 2M+ACN+H,
+      2M+ACN+Na, M+3H, M+2H+Na, M+H+2Na, M+3Na, M+2H, M+H+NH4,
+      M+H+Na, M+H+K, M+ACN+2H, M+2Na, M+2ACN+2H, M+3ACN+2H, M-H,
+      M+Cl, M+FA-H, M+Hac-H, 2M-H, 2M+FA-H, 2M+Hac-H, 3M-H, M-3H,
+      M-2H, M-H2O-H, M+Na-2H, M+K-2H, M+Br, M+TFA-H
+    """
+    acceptible_adducts = [
+    'M+H', 'M+NH4', 'M+Na', 'M+CH3OH+H', 'M+K', 'M+ACN+H', 'M+2Na-H',
+    'M+IsoProp+H', 'M+ACN+Na', 'M+2K-H', 'M+DMSO+H', 'M+2ACN+H',
+    'M+IsoProp+Na+H', '2M+H', '2M+NH4', '2M+Na', '2M+K', '2M+ACN+H',
+    '2M+ACN+Na', 'M+3H', 'M+2H+Na', 'M+H+2Na', 'M+3Na', 'M+2H', 'M+H+NH4',
+    'M+H+Na', 'M+H+K', 'M+ACN+2H', 'M+2Na', 'M+2ACN+2H', 'M+3ACN+2H', 'M-H',
+    'M+Cl', 'M+FA-H', 'M+Hac-H', '2M-H', '2M+FA-H', '2M+Hac-H', '3M-H',
+    'M-3H', 'M-2H', 'M-H2O-H', 'M+Na-2H', 'M+K-2H', 'M+Br', 'M+TFA-H'
+    ]
+
+    # M + N
+    simple = {
+      'M+H': 1.007276,
+      'M+NH4': 18.033823,
+      'M+Na': 22.989218,
+      'M+CH3OH+H': 33.033489,
+      'M+K': 38.963158,
+      'M+ACN+H': 42.033823,
+      'M+2Na-H': 44.971160,
+      'M+IsoProp+H': 61.06534,
+      'M+ACN+Na': 64.015765,
+      'M+2K-H': 76.919040,
+      'M+DMSO+H': 79.02122,
+      'M+2ACN+H': 83.060370,
+      'M+IsoProp+Na+H': 84.05511,
+      'M-H': -1.007276,
+      'M+Cl': 34.969402,
+      'M+FA-H': 44.998201,
+      'M+Hac-H': 59.013851,
+      'M-H2O-H': -19.01839,
+      'M+Na-2H': 20.974666,
+      'M+K-2H': 36.948606,
+      'M+Br': 78.918885,
+      'M+TFA-H': 112.985586,
+    }
+    # 2M + N
+    two_M = {
+      '2M+H': 1.007276,
+      '2M+NH4': 18.033823,
+      '2M+Na': 22.989218,
+      '2M+K': 38.963158,
+      '2M+ACN+H': 42.033823,
+      '2M+ACN+Na': 64.015765,
+      '2M-H': -1.007276,
+      '2M+FA-H': 44.998201,
+      '2M+Hac-H': 59.013851,
+    }
+    # 3M + N
+    three_M = {
+      '3M-H': -1.007276,
+    }
+    # M/2 + N
+    two_charge = {
+      'M+2H': 1.007276,
+      'M+H+NH4': 9.520550,
+      'M+H+Na': 11.998247,
+      'M+H+K': 19.985217,
+      'M+ACN+2H': 21.520550,
+      'M+2Na': 22.989218,
+      'M+2ACN+2H': 42.033823,
+      'M+3ACN+2H': 62.547097,
+      'M-2H': -1.007276,
+    }
+    # M/3 + N
+    three_charge = {
+      'M+3H': 1.007276,
+      'M+2H+Na': 8.334590,
+      'M+H+2Na': 15.7661904,
+      'M+3Na': 22.989218,
+      'M-3H': -1.007276,
+    }
+    transform = transform.lower()
+    if transform not in ['neutralize', 'ionize']:
+      raise RuntimeError('%s is not an acceptible transformaion;\
+           please use "ionize" or "neutralize"' % (transform))
+    if adduct not in acceptible_adducts:
+      raise RuntimeError('%s not in the list of acceptible adducts'
+           % (adduct))
+    x = None
+    if adduct in simple.keys():
+      if transform == 'neutralize':
+           x = val - simple[adduct]
+      elif transform == 'ionize':
+           x = val + simple[adduct]
+
+    if adduct in two_M.keys():
+      if transform == 'neutralize':
+           x = (val - two_M[adduct]) / 2
+      elif transform == 'ionize':
+           x = 2 * val + two_M[adduct]
+
+    if adduct in three_M.keys():
+      if transform == 'neutralize':
+           x = (val - three_M[adduct]) / 3
+      elif transform == 'ionize':
+           x = 3 * val + three_M[adduct]
+
+    if adduct in two_charge.keys():
+      if transform == 'neutralize':
+           x = (val - two_charge[adduct]) * 2
+      elif transform == 'ionize':
+           x = (val / 2) + two_charge[adduct]
+
+    if adduct in three_charge.keys():
+      if transform == 'neutralize':
+           x = (val - three_charge[adduct]) * 3
+      elif transform == 'ionize':
+           x = (val / 3) + three_charge[adduct]
+    return x
+
+def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=2500):
     """
     performs accurate mass search using unique_compounds table
     """
-
-    # math table for all adducts
-    adduct_table = {
-        'p1' : -1.007276,
-        'p2' : -18.033823,
-        'p3' : -22.989218,
-        'p4' : -38.963158,
-        'p8' : - 42.033823,
-    }
 
     search_ppm = job_data['fields']['ppm']
 
     # get adducts according to polarity
     if job_data['fields']['polarity'] == 'pos':
         adducts = job_data['fields']['adducts_pos'].split(',')
-    elif job_data['fields']['polarity'] == 'pos':
+    elif job_data['fields']['polarity'] == 'neg':
         adducts = job_data['fields']['adducts_neg'].split(',')
     else:
         raise RuntimeError('Could not understand polarity')
@@ -557,7 +725,7 @@ def accurate_mass_search_wrapper(job_data, reference_compounds):
     # accurate mass search and store results
     for mz in compounds['original_mz'].unique():
         for adduct in adducts:
-            neutral_mass = mz + adduct_table[adduct]
+            neutral_mass = mz_neutral_transform(mz, adduct)
             found_compounds = accurate_mass_match(neutral_mass,
                                                   compound_df=reference_compounds,
                                                   ppm=search_ppm
@@ -577,5 +745,65 @@ def accurate_mass_search_wrapper(job_data, reference_compounds):
     job_data['fields']['metabolite_file'] = new_path
     compounds.to_csv(job_data['fields']['metabolite_file'])
 
+    if compounds['original_compound'].drop_duplicates().shape[0] > max_compounds:
+        raise RuntimeError('too many compounds')
+
     return job_data
 
+def email_user(email, subject, text):
+    """
+    emails a MAGI user a specific message
+    """
+    msg = MIMEText(text)
+    msg['Subject'] = subject
+    msg['From'] = 'magi_web@lbl.gov'
+    msg['To'] = email
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail('magi_web@lbl.gov', email, msg.as_string())
+
+def save_job_params(job_data, fname='too_many_compounds'):
+    """
+    saves a job's json and input file info for later comparison
+    """
+    compound_df = pd.read_csv(job_data['fields']['metabolite_file'])
+    job_data['n_mz'] = compound_df.shape[0]
+
+    job_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    with open(os.path.join(job_path, fname), 'w') as f:
+        f.write(json.dumps(job_data))
+
+def accurate_mass_checkpoint(job_data, fname='too_many_compounds'):
+    """
+    performs various checks to determine if accurate mass searching
+    should proceed
+    1. is the file 'too_many_compounds' present in the job dir?
+    2. are the current params different from old params?
+    3. is the metabolite table length the same(same number of cpds?)
+
+    returns True if accurate mass searching should proceed
+    returns False if the issues were not fixed
+
+    """
+    # check if the email file exists
+    job_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    if not os.path.isfile(os.path.join(job_path, fname)):
+        return True
+    
+    # are the relevant params different?
+    with open(os.path.join(job_path, fname), 'r') as f:
+        data = f.read()
+    old_job_data = json.loads(data)
+
+    relevant_keys = ['polarity', 'adducts_pos', 'adducts_neg', 'ppm']
+    for k in relevant_keys:
+        if job_data['fields'][k] != old_job_data['fields'][k]:
+            return True
+
+    # is the number of mz the same?
+    compound_df = pd.read_csv(job_data['fields']['metabolite_file'])
+    if old_job_data['n_mz'] != compound_df.shape[0]:
+        return True
+
+    # if all the checkpoints failed, don't run the accurate mass search
+    return False
