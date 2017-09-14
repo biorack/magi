@@ -48,6 +48,17 @@ import time
 import pickle
 import datetime
 
+# insert path to the repo
+sys.path.insert(
+    0,
+    '/global/homes/e/erbilgin/repos/magi/')
+# load local settings
+from local_settings import local_settings as settings_loc
+my_settings = getattr(
+    __import__(
+        'local_settings',
+        fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
+
 # print versions of troublesome modules
 print '!!! Python version:', sys.version
 print '!!! numpy version: ', np.__version__
@@ -206,22 +217,9 @@ if args.mute:
 	print '!!! Warnings are muted'
 	warnings.filterwarnings('ignore')
 
-# load local settings
-sys.path.insert(
-    0,
-    '/project/projectdirs/metatlas/projects/metatlas_reactions/')
-from local_settings import local_settings as settings_loc
-my_settings = getattr(
-    __import__(
-        'local_settings',
-        fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
-
 # import workflow helpers after all the argument checking
-sys.path.insert(
-	0,
-	os.path.join(my_settings.repo_location, 'workflow/helpertools'))
 print '!!! importing workflow helpers'
-import workflow_helpers as mg
+from workflow import workflow_helpers as mg
 
 # path to MAGI data storage
 MAGI_PATH = my_settings.magi_results_storage

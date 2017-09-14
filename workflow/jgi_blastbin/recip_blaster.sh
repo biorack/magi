@@ -8,10 +8,12 @@ CPU=$1
 DB=$2
 #working dir
 CWD=$3
+#repo location
+REPO=$4
 
 i=$CPU
 
-BLASTP="/project/projectdirs/metatlas/projects/metatlas_reactions/workflow/jgi_blastbin/blastp"
+BLASTP="$REPO/workflow/jgi_blastbin/blastp"
 
 while [ $i -gt 0 ]
 do
