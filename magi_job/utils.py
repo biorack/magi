@@ -9,14 +9,13 @@ import subprocess
 import json
 import requests
 import smtplib
-from email.mime.image import MIMEImage
-from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import sys
 
 # load local settings
 sys.path.insert(
     0,
-    '/project/projectdirs/metatlas/projects/metatlas_reactions/')
+    '/project/projectdirs/metatlas/projects/metatlas_reactions')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -195,7 +194,7 @@ def mirror_inputs(all_jobs, verbose=False):
         if not os.path.isdir(job_path):
             if verbose:
                 print('making %s' % (job_path))
-            os.makedirs(job_path)
+            os.makedirs(os.path.join(job_path, 'admin'))
 
         if not os.path.isfile(os.path.join(dir_root, fasta_file)):
             if verbose:
@@ -216,12 +215,39 @@ def mirror_inputs(all_jobs, verbose=False):
                 f.write(metabolite_data.text)
     return None
 
+def adjust_file_paths(
+    all_jobs,
+    dir_root='/project/projectdirs/metatlas/projects/magi_tasks'):
+    """
+    creates appropriate full path for input files after being mirrored to disk
+    """
+    to_pop = []
+    for i, job in enumerate(all_jobs):
+        pk = job['pk']
+        try:
+            job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
+            job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
+        except IndexError:
+            print('WARNING: could not find input file(s) for job %s index %s' % (pk, i))
+            to_pop.append(i)
+        if not os.path.isfile(job['fields']['fasta_file']):
+            print('WARNING: fasta file for job %s does not exist' % (pk))
+            continue
+        if not os.path.isfile(job['fields']['metabolite_file']):
+            print('WARNING: fasta file for job %s does not exist' % (pk))
+            continue
+    # remove the jobs that didn't have input files
+    if len(to_pop) > 0:
+        for i in to_pop:
+            all_jobs.pop(i)
+    return all_jobs
+
 def jobs_to_script(
         all_jobs,
         dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
     ):
     """
-    Determine which jobs need an SBATCH script.
+    Determine which jobs need a job script.
     
     Inputs
     all_jobs: a list of dictionaries that represents the json of magi
@@ -243,24 +269,8 @@ def jobs_to_script(
         month = job['fields']['uploaded_at'].split('-')[1]
         pk = job['pk']
         job_path = os.path.join(dir_root, year, month, pk)
-        if not os.path.isfile(os.path.join(job_path, 'job_script.sbatch')):
-            # adjust paths
-            try:
-                job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
-                job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
-            except IndexError:
-                print('WARNING: could not find input file(s) for job %s index %s; not making a job script' % (pk, i))
-                continue
-            
-            # check to make sure the files exist
-            if not os.path.isfile(job['fields']['fasta_file']):
-                print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
-                continue
-            if not os.path.isfile(job['fields']['metabolite_file']):
-                print('WARNING: fasta file for job %s does not exist; not making a job script' % (pk))
-                continue
-            
-            # add job json to todo list
+        script_path = os.path.join(job_path, 'admin')
+        if not (os.path.isfile(os.path.join(script_path, 'job_script.sbatch')) or os.path.isfile(os.path.join(script_path, 'job_script.qsub'))):            
             mass_search.append(job['fields']['is_mass_search'])
             to_script.append(job)
     mass_search = any(mass_search)
@@ -396,39 +406,86 @@ def determine_fasta_language(job_data, translate=True):
     else:
         return job_data
 
-def job_script(job_data):
+def job_script(job_data, n_cpd=None):
     """
     uses job data json to create a magi job submission script for cori
     """
+
+    ############################################################################
+    # TEMPORARY STOPGAP BLOCK #
+    ############################################################################
+    job_data['fields']['blast_cutoff'] = int(job_data['fields']['blast_cutoff'])
+    job_data['fields']['reciprocal_cutoff'] = int(job_data['fields']['reciprocal_cutoff'])
+    ############################################################################
+
+
     account_id = 'm2650' # metatlas
-    partition = 'debug'
     
     # where to write the job script to
     out_path = '/'.join(job_data['fields']['fasta_file'].split('/')[:-1])
 
+    # prepare score weights
+    score_weights = [
+        job_data['fields']['score_weight_compound'],
+        job_data['fields']['score_weight_reciprocal'],
+        job_data['fields']['score_weight_homology'],
+        job_data['fields']['score_weight_rxnconnect'],
+    ]
     # need to convert this into string so we can join it later
-    job_data['fields']['score_weights'] = [str(i) for i in job_data['fields']['score_weights']]
+    score_weights = [str(i) for i in score_weights]
     
     # need to interpret tautomer flag
     if  job_data['fields']['is_tautomers']:
         tautomer = '--tautomer'
     else:
-        tautomer = ''
+        tautomer = '--no-tautomer'
+
+    # estimate timing:
+    if n_cpd <= 100:
+        t_limit = '00:15:00'
+        partition = 'debug'
+        filetype = 'sbatch'
+    else:
+        t_limit = '24:00:00'
+        partition = 'genepool'
+        filetype = 'qsub'
+
+    if partition == 'genepool':
+        header_lines = [
+            '#!/bin/bash',
+            '#$ -M %s' % (job_data['fields']['email']),
+            '#$ -m abe',
+            '#$ -l h_rt=%s' % (t_limit),
+            '#$ -pe pe_32 32',
+            '#$ -l ram.c=7.5G,h_vmem=7.5G',
+            '#$ -q exclusive.c',
+            '#$ -wd %s' % (out_path),
+            '#$ -o %s/log_out.txt' % (out_path),
+            '#$ -e %s/log_err.txt' % (out_path),
+            '',
+            'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            '',
+        ]
+    else:
+        header_lines = [
+            '#!/bin/bash -l',
+            '#SBATCH --account=%s' % (account_id),
+            '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
+            '#SBATCH --time=0:10:00',
+            '#SBATCH --output=%s/log_out.txt' % (out_path),
+            '#SBATCH --error=%s/log_err.txt' % (out_path),
+            '#SBATCH --partition=%s' % (partition),
+            '#SBATCH --constraint=haswell',
+            '#SBATCH --license=project',
+            '#SBATCH --mail-user=%s' %(job_data['fields']['email']),
+            '#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT',
+            '',
+            'module load python/2.7-anaconda',
+            '',
+        ]
 
     job_lines = [
-        '#!/bin/bash -l',
-        '#SBATCH --account=%s' % (account_id),
-        '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
-        '#SBATCH --time=0:10:00',
-        '#SBATCH --output=%s/log_out.txt' % (out_path),
-        '#SBATCH --error=%s/log_err.txt' % (out_path),
-        '#SBATCH --partition=%s' % (partition),
-        '#SBATCH --constraint=haswell',
-        '#SBATCH --license=project',
-        '#SBATCH --mail-user=%s' %(job_data['fields']['email']),
-        '#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT',
-        '',
-        'module load python/2.7-anaconda',
+        'umask 002',
         '',
         'time python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/magi_workflow_20170519.py \\',
         '--fasta %s \\' % (job_data['fields']['fasta_file']),
@@ -437,19 +494,20 @@ def job_script(job_data):
         # not sure if this line will break anything at nersc
         # if it does, put it at the end of the previous line
         '%s \\' % (tautomer),
-        '--final_weights %s \\' % (' '.join(job_data['fields']['score_weights'])),
+        '--final_weights %s \\' % (' '.join(score_weights)),
         '--blast_filter %s \\' % (job_data['fields']['blast_cutoff']),
         '--reciprocal_closeness %s \\' % (job_data['fields']['reciprocal_cutoff']),
         '--chemnet_penalty %s \\' % (job_data['fields']['chemnet_penalty']),
-        '--output %s/output_files --mute' % (out_path),
+        '--output %s --mute' % (out_path),
     ]
     
-    job = '\n'.join(job_lines)
+    job = '\n'.join(header_lines) + '\n' + '\n'.join(job_lines) + '\n'
 
     # change umask temporarily; don't want job script to be world-read
     old_mask = os.umask(007)
     # write job
-    with open(os.path.join(out_path, 'job_script.sbatch'), 'w') as f:
+    script_path = os.path.join(out_path, 'admin')
+    with open(os.path.join(script_path, 'job_script.%s') % (filetype), 'w') as f:
         f.write(job)
     os.umask(old_mask)
     return None
@@ -645,7 +703,7 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     # get adducts according to polarity
     if job_data['fields']['polarity'] == 'pos':
         adducts = job_data['fields']['adducts_pos'].split(',')
-    elif job_data['fields']['polarity'] == 'pos':
+    elif job_data['fields']['polarity'] == 'neg':
         adducts = job_data['fields']['adducts_neg'].split(',')
     else:
         raise RuntimeError('Could not understand polarity')
@@ -681,20 +739,71 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     # merge with user input and save
     df = pd.DataFrame(data)
     compounds = compounds.merge(df, on='original_mz', how='left')
-    if compounds['original_compount'].drop_duplicates().shape[0] > max_compounds:
-        raise RuntimeError('too many compounds')
     
     # save the new table
     new_path = job_data['fields']['metabolite_file'].split('.')[0] + '_mass_searched.csv'
     job_data['fields']['metabolite_file'] = new_path
     compounds.to_csv(job_data['fields']['metabolite_file'])
 
+    if compounds['original_compound'].drop_duplicates().shape[0] > max_compounds:
+        raise RuntimeError('too many compounds')
+
     return job_data
 
-def email_user(email, text, cc_magi=False):
+def email_user(email, subject, text):
     """
-    emails a MAGI user a specific message, optionally also copying magi_job@lbl.gov
+    emails a MAGI user a specific message
     """
-    # Create the container (outer) email message.
-    msg = MIMEMultipart()
-    msg['Subject'] = 'Our family reunion'
+    msg = MIMEText(text)
+    msg['Subject'] = subject
+    msg['From'] = 'magi_web@lbl.gov'
+    msg['To'] = email
+
+    s = smtplib.SMTP('localhost')
+    s.sendmail('magi_web@lbl.gov', email, msg.as_string())
+
+def save_job_params(job_data, fname='too_many_compounds'):
+    """
+    saves a job's json and input file info for later comparison
+    """
+    compound_df = pd.read_csv(job_data['fields']['metabolite_file'])
+    job_data['n_mz'] = compound_df.shape[0]
+
+    job_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    with open(os.path.join(job_path, fname), 'w') as f:
+        f.write(json.dumps(job_data))
+
+def accurate_mass_checkpoint(job_data, fname='too_many_compounds'):
+    """
+    performs various checks to determine if accurate mass searching
+    should proceed
+    1. is the file 'too_many_compounds' present in the job dir?
+    2. are the current params different from old params?
+    3. is the metabolite table length the same(same number of cpds?)
+
+    returns True if accurate mass searching should proceed
+    returns False if the issues were not fixed
+
+    """
+    # check if the email file exists
+    job_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    if not os.path.isfile(os.path.join(job_path, fname)):
+        return True
+    
+    # are the relevant params different?
+    with open(os.path.join(job_path, fname), 'r') as f:
+        data = f.read()
+    old_job_data = json.loads(data)
+
+    relevant_keys = ['polarity', 'adducts_pos', 'adducts_neg', 'ppm']
+    for k in relevant_keys:
+        if job_data['fields'][k] != old_job_data['fields'][k]:
+            return True
+
+    # is the number of mz the same?
+    compound_df = pd.read_csv(job_data['fields']['metabolite_file'])
+    if old_job_data['n_mz'] != compound_df.shape[0]:
+        return True
+
+    # if all the checkpoints failed, don't run the accurate mass search
+    return False
