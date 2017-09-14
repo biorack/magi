@@ -34,7 +34,12 @@ for job_data in all_jobs:
     pk = job_data['pk']
     script_dir = os.path.join(magi_task_root, y, m, pk, 'admin')
     listdir = os.listdir(script_dir)
-    job_script = [x for x in listdir if 'job_script' in x][0]
+    try:
+        job_script = [x for x in listdir if 'job_script' in x][0]
+    except:
+        print script_dir
+        print e.args
+        continue
     script_path = os.path.join(script_dir, job_script)
     submit_protocol = job_script.split('.')[1]
     if submit_protocol not in ['sbatch', 'qsub']:
