@@ -1,12 +1,13 @@
 # crontab locations:
 # cori: corigrid (cori17)
 # genepool: genepool14
+MAGI_PATH='/global/homes/e/erbilgin/repos/magi/magi_job'
 
 # mirror every minute
-*/1 * * * * /project/projectdirs/metatlas/projects/metatlas_reactions/magi_job/mirror.sh  
+*/1 * * * * $MAGI_PATH/mirror.sh  
 
 # process every 3 minutes
-*/3 * * * * /project/projectdirs/metatlas/projects/metatlas_reactions/magi_job/proscript.sh
+*/3 * * * * $MAGI_PATH/proscript.sh
 
 # submit jobs every 2 minutes
-*/2 * * * * /project/projectdirs/metatlas/projects/metatlas_reactions/magi_job/submitscript.sh
+*/2 * * * * $MAGI_PATH/submitscript.sh
