@@ -6,17 +6,8 @@ from __future__ import print_function
 import pandas as pd
 import os
 import sys
-sys.path.insert(
-    0,
-    '/project/projectdirs/metatlas/projects/metatlas_reactions')
-# load utils
+# load local utils
 import utils
-# load local settings
-from local_settings import local_settings as settings_loc
-my_settings = getattr(
-    __import__(
-        'local_settings',
-        fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
 
 # set umask for python process
 os.umask(002)
@@ -33,7 +24,7 @@ all_jobs = utils.adjust_file_paths(all_jobs)
 all_jobs, mass_search = utils.jobs_to_script(all_jobs)
 # load up compound dataframe if necessary
 if mass_search:
-    reference_compounds = pd.read_pickle(my_settings.compounds_df)
+    reference_compounds = pd.read_pickle(utils.my_settings.compounds_df)
 
 # process each job
 for job in all_jobs:

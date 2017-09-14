@@ -15,7 +15,7 @@ import sys
 # load local settings
 sys.path.insert(
     0,
-    '/project/projectdirs/metatlas/projects/metatlas_reactions')
+    '/global/homes/e/erbilgin/repos/magi/')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(

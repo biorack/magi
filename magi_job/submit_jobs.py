@@ -3,10 +3,7 @@ This script submits appropriate jobs when its on the appropriate machine
 """
 
 import sys
-sys.path.insert(
-    0,
-    '/Users/Onur/repos/metatlas_reactions/')
-# load utils
+# load local utils
 import utils
 import os
 import subprocess
