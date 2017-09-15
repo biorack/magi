@@ -362,7 +362,7 @@ if args.compound_to_reaction is None:
 		compound_to_reaction.to_csv(os.path.join(experiment_path, 
 												'compound_to_reaction.csv'))
 		print '!!! compound_reaction table saved to %s'\
-				% (os.path.join(experiment_path, 'compound_to_reaction.pkl'))
+				% (os.path.join(experiment_path, 'compound_to_reaction.csv'))
 		print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
 		sys.exit()
 	else:
