@@ -169,11 +169,14 @@ def change_params(
     else:
         return None
 
-def mirror_inputs(all_jobs, verbose=False):
+def mirror_inputs(all_jobs,
+    base_url='https://magi-dev.nersc.gov/files/input',
+    dir_root='/project/projectdirs/metatlas/projects/magi_tasks',
+    verbose=False):
+    """
+    dir_root is where to mirror the files to
+    """
     for job in all_jobs:
-        base_url='https://magi-dev.nersc.gov/files/input'
-        dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
-
         try:
             fasta_file = job['fields']['fasta_file'].split('input/')[1]
             metabolite_file = job['fields']['metabolite_file'].split(
@@ -701,24 +704,15 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     search_ppm = job_data['fields']['ppm']
 
     # get adducts according to polarity
-    p = job_data['fields']['polarity']
-    if p == 'pos':
+    if job_data['fields']['polarity'] == 'pos':
         adducts = job_data['fields']['adducts_pos'].split(',')
-    elif p == 'neg':
+    elif job_data['fields']['polarity'] == 'neg':
         adducts = job_data['fields']['adducts_neg'].split(',')
-    elif p == 'neut':
-        adducts = [None]
     else:
-        raise RuntimeError('Could not understand polarity %s' % (p))
+        raise RuntimeError('Could not understand polarity')
 
     # load compound table (should be masses in original_compounds)
     compounds = pd.read_csv(job_data['fields']['metabolite_file'])
-
-    for v in compounds['original_compound'].values:
-        try:
-            float(v)
-        except:
-            raise RuntimeError('original_compound not floatable')
 
     # rename original_compounds column
     columns = compounds.columns.values
@@ -734,10 +728,7 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     # accurate mass search and store results
     for mz in compounds['original_mz'].unique():
         for adduct in adducts:
-            if adduct is not None:
-                neutral_mass = mz_neutral_transform(mz, adduct)
-            else:
-                neutral_mass = mz
+            neutral_mass = mz_neutral_transform(mz, adduct)
             found_compounds = accurate_mass_match(neutral_mass,
                                                   compound_df=reference_compounds,
                                                   ppm=search_ppm
