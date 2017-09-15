@@ -176,7 +176,7 @@ def mirror_inputs(all_jobs,
     """
     dir_root is where to mirror the files to
     """
-    base_url = os.path.join(base_url, 'files', 'inputs')
+    base_url = os.path.join(base_url, 'files', 'input')
     for job in all_jobs:
         try:
             fasta_file = job['fields']['fasta_file'].split('input/')[1]
