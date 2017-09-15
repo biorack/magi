@@ -28,12 +28,13 @@ You only need two of the binaries:
 
 Move them to workflow/blastbin.
 
-Required Python Packages:
+Required Python Packages (conda environment config file coming soon!):
 
 - Anaconda
 - rdkit
 - molVS
 - networkx
+- pytables
 
 The following will automatically set up your local settings files and adjust a couple paths in the .py files.
 
@@ -42,6 +43,12 @@ The following will automatically set up your local settings files and adjust a c
 	$ git clone https://github.com/biorack/magi.git
 	$ cd magi
 	$ python setup.py
+
+To confirm everything was set up correctly, run the following test.
+You will see some warnings; this is normal.
+The test should take a few minutes.
+
+.. code:: bash
 	$ cd tests/full_workflow_test/
 	$ ./run_full_workflow_test.sh
 
