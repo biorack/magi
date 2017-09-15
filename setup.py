@@ -21,7 +21,7 @@ if fname == '':
 
 lines = ["import os\n\n"]
 lines.append("repo_location = '%s'\n\n" % (repo_path))
-lines.append("blastbin =          os.path.join(repo_location, 'workflow/jgi_blastbin')\n")
+lines.append("blastbin =          os.path.join(repo_location, 'workflow/blastbin')\n")
 lines.append("\n")
 lines.append("refseq_path =       os.path.join(repo_location, 'workflow/database/mrs_reaction_filtered_refseq_db_newrxns_actinofixed.pkl')\n")
 lines.append("refseq_db =         os.path.join(repo_location, 'workflow/database/mrs_reaction_filtered_refseq_db_fasta_blastdb_actinofix')\n")

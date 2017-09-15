@@ -15,6 +15,26 @@ Features
 
 Local Installation
 ------------------
+
+NCBI BLAST binaries are a requirement to run MAGI.
+You may download the BLAST binaries appropriate for your machine here:
+
+https://www.ncbi.nlm.nih.gov/guide/howto/run-blast-local/
+
+You only need two of the binaries:
+
+- blastp
+- makeblastdb
+
+Move them to workflow/blastbin.
+
+Required Python Packages:
+
+- Anaconda
+- rdkit
+- molVS
+- networkx
+
 The following will automatically set up your local settings files and adjust a couple paths in the .py files.
 
 .. code:: bash
@@ -22,7 +42,8 @@ The following will automatically set up your local settings files and adjust a c
 	$ git clone https://github.com/biorack/magi.git
 	$ cd magi
 	$ python setup.py
-	$ tests/full_workflow_test/run_full_workflow_test.sh
+	$ cd tests/full_workflow_test/
+	$ ./run_full_workflow_test.sh
 
 If you are interfacing with magi_web, you need to manually change a few things in magi_job/ :
 
