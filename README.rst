@@ -21,12 +21,10 @@ You may download the BLAST binaries appropriate for your machine here:
 
 https://www.ncbi.nlm.nih.gov/guide/howto/run-blast-local/
 
-You only need two of the binaries:
+You only need two of the binaries; move them to workflow/blastbin:
 
 - blastp
 - makeblastdb
-
-Move them to workflow/blastbin.
 
 Required Python Packages (conda environment config file coming soon!):
 
