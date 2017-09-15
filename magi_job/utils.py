@@ -169,9 +169,11 @@ def change_params(
     else:
         return None
 
-def mirror_inputs(all_jobs, verbose=False):
+def mirror_inputs(all_jobs, 
+    base_url='https://magi-dev.nersc.gov/files/input',
+    verbose=False):
+
     for job in all_jobs:
-        base_url='https://magi-dev.nersc.gov/files/input'
         dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
 
         try:
@@ -483,13 +485,20 @@ def job_script(job_data, n_cpd=None):
             'module load python/2.7-anaconda',
             '',
         ]
-
+    if job_data['fields']['fasta_file'] != '':
+        fasta_file_line = '--fasta %s' % (job_data['fields']['fasta_file'])
+    else:
+        fasta_file_line = ''
+    if job_data['fields']['metabolite_file'] != '':
+        met_file_line = '--compounds %s \\' % (job_data['fields']['metabolite_file'])
+    else:
+        met_file_line = ''
     job_lines = [
         'umask 002',
         '',
         'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
-        '--fasta %s \\' % (job_data['fields']['fasta_file']),
-        '--compounds %s \\' % (job_data['fields']['metabolite_file']),
+        '%s \\' % (fasta_file_line),
+        '%s \\' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
         # not sure if this line will break anything at nersc
         # if it does, put it at the end of the previous line
