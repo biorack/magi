@@ -8,22 +8,23 @@ Our vision is to systematically explore dark-biochemistry, using state-of-the-ar
 
 Features
 --------
+- Easily integrating a file of metabolites with a file of gene sequences
 - A database of all publicly available reactions
 - Compounds in those reactions
-- Atom mapping of products and reactants
-- Comparison of all reactions
 - API for accessing this information programmaticallly
 
 Local Installation
 ------------------
-#. Extract database tarball (in workflow/)
-#. Make your local_settings.py file (see below)
-#. make your user_settings.py file (see below)
-#. change the local settings import path in workflow/workflow_helpers.py
-#. change the rdkit site packages import path (or can delte this if rdkit is already in your python path)
-#. change local settings import path in workflow/magi_workflow_20170519.py
+The following will automatically set up your local settings files and adjust a couple paths in the .py files.
 
-You also need to change a few things in magi_job/ if you are interfacing with magi_web:
+.. code:: bash
+
+	$ git clone https://github.com/biorack/magi.git
+	$ cd magi
+	$ python setup.py
+	$ tests/full_workflow_test/run_full_workflow_test.sh
+
+If you are interfacing with magi_web, you need to manually change a few things in magi_job/ :
 
 #. change local settings import path in magi_job/utils.py
 #. set absolute path to workflow/magi_workflow_20170519.py in job_data() in magi_job/utils.py
