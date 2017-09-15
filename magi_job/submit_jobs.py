@@ -37,7 +37,7 @@ for job_data in all_jobs:
     try:
         job_script = [x for x in listdir if 'job_script' in x][0]
     except Exception as e:
-        print script_dir
+        print 'job script not found for', script_dir
         print e.args
         continue
     script_path = os.path.join(script_dir, job_script)
