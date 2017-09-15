@@ -49,6 +49,7 @@ You will see some warnings; this is normal.
 The test should take a few minutes.
 
 .. code:: bash
+
 	$ cd tests/full_workflow_test/
 	$ ./run_full_workflow_test.sh
 
