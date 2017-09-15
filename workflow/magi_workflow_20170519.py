@@ -39,7 +39,7 @@ and populated with 1.0
 
 import sys
 # load local settings
-sys.path.insert(0, '/global/homes/e/erbilgin/repos/magi/')
+sys.path.insert(0, '/Users/Onur/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -67,11 +67,9 @@ print '#'*80
 parser = argparse.ArgumentParser()
 # required
 parser.add_argument('-f', '--fasta', 
-	help='path to fasta file of genes in sample', 
-	required=True)
+	help='path to fasta file of genes in sample')
 parser.add_argument('-c', '--compounds', 
-	help='path to observed compounds file', 
-	required=True)
+	help='path to observed compounds file')
 
 # jump-start the script after certain computations
 parser.add_argument('--gene_to_reaction', 
@@ -135,9 +133,13 @@ parser.add_argument('--chemnet_penalty',
 
 args = parser.parse_args()
 
-# Convert paths to absolute paths
-args.fasta = os.path.abspath(args.fasta)
-args.compounds = os.path.abspath(args.compounds)
+if args.fasta is None and args.compounds is None:
+	print 'ERROR: either FASTA or metabolites file is required'
+	sys.exit()
+if args.fasta is not None:
+	args.fasta = os.path.abspath(args.fasta)
+if args.compounds is not None:
+	args.compounds = os.path.abspath(args.compounds)
 
 print '~~~~~PARAMETERS~~~~~~'
 
@@ -173,12 +175,14 @@ if args.cpu_count == 0:
 	args.cpu_count = max_cpu
 
 # print parameters
-print '@@@ Searching Tautomers: %s' % (args.tautomer)
-print '@@@ Chemnet search to level %s' % (args.level)
-print '@@@ BLAST filter: %s' % (args.blast_filter)
-print '@@@ Reciprocal closeness: %s' % (args.reciprocal_closeness)
+if args.fasta is not None: 
+	print '@@@ BLAST filter: %s' % (args.blast_filter)
+if args.compounds is not None:
+	print '@@@ Searching Tautomers: %s' % (args.tautomer)
+	print '@@@ Chemnet search to level %s' % (args.level)
+	print '@@@ Reciprocal closeness: %s' % (args.reciprocal_closeness)
+	print '@@@ chemnet base penalty: %s' % (args.chemnet_penalty)
 print '@@@ MAGI score weights: %s' % (args.final_weights)
-print '@@@ chemnet base penalty: %s' % (args.chemnet_penalty)
 print '@@@ Using %s CPUs' % (args.cpu_count)
 
 # setup multiprocessing helpers based on input params
@@ -222,7 +226,12 @@ MAGI_PATH = my_settings.magi_results_storage
 
 # set up where the results will be stored
 if args.output is None:
-	experiment_name = args.fasta.split('/')[-1].split('.')[0]
+	# autoname the directory based on fasta, or compound file
+	# this will change eventually
+	if args.fasta is not None:
+		experiment_name = args.fasta.split('/')[-1].split('.')[0]
+	else:
+		experiment_name = args.compounds.split('/')[-1].split('.')[0]
 	today = datetime.datetime.now()
 	experiment_name += today.strftime('_%Y%m%d')
 	experiment_path = '%s/%s' %(MAGI_PATH, experiment_name)
@@ -237,67 +246,80 @@ if not os.path.isdir(experiment_path):
 
 main_start = time.time() # overall program timer
 
-# load genome
-print '\n!!! LOADING GENOME'
-genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH, 
+if args.fasta is not None:
+	# load genome
+	print '\n!!! LOADING GENOME'
+	genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH, 
 										annotation_file=args.annotations)
 
-# load pactolus results
-print '\n!!! LOADING COMPOUNDS'
-compounds = mg.load_dataframe(args.compounds)
-# auto-rename pactolus columns
-if args.pactolus:
-	compounds = mg.reformat_pactolus(compounds)
-# remove any missing compounds
-compounds = compounds[~pd.isnull(compounds['original_compound'])]
-compounds.fillna('', inplace=True)
+# load compound results
+if args.compounds is not None:
+	print '\n!!! LOADING COMPOUNDS'
+	compounds = mg.load_dataframe(args.compounds)
+	# auto-rename pactolus columns
+	if args.pactolus:
+		compounds = mg.reformat_pactolus(compounds)
+	# remove any missing compounds
+	compounds = compounds[~pd.isnull(compounds['original_compound'])]
+	compounds.fillna('', inplace=True)
 
-if 'original_compound' not in compounds.columns:
-	raise RuntimeError('Could not find "original_compound" as a column, please\
-		rename the column corresponding to inchi keys for the compounds')
-u_cpds = compounds['original_compound'].unique()
-print '!@#', len(u_cpds), 'total input compounds to search\n'
+	if 'original_compound' not in compounds.columns:
+		raise RuntimeError('Could not find "original_compound" as a column, please\
+			rename the column corresponding to inchi keys for the compounds')
+	u_cpds = compounds['original_compound'].unique()
+	print '!@#', len(u_cpds), 'total input compounds to search\n'
 
-if 'compound_score' not in compounds.columns:
-	print 'WARNING: "compound_score" not found as a column; assuming that\
-		there is no score for compounds, and setting the compound scores \
-		to 1.0'
-	compounds['compound_score'] = 1.0
-else:
-	compounds['compound_score'] = compounds['compound_score'].apply(float)
+	if 'compound_score' not in compounds.columns:
+		print 'WARNING: "compound_score" not found as a column; assuming that\
+			there is no score for compounds, and setting the compound scores \
+			to 1.0'
+		compounds['compound_score'] = 1.0
+	else:
+		compounds['compound_score'] = compounds['compound_score'].apply(float)
 
-# Conduct gene to reaction search
-if args.gene_to_reaction is None:
-	print '!@# Conducting gene to reaction search'
-	start = time.time()
-	gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
-		experiment_path, raise_blast_error=False, cpu=args.cpu_count)
+if args.fasta is not None:
+	# Conduct gene to reaction search
+	if args.gene_to_reaction is None:
+		print '!@# Conducting gene to reaction search'
+		start = time.time()
+		gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
+			experiment_path, raise_blast_error=False, cpu=args.cpu_count)
 
-	print '!@# Homology searching done in %s minutes' \
-			%((time.time() - start) / 60)
-	gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
-	print '!!! g2r blast results saved to %s' \
-			%(os.path.join(experiment_path, 'g2r_blast.pkl'))
+		print '!@# Homology searching done in %s minutes' \
+				%((time.time() - start) / 60)
+		gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
+		print '!!! g2r blast results saved to %s' \
+				%(os.path.join(experiment_path, 'g2r_blast.pkl'))
 
-	start = time.time()
-	gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
-	del gene_blast
-	gene_groups = gene_to_reaction.groupby('query acc.')
-	multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
-	idx = multidx.levels[1]
-	gene_to_reaction_top = gene_to_reaction.loc[idx]
-	del gene_to_reaction
-	print '!@# gene_to_reaction table completed in %s minutes' \
-			%((time.time() - start) / 60)
+		start = time.time()
+		gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
+		del gene_blast
+		gene_groups = gene_to_reaction.groupby('query acc.')
+		multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
+		idx = multidx.levels[1]
+		gene_to_reaction_top = gene_to_reaction.loc[idx]
+		del gene_to_reaction
+		print '!@# gene_to_reaction table completed in %s minutes' \
+				%((time.time() - start) / 60)
+		# if not compounds file, then just quit
+		if args.compounds is None:
+			df = gene_to_reaction_top.merge(mg.mrs_reaction[['database_id']],
+				left_on='reaction_id', right_index=True, how='left')
+			df.to_csv(os.path.join(experiment_path, 'gene_to_reaction.csv'))
+			print '!!! gene to reaction results saved to %s' \
+					%(os.path.join(experiment_path, 'gene_to_reaction.csv'))
+			print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
+			sys.exit()
+		else:
+			gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
+													'gene_to_reaction.pkl'))
+			print '!!! gene to reaction results saved to %s' \
+					%(os.path.join(experiment_path, 'gene_to_reaction.pkl'))
+	else:
+		gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
+		print '\n!@# gene_to_reaction successfully loaded'
+	del genome
 
-	gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
-											'gene_to_reaction.pkl'))
-	print '!!! gene to reaction results saved to %s' \
-			%(os.path.join(experiment_path, 'gene_to_reaction.pkl'))
-else:
-	gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
-	print '\n!@# gene_to_reaction successfully loaded'
-del genome
 
 # compound to reaction search
 if args.compound_to_reaction is None:
@@ -333,14 +355,22 @@ if args.compound_to_reaction is None:
 	# connect the compound score
 	compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
 									on='original_compound', how='inner')
-
-	compound_to_reaction.to_pickle(os.path.join(experiment_path, 
-											'compound_to_reaction.pkl'))
-
 	print '!@# compound_to_reaction table done in %s minutes'\
-			%((time.time()-start)/60)
-	print '!!! compound_reaction table saved to %s'\
-			% (os.path.join(experiment_path, 'compound_to_reaction.pkl'))
+				%((time.time()-start)/60)
+	# if no fasta file then just save these results and quit
+	if args.fasta is None:
+		compound_to_reaction.to_csv(os.path.join(experiment_path, 
+												'compound_to_reaction.csv'))
+		print '!!! compound_reaction table saved to %s'\
+				% (os.path.join(experiment_path, 'compound_to_reaction.pkl'))
+		print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
+		sys.exit()
+	else:
+		compound_to_reaction.to_pickle(os.path.join(experiment_path, 
+												'compound_to_reaction.pkl'))
+
+		print '!!! compound_reaction table saved to %s'\
+				% (os.path.join(experiment_path, 'compound_to_reaction.pkl'))
 else:
 	compound_to_reaction = pd.read_pickle(args.compound_to_reaction)
 	print '\n!@# compound_to_reaction successfully loaded'
@@ -398,6 +428,7 @@ if args.reaction_to_gene is None:
 else:
 	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
 	print '\n!@# reaction_to_gene successfully loaded'
+
 
 if args.merged_before_score is None:
 	print '\n!@# Merging final table'
