@@ -11,6 +11,8 @@ import socket
 import re
 import datetime
 
+base_url = 'https://magi.nersc.gov/'
+
 # get machine name to infer how to submit the job
 host = socket.gethostname()
 
@@ -69,16 +71,17 @@ for job_data in all_jobs:
             match = re.search(pattern, out)
             nersc_id = match.groups()[0]
             submission_log.append([pk, nersc_id, host, submit_time])
-
+            job_link = os.path.join(base_url, 'jobs/?id=%s' % (pk))
             # email the user a success email
             subj = 'MAGI Job submitted!'
             msg = 'Hello, your MAGI job was just submitted to NERSC:\n'
-            msg += 'https://magi-dev.nersc.gov/jobs/?id=%s\n' % (pk)
+            msg += job_link + '\n'
             msg += 'You should receive an email from NERSC soon when your job starts and ends.\n'
             msg += '\n'
             msg += "When your job starts at NERSC, you can monitor your job's progress by looking at the log files\n"
-            msg += 'OUTPUT: https://magi-dev.nersc.gov/files//processed/%s/%s/%s/log_out.txt\n' % (y, m, pk)
-            msg += 'ERROR: https://magi-dev.nersc.gov/files//processed/%s/%s/%s/log_err.txt\n\n' % (y, m, pk)
+            
+            msg += 'OUTPUT: %s\n' % (os.path.join(base_url, 'files//processed/%s/%s/%s' % (y, m, pk), 'log_out.txt'))
+            msg += 'ERROR: %s\n\n' % (os.path.join(base_url, 'files//processed/%s/%s/%s' % (y, m, pk), 'log_err.txt'))
             msg += 'If you have any questions or if your job fails at NERSC (you will get an email), please contact us by replying to this email.\n'
 
         # unsuccessful submission

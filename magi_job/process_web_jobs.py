@@ -9,6 +9,8 @@ import sys
 # load local utils
 import utils
 
+base_url = 'https://magi.nersc.gov/'
+
 # set umask for python process
 os.umask(002)
 
@@ -22,6 +24,7 @@ all_jobs = utils.adjust_file_paths(all_jobs)
 
 # keep only jobs that need a job script made
 all_jobs, mass_search = utils.jobs_to_script(all_jobs)
+
 # load up compound dataframe if necessary
 if mass_search:
     reference_compounds = pd.read_pickle(utils.my_settings.compounds_df)
@@ -37,7 +40,7 @@ for job in all_jobs:
             try:
                 job = utils.accurate_mass_search_wrapper(job, reference_compounds)
             except RuntimeError as e:
-                job_link = 'https://magi-dev.nersc.gov/jobs/?id=%s' % (job['pk'])
+                job_link = os.path.join(base_url, 'jobs/?id=%s' % (job['pk']))
                 subj = 'Error processing your MAGI job'
                 if e.args[0] == 'too many compounds':
                     fname = 'too many compounds'

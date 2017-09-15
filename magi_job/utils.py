@@ -25,7 +25,7 @@ my_settings = getattr(
 def retrieve_jobs(
         username=my_settings.magiwebsuperuser,
         password=my_settings.magiwebsuperuserpass,
-        base_url='https://magi-dev.nersc.gov/',
+        base_url=my_settings.magiweburl,
         admin_logon='admin/login',
         sift=[('filter', 'all')]
     ):
@@ -96,7 +96,7 @@ def change_params(
         job_id, field, value,
         username=my_settings.magiwebsuperuser,
         password=my_settings.magiwebsuperuserpass,
-        base_url='https://magi-dev.nersc.gov/',
+        base_url=my_settings.magiweburl,
         admin_logon='admin/login',
         post_suffix='admin/',
         verify=True
@@ -170,12 +170,13 @@ def change_params(
         return None
 
 def mirror_inputs(all_jobs,
-    base_url='https://magi-dev.nersc.gov/files/input',
+    base_url=my_settings.magiweburl,
     dir_root='/project/projectdirs/metatlas/projects/magi_tasks',
     verbose=False):
     """
     dir_root is where to mirror the files to
     """
+    base_url = os.path.join(base_url, 'files', 'inputs')
     for job in all_jobs:
         try:
             fasta_file = job['fields']['fasta_file'].split('input/')[1]
