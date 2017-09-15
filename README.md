@@ -1,4 +1,4 @@
-![MAGI Logo](magi/MAGI_logo.png "Metabolites and Genes Integrated")
+![MAGI Logo](MAGI_logo.png "Metabolites and Genes Integrated")
 # Metabolites and Genes Integrated
 
 Metagenomics and single-cell sequencing have enabled, for the first time, glimpses into the vast metabolic potential of Earth’s collective biological systems.  Yet, for the most part we can’t accurately predict nor identify the products of most biosynthetic pathways. Most of what we know of microbial biochemistry is based on characterization of a few model microorganisms, and these findings have been extended through sequence correlations to the rest of sequence space. Unfortunately, these extrapolations have questionable validity for the vast majority of environmental microbes and therefore requires fundamentally different approaches for directly linking novel sequences to their biochemical functions.
