@@ -384,7 +384,7 @@ def determine_fasta_language(job_data, translate=True):
         answer = 'protein'
     else:
         no = letters[~letters.str.contains('[ACDEFGHIKLMNPQRSTVWY*]')].values
-        raise RuntimeError('Could not determine if FASTA is nucleotide or protein. Offending character(s): %s' % (no))
+        raise RuntimeError('Could not determine if FASTA is nucleotide or protein. Offending character(s): %s; file: %s' % (no, job_data['fields']['fasta_file']))
     
     # translate if desired
     if translate and answer == 'dna':       
