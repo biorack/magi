@@ -1,7 +1,7 @@
 import os
 
 repo_location = ''
-blastbin =          os.path.join(repo_location, 'workflow/jgi_blastbin')
+blastbin =          os.path.join(repo_location, 'workflow/blastbin')
 
 refseq_path =       os.path.join(repo_location, 'workflow/database/mrs_reaction_filtered_refseq_db_newrxns_actinofixed.pkl')
 refseq_db =         os.path.join(repo_location, 'workflow/database/mrs_reaction_filtered_refseq_db_fasta_blastdb_actinofix')
