@@ -26,6 +26,11 @@ $ cd magi
 $ python setup.py
 ```
 
+The first step in the Python setup script will only work on Unix machines.
+If you have a Windows machine, you will need to extract the database files manually and make sure they
+are in the folder `/workflow/database/`. Then, go into `setup.py` and comment out or delete the lines corresponding to the
+subprocess call that extracts the database tarball using Unix commands. Then you should be able to run the setup.py file as described above.
+
 ### Conda Environment Setup
 First, install [Anaconda](https://www.anaconda.com/distribution/). 
 [Conda](https://conda.io/docs/user-guide/install/index.html) or 
@@ -117,6 +122,7 @@ magi_results_storage = '' # path to where to store magi outputs and blast databa
 # The next 2 lines are only required if you are interfacing with magi_web
 magiwebsuperuser = ''     # admin username for magi_web
 magiwebsuperuserpass = '' # admin password for magi_web
+magiweburl = '' # URL to magi web (e.g. https://magi.nersc.gov)
 ```
 When switching between machines or databases, you may have multiple `user_settings.py`
 files that can be named whatever you want as long as the variable in `local_settings.py`
