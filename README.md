@@ -90,6 +90,7 @@ and simply copy the `blastp` and `makeblastdb` binaries into `workflow/blastbin`
 * molVS
 * networkx
 * pytables
+* requests (only if you are using scripts in `magi_job/`)
 
 ### Local Settings
 
