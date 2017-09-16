@@ -171,7 +171,7 @@ def change_params(
 
 def mirror_inputs(all_jobs,
     base_url=my_settings.magiweburl,
-    dir_root='/project/projectdirs/metatlas/projects/magi_tasks',
+    dir_root=my_settings.magi_task_path,
     verbose=False):
     """
     dir_root is where to mirror the files to
@@ -221,7 +221,7 @@ def mirror_inputs(all_jobs,
 
 def adjust_file_paths(
     all_jobs,
-    dir_root='/project/projectdirs/metatlas/projects/magi_tasks'):
+    dir_root=my_settings.magi_task_path):
     """
     creates appropriate full path for input files after being mirrored to disk
     """
@@ -248,7 +248,7 @@ def adjust_file_paths(
 
 def jobs_to_script(
         all_jobs,
-        dir_root='/project/projectdirs/metatlas/projects/magi_tasks'
+        dir_root=my_settings.magi_task_path
     ):
     """
     Determine which jobs need a job script.
