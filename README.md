@@ -5,8 +5,8 @@ Metagenomics and single-cell sequencing have enabled, for the first time, glimps
 
 Our vision is to systematically explore dark-biochemistry, using state-of-the-art workflows that integrate large-scale DNA synthesis with metabolomics, high-performance computing, and chemoinformatics.  Bioinformatics mining of the over 500 billion unique genes catalogued by the DOE Joint Genome Institute can be used to prioritize high-novelty candidate biosynthesis clusters. Through synthetic biology approaches candidate clusters can be refactored and expressed in model organisms for characterization of the resulting biochemical activities and products with mass spectrometry. When integrated with novel chemoinformatic algorithms, this creates a closed-loop cycle of design, build, test, and learn for systematically mapping biochemical space.
 
-For more documentation and a tutorial on how to analyze MAGI results, you can visit
-[MAGI_web](https://magi.nersc.gov)
+For more documentation and a tutorial on how to analyze MAGI results, you can visit the
+[MAGI website](https://magi.nersc.gov)
 ## Features
 
 - Integrates a file of metabolites with a file of gene sequences
@@ -15,36 +15,56 @@ For more documentation and a tutorial on how to analyze MAGI results, you can vi
 - API for accessing this information programmaticallly
 
 ## Local Installation (simple)
+If you don't have Anaconda already, install [Anaconda](https://www.anaconda.com/distribution/). 
+[miniconda](https://docs.anaconda.com/docs_oss/conda/install/quick#miniconda-quick-install-requirements) 
+might also work, but I have not tested it.
 
-### Set up local settings and paths
-
-The following will automatically set up your local settings files and adjust a couple paths in the .py files.
+### Linux & MacOS
+The following will:
+1. Set up your local settings files
+2. Adjust a couple paths in the .py files.
+3. Create a Conda environment for running MAGI
 
 ```bash
 $ git clone https://github.com/biorack/magi.git
 $ cd magi
 $ python setup.py
-```
-
-The first step in the Python setup script will only work on Unix machines.
-If you have a Windows machine, you will need to extract the database files manually and make sure they
-are in the folder `/workflow/database/`. Then, go into `setup.py` and comment out or delete the lines corresponding to the
-subprocess call that extracts the database tarball using Unix commands. Then you should be able to run the setup.py file as described above.
-
-### Conda Environment Setup
-First, install [Anaconda](https://www.anaconda.com/distribution/). 
-[Conda](https://conda.io/docs/user-guide/install/index.html) or 
-[miniconda](https://docs.anaconda.com/docs_oss/conda/install/quick#miniconda-quick-install-requirements) 
-might also work, but I have not tested those.
-
-```bash
 $ conda env create -f magi_env.yml
 $ source activate magi
-# or Windows: 
-$ activate magi
 ```
 
-### Install NCBI BLAST
+### Windows
+The Windows installation is a little more involved.
+
+```
+$ git clone https://github.com/biorack/magi.git
+$ cd magi
+```
+
+First, you will need to extract the database files manually and make sure they
+are in the folder `/workflow/database/`. 
+
+Second, **comment out or delete** the following lines in `setup.py` :
+```python
+# step one: extract the db tarball
+print 'Extracting database files...'
+cmd = ['tar', '-xvzf', 'databases.tar.gz']
+subprocess.call(
+	cmd,
+    cwd = os.path.join(repo_path, 'workflow')
+    )
+print 'Done'
+```
+
+Now you can run `setup.py` and continue installation:
+```
+$ python setup.py
+$ conda env create -f magi_env.yml
+$ activate magi
+$ cd tests/full_workflow_test/
+```
+
+### Install NCBI BLAST (Linux, MacOS, Windows)
 
 Two [NCBI BLAST](https://www.ncbi.nlm.nih.gov/guide/howto/run-blast-local/) 
 binaries are required to run MAGI.
@@ -59,13 +79,21 @@ To confirm everything was set up correctly, run the following test.
 You will see some warnings; this is normal.
 The test should take a few minutes.
 
+#### Linux & MacOS
+
 ```bash
 $ cd tests/full_workflow_test/
 $ ./run_full_workflow_test.sh
-# or, in Windows, just copy the python command within run_full_workflow_test.sh
 ```
 
-If you are interfacing with magi_web, you need to manually change a few things in magi_job/ :
+#### Windows
+```
+$ python time python ../../workflow/magi_workflow_20170519.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
+```
+
+### MAGI website interface (optional)
+
+If you are interfacing with the magi_web repository, you need to manually change a few things in `magi_job/`; otherwise, ignore this section.
 
 1. change local settings import path in magi_job/utils.py
 2. set absolute path to workflow/magi_workflow_20170519.py in job_data() in magi_job/utils.py
