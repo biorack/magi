@@ -59,7 +59,12 @@ for job_data in all_jobs:
     if submit: 
         # submit the job
         submit_time = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S.%f')
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError as e:
+            print cmd
+            raise e
+
         out, err = p.communicate()
         
         # change the runflag
