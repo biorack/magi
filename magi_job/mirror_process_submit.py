@@ -34,17 +34,17 @@ for job in all_jobs:
 if len(keep) == 0:
     sys.exit()
 else:
-	all_jobs = keep
+	unrun_jobs = keep
 
 # keep only jobs that need a job script made
-all_jobs, mass_search = utils.jobs_to_script(all_jobs)
+script_jobs, mass_search = utils.jobs_to_script(all_jobs)
 
 # load up compound dataframe if necessary
 if mass_search:
     reference_compounds = pd.read_pickle(utils.my_settings.compounds_df)
 
 # process each job
-for job in all_jobs:
+for job in script_jobs:
     # determine fasta language and translate if needed
     if job['fields']['fasta_file'] != '':
         job = utils.determine_fasta_language(job)
@@ -84,11 +84,12 @@ for job in all_jobs:
 # [magi web pk, nersc submission id, cori/genepool]
 submission_log = []
 admin_msg = ''
-for job_data in all_jobs:
+for job_data in unrun_jobs:
     submit = False
     job_path = utils.get_job_dir(job_data)
     script_dir = os.path.join(magi_task_root, job_path, 'admin')
     listdir = os.listdir(script_dir)
+    pk = job_data['pk']
     job_script = [x for x in listdir if 'job_script' in x]
     if len(job_script) == 0:
         continue
@@ -140,8 +141,8 @@ for job_data in all_jobs:
             msg += '\n'
             msg += "When your job starts at NERSC, you can monitor your job's progress by looking at the log files\n"
             
-            msg += 'OUTPUT: %s\n' % (os.path.join(base_url, 'files//processed/%s/%s/%s' % (y, m, pk), 'log_out.txt'))
-            msg += 'ERROR: %s\n\n' % (os.path.join(base_url, 'files//processed/%s/%s/%s' % (y, m, pk), 'log_err.txt'))
+            msg += 'OUTPUT: %s\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_out.txt'))
+            msg += 'ERROR: %s\n\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_err.txt'))
             msg += 'If you have any questions or if your job fails at NERSC (you will get an email), please contact us by replying to this email.\n'
 
         # unsuccessful submission
