@@ -34,55 +34,49 @@ for job in all_jobs:
 if len(keep) == 0:
     sys.exit()
 else:
-	all_jobs = keep
+	unrun_jobs = keep
 
 # keep only jobs that need a job script made
-all_jobs, mass_search = utils.jobs_to_script(all_jobs)
+script_jobs, mass_search = utils.jobs_to_script(all_jobs)
 
 # load up compound dataframe if necessary
 if mass_search:
     reference_compounds = pd.read_pickle(utils.my_settings.compounds_df)
 
 # process each job
-for job in all_jobs:
+for job in script_jobs:
     # determine fasta language and translate if needed
-    job = utils.determine_fasta_language(job)
-    # conduct accurate mass search if needed
-    if job['fields']['is_mass_search']:
-        proceed = utils.accurate_mass_checkpoint(job)
-        if proceed:
-            try:
-                job = utils.accurate_mass_search_wrapper(job, reference_compounds)
-            except RuntimeError as e:
-                job_link = os.path.join(base_url, 'jobs/?id=%s' % (job['pk']))
-                subj = 'Error processing your MAGI job'
-                if e.args[0] == 'too many compounds':
-                    fname = 'too many compounds'
-                    msg = 'Your compound search resulted in too many '
-                    msg += 'compounds, please reduce the number of adducts or '
-                    msg += 'lower the ppm by editing your job here: %s. ' % (job_link)
-                    msg += 'You can reply to this email for more help. '
-                    msg += 'Thanks for using MAGI!' 
-                elif e.args[0] == 'original_compound not floatable':
-                    fname = 'original_compound not floatable'
-                    msg = 'You elected to conduct an accurate mass search, '
-                    msg += 'but at least one of the values in the '
-                    msg += 'original_compound column in your metabolite table '
-                    msg += 'does not look like a number. \nPlease double-check '
-                    msg += 'your input and edit/resubmit your job by '
-                    msg += 'clicking here: %s.\n\n' % (job_link)
-                    msg += 'You can reply to this email for more help. '
-                    msg += 'Thanks for using MAGI!'
-                else:
-                    raise e
-                utils.email_user(job['fields']['email'], subj, msg)
-                utils.save_job_params(job, fname=fname)
-                print 'emailed \n %s \n %s' % (job['fields']['email'], msg)
-                continue
-        else:
-            continue
+    if job['fields']['fasta_file'] != '':
+        job = utils.determine_fasta_language(job)
     
-    n_compounds = pd.read_csv(job['fields']['metabolite_file']).shape[0]
+    # conduct accurate mass search if needed
+    if job['fields']['metabolite_file'] != '':
+        if job['fields']['is_mass_search']:
+            proceed = utils.accurate_mass_checkpoint(job)
+            if proceed:
+                try:
+                    job = utils.accurate_mass_search_wrapper(job, reference_compounds)
+                except RuntimeError as e:
+                    job_link = os.path.join(base_url, 'jobs/?id=%s' % (job['pk']))
+                    subj = 'Error processing your MAGI job'
+                    if e.args[0] == 'too many compounds':
+                        fname = 'too many compounds'
+                        msg = 'Your compound search resulted in too many '
+                        msg += 'compounds, please reduce the number of adducts or '
+                        msg += 'lower the ppm by editing your job here: %s. ' % (job_link)
+                        msg += 'You can reply to this email for more help. '
+                        msg += 'Thanks for using MAGI!' 
+                    else:
+                        raise e
+                    utils.email_user(job['fields']['email'], subj, msg)
+                    utils.save_job_params(job, fname=fname)
+                    print 'emailed \n %s \n %s' % (job['fields']['email'], msg)
+                    continue
+            else:
+                continue
+        n_compounds = pd.read_csv(job['fields']['metabolite_file']).shape[0]
+    else:
+        n_compounds = 0
     # create job script
     utils.job_script(job, n_cpd=n_compounds)
 
@@ -90,14 +84,12 @@ for job in all_jobs:
 # [magi web pk, nersc submission id, cori/genepool]
 submission_log = []
 admin_msg = ''
-for job_data in all_jobs:
+for job_data in unrun_jobs:
     submit = False
-    uptime = job_data['fields']['uploaded_at']
-    y = uptime.split('-')[0]
-    m = uptime.split('-')[1]
-    pk = job_data['pk']
-    script_dir = os.path.join(magi_task_root, y, m, pk, 'admin')
+    job_path = utils.get_job_dir(job_data)
+    script_dir = os.path.join(magi_task_root, job_path, 'admin')
     listdir = os.listdir(script_dir)
+    pk = job_data['pk']
     job_script = [x for x in listdir if 'job_script' in x]
     if len(job_script) == 0:
         continue
@@ -149,8 +141,8 @@ for job_data in all_jobs:
             msg += '\n'
             msg += "When your job starts at NERSC, you can monitor your job's progress by looking at the log files\n"
             
-            msg += 'OUTPUT: %s\n' % (os.path.join(base_url, 'files//processed/%s/%s/%s' % (y, m, pk), 'log_out.txt'))
-            msg += 'ERROR: %s\n\n' % (os.path.join(base_url, 'files//processed/%s/%s/%s' % (y, m, pk), 'log_err.txt'))
+            msg += 'OUTPUT: %s\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_out.txt'))
+            msg += 'ERROR: %s\n\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_err.txt'))
             msg += 'If you have any questions or if your job fails at NERSC (you will get an email), please contact us by replying to this email.\n'
 
         # unsuccessful submission
