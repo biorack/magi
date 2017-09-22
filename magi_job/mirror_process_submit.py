@@ -137,13 +137,8 @@ for job_data in unrun_jobs:
             subj = 'MAGI Job submitted!'
             msg = 'Hello, your MAGI job was just submitted to NERSC:\n'
             msg += job_link + '\n'
-            msg += 'You should receive an email from NERSC soon when your job starts and ends.\n'
-            msg += '\n'
-            msg += "When your job starts at NERSC, you can monitor your job's progress by looking at the log files\n"
-            
-            msg += 'OUTPUT: %s\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_out.txt'))
-            msg += 'ERROR: %s\n\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_err.txt'))
-            msg += 'If you have any questions or if your job fails at NERSC (you will get an email), please contact us by replying to this email.\n'
+            msg += 'Your job should start soon depending on the queue.\n'
+            msg += 'If you have any questions, please contact us by replying to this email.\n'
 
         # unsuccessful submission
         else:
