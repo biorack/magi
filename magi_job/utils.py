@@ -736,8 +736,10 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
         adducts = job_data['fields']['adducts_pos'].split(',')
     elif job_data['fields']['polarity'] == 'neg':
         adducts = job_data['fields']['adducts_neg'].split(',')
+    elif job_data['fields']['polarity'] == 'neut':
+        adducts = ['']
     else:
-        raise RuntimeError('Could not understand polarity')
+        raise RuntimeError('Could not understand polarity %s in %s' % (job_data['fields']['polarity'], job_data['pk']))
 
     # load compound table (should be masses in original_compounds)
     compounds = pd.read_csv(job_data['fields']['metabolite_file'])
@@ -756,7 +758,10 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     # accurate mass search and store results
     for mz in compounds['original_mz'].unique():
         for adduct in adducts:
-            neutral_mass = mz_neutral_transform(mz, adduct)
+            if adduct != '':
+                neutral_mass = mz_neutral_transform(mz, adduct)
+            else:
+                neutral_mass = mz
             found_compounds = accurate_mass_match(neutral_mass,
                                                   compound_df=reference_compounds,
                                                   ppm=search_ppm
