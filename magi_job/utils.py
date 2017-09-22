@@ -22,6 +22,8 @@ my_settings = getattr(
         'local_settings',
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
 
+MAGI_EMAIL = 'oerbilgin@lbl.gov'
+
 def retrieve_jobs(
         username=my_settings.magiwebsuperuser,
         password=my_settings.magiwebsuperuserpass,
@@ -480,8 +482,8 @@ def job_script(job_data, n_cpd=None):
     if partition == 'genepool':
         header_lines = [
             '#!/bin/bash',
-            '#$ -M %s' % (job_data['fields']['email']),
-            '#$ -m abe',
+            '#$ -M %s' % (MAGI_EMAIL),
+            '#$ -m a',
             '#$ -l h_rt=%s' % (t_limit),
             '#$ -pe pe_32 32',
             '#$ -l ram.c=7.5G,h_vmem=7.5G',
@@ -492,6 +494,8 @@ def job_script(job_data, n_cpd=None):
             '',
             'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
             '',
+            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+            ''
         ]
     else:
         header_lines = [
@@ -504,11 +508,13 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --partition=%s' % (partition),
             '#SBATCH --constraint=haswell',
             '#SBATCH --license=project',
-            '#SBATCH --mail-user=%s' %(job_data['fields']['email']),
-            '#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT',
+            '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
+            '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
             'module load python/2.7-anaconda',
             '',
+            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+            ''
         ]
     if job_data['fields']['fasta_file'] != '':
         fasta_file_line = '--fasta %s \\' % (job_data['fields']['fasta_file'])
