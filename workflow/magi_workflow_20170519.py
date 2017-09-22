@@ -309,9 +309,9 @@ if args.fasta is not None:
 		if args.compounds is None:
 			df = gene_to_reaction_top.merge(mg.mrs_reaction[['database_id']],
 				left_on='reaction_id', right_index=True, how='left')
-			df.to_csv(os.path.join(experiment_path, 'gene_to_reaction.csv'))
+			df.to_csv(os.path.join(experiment_path, 'magi_gene_results.csv'))
 			print '!!! gene to reaction results saved to %s' \
-					%(os.path.join(experiment_path, 'gene_to_reaction.csv'))
+					%(os.path.join(experiment_path, 'magi_gene_results.csv'))
 			print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
 			sys.exit()
 		else:
@@ -363,9 +363,9 @@ if args.compound_to_reaction is None:
 	# if no fasta file then just save these results and quit
 	if args.fasta is None:
 		compound_to_reaction.to_csv(os.path.join(experiment_path, 
-												'compound_to_reaction.csv'))
+												'magi_compound_results.csv'))
 		print '!!! compound_reaction table saved to %s'\
-				% (os.path.join(experiment_path, 'compound_to_reaction.csv'))
+				% (os.path.join(experiment_path, 'magi_compound_results.csv'))
 		print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
 		sys.exit()
 	else:
