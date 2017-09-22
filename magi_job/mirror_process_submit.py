@@ -74,8 +74,9 @@ for job in all_jobs:
                     continue
             else:
                 continue
-    
-    n_compounds = pd.read_csv(job['fields']['metabolite_file']).shape[0]
+        n_compounds = pd.read_csv(job['fields']['metabolite_file']).shape[0]
+    else:
+        n_compounds = 0
     # create job script
     utils.job_script(job, n_cpd=n_compounds)
 
