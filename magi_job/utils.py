@@ -511,19 +511,19 @@ def job_script(job_data, n_cpd=None):
             '',
         ]
     if job_data['fields']['fasta_file'] != '':
-        fasta_file_line = '--fasta %s' % (job_data['fields']['fasta_file'])
+        fasta_file_line = '--fasta %s \\' % (job_data['fields']['fasta_file'])
     else:
-        fasta_file_line = ''
+        fasta_file_line = '\\'
     if job_data['fields']['metabolite_file'] != '':
         met_file_line = '--compounds %s \\' % (job_data['fields']['metabolite_file'])
     else:
-        met_file_line = ''
+        met_file_line = '\\'
     job_lines = [
         'umask 002',
         '',
         'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
-        '%s \\' % (fasta_file_line),
-        '%s \\' % (met_file_line),
+        '%s' % (fasta_file_line),
+        '%s' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
         # not sure if this line will break anything at nersc
         # if it does, put it at the end of the previous line
