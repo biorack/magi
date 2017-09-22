@@ -492,6 +492,8 @@ def job_script(job_data, n_cpd=None):
             '',
             'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
             '',
+            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+            ''
         ]
     else:
         header_lines = [
@@ -509,6 +511,8 @@ def job_script(job_data, n_cpd=None):
             '',
             'module load python/2.7-anaconda',
             '',
+            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+            ''
         ]
     if job_data['fields']['fasta_file'] != '':
         fasta_file_line = '--fasta %s \\' % (job_data['fields']['fasta_file'])
