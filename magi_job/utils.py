@@ -293,7 +293,7 @@ def jobs_to_script(
     mass_search = []
     for i, job in enumerate(all_jobs):
         job_path = get_job_dir(job)
-        script_path = os.path.join(job_path, 'admin')
+        script_path = os.path.join(dir_root, job_path, 'admin')
         if not (os.path.isfile(os.path.join(script_path, 'job_script.sbatch')) or os.path.isfile(os.path.join(script_path, 'job_script.qsub'))):            
             mass_search.append(job['fields']['is_mass_search'])
             to_script.append(job)
