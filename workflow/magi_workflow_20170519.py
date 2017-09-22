@@ -130,6 +130,9 @@ parser.add_argument('--final_weights',
 parser.add_argument('--chemnet_penalty', 
 	help='Base factor in the chemical network search level penalty', 
 	type=float, default=4)
+parser.add_argument('--intermediate_files',
+	help='What directory within --output to store intermediate files',
+	type=str, default='intermediate_files')
 
 args = parser.parse_args()
 
@@ -239,6 +242,7 @@ else:
 	experiment_path = args.output
 
 experiment_path = os.path.abspath(experiment_path)
+intfile_path = os.path.join(experiment_path, args.intermediate_files)
 
 print '!!! Saving all results here:', experiment_path
 if not os.path.isdir(experiment_path):
@@ -283,13 +287,13 @@ if args.fasta is not None:
 		print '!@# Conducting gene to reaction search'
 		start = time.time()
 		gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
-			experiment_path, raise_blast_error=False, cpu=args.cpu_count)
+			intfile_path, raise_blast_error=False, cpu=args.cpu_count)
 
 		print '!@# Homology searching done in %s minutes' \
 				%((time.time() - start) / 60)
-		gene_blast.to_pickle(os.path.join(experiment_path, 'gene_blast.pkl'))
+		gene_blast.to_pickle(os.path.join(intfile_path, 'gene_blast.pkl'))
 		print '!!! g2r blast results saved to %s' \
-				%(os.path.join(experiment_path, 'g2r_blast.pkl'))
+				%(os.path.join(intfile_path, 'g2r_blast.pkl'))
 
 		start = time.time()
 		gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
@@ -311,15 +315,14 @@ if args.fasta is not None:
 			print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
 			sys.exit()
 		else:
-			gene_to_reaction_top.to_pickle(os.path.join(experiment_path, 
+			gene_to_reaction_top.to_pickle(os.path.join(intfile_path, 
 													'gene_to_reaction.pkl'))
 			print '!!! gene to reaction results saved to %s' \
-					%(os.path.join(experiment_path, 'gene_to_reaction.pkl'))
+					%(os.path.join(intfile_path, 'gene_to_reaction.pkl'))
 	else:
 		gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
 		print '\n!@# gene_to_reaction successfully loaded'
 	del genome
-
 
 # compound to reaction search
 if args.compound_to_reaction is None:
@@ -366,11 +369,11 @@ if args.compound_to_reaction is None:
 		print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
 		sys.exit()
 	else:
-		compound_to_reaction.to_pickle(os.path.join(experiment_path, 
+		compound_to_reaction.to_pickle(os.path.join(intfile_path, 
 												'compound_to_reaction.pkl'))
 
 		print '!!! compound_reaction table saved to %s'\
-				% (os.path.join(experiment_path, 'compound_to_reaction.pkl'))
+				% (os.path.join(intfile_path, 'compound_to_reaction.pkl'))
 else:
 	compound_to_reaction = pd.read_pickle(args.compound_to_reaction)
 	print '\n!@# compound_to_reaction successfully loaded'
@@ -401,17 +404,17 @@ if args.reaction_to_gene is None:
 	sys.stdout.flush()
 
 	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, 
-		genome_db_path, experiment_path, cpu=args.cpu_count, 
+		genome_db_path, intfile_path, cpu=args.cpu_count, 
 		raise_blast_error=False)
 
 	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast,
 		'query acc.')
 	del reaction_to_gene_blast
 
-	reaction_to_gene.to_pickle(os.path.join(experiment_path,
+	reaction_to_gene.to_pickle(os.path.join(intfile_path,
 		'reaction_blast.pkl'))
 	print '!!! r2g blast results saved to %s' \
-			%(os.path.join(experiment_path, 'r2g_blast.pkl'))
+			%(os.path.join(intfile_path, 'r2g_blast.pkl'))
 
 	reaction_groups = reaction_to_gene.groupby('query acc.')
 	multidx = reaction_groups['e_score'].apply(keep_top_blast_helper).index
@@ -419,12 +422,12 @@ if args.reaction_to_gene is None:
 	idx = multidx.levels[1]
 	reaction_to_gene_top = reaction_to_gene.loc[idx]
 	del reaction_to_gene
-	reaction_to_gene_top.to_pickle(os.path.join(experiment_path, 
+	reaction_to_gene_top.to_pickle(os.path.join(intfile_path, 
 											'reaction_to_gene.pkl'))
 	print '!@# reaction_to_gene table done in %s minutes'\
 			%((time.time()-start)/60)
 	print '!!! reaction_to_gene table saved to %s'\
-			% (os.path.join(experiment_path, 'reaction_to_gene.pkl'))
+			% (os.path.join(intfile_path, 'reaction_to_gene.pkl'))
 else:
 	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
 	print '\n!@# reaction_to_gene successfully loaded'
@@ -485,14 +488,14 @@ if args.merged_before_score is None:
 	# Clean up neighbor column
 	df['neighbor'] = df['neighbor'].astype(str)
 
-	df.to_hdf(os.path.join(experiment_path, 'merged_before_score.h5'),
+	df.to_hdf(os.path.join(intfile_path, 'merged_before_score.h5'),
 		'merged_before_score', mode='w', format='table',
 		complib='blosc', complevel=9)
 
 	print '!@# Final Merged table done in %s minutes'\
 		%((time.time() - start) / 60)
 	print '!!! Final Merged table saved to %s'\
-			% (os.path.join(experiment_path, 'merged_before_score.pkl'))
+			% (os.path.join(intfile_path, 'merged_before_score.pkl'))
 else:
 	del reaction_to_gene_top
 	del compound_to_reaction
