@@ -86,11 +86,8 @@ submission_log = []
 admin_msg = ''
 for job_data in all_jobs:
     submit = False
-    uptime = job_data['fields']['uploaded_at']
-    y = uptime.split('-')[0]
-    m = uptime.split('-')[1]
-    pk = job_data['pk']
-    script_dir = os.path.join(magi_task_root, y, m, pk, 'admin')
+    job_path = utils.get_job_dir(job_data)
+    script_dir = os.path.join(magi_task_root, job_path, 'admin')
     listdir = os.listdir(script_dir)
     job_script = [x for x in listdir if 'job_script' in x]
     if len(job_script) == 0:
