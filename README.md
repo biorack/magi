@@ -15,11 +15,18 @@ For more documentation and a tutorial on how to analyze MAGI results, you can vi
 - API for accessing this information programmaticallly
 
 ## Local Installation (simple)
+There are three steps you need to complete to install MAGI:
+1. Clone the repository and set up local environment and paths
+2. Install BLAST to the appropriate repository directory
+3. Test MAGI to make sure it works correctly
+4. (Optional) If interfacing with the magi website, you need to adjust some additional paths
+
+### 1. Clone repository and set up environment
 If you don't have Anaconda already, install [Anaconda](https://www.anaconda.com/distribution/). 
 [miniconda](https://docs.anaconda.com/docs_oss/conda/install/quick#miniconda-quick-install-requirements) 
 might also work, but I have not tested it.
 
-### Linux & MacOS
+#### Linux & MacOS
 The following will:
 1. Set up your local settings files
 2. Adjust a couple paths in the .py files.
@@ -33,7 +40,7 @@ $ conda env create -f magi_env.yml
 $ source activate magi
 ```
 
-### Windows
+#### Windows
 The Windows installation is a little more involved.
 
 ```
@@ -64,7 +71,7 @@ $ activate magi
 $ cd tests/full_workflow_test/
 ```
 
-### Install NCBI BLAST (Linux, MacOS, Windows)
+### 2. Install NCBI BLAST (Linux, MacOS, Windows)
 
 Two [NCBI BLAST](https://www.ncbi.nlm.nih.gov/guide/howto/run-blast-local/) 
 binaries are required to run MAGI.
@@ -73,7 +80,7 @@ You may download the BLAST binaries appropriate for your machine
 [here](https://www.ncbi.nlm.nih.gov/guide/howto/run-blast-local/), 
 and simply copy the `blastp` and `makeblastdb` binaries into `workflow/blastbin`.
 
-### Test MAGI
+### 3. Test MAGI
 
 To confirm everything was set up correctly, run the following test.
 You will see some warnings; this is normal.
@@ -91,7 +98,7 @@ $ ./run_full_workflow_test.sh
 $ python time python ../../workflow/magi_workflow_20170519.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
 ```
 
-### MAGI website interface (optional)
+### 4. MAGI website interface (optional)
 
 If you are interfacing with the magi_web repository, you need to manually change a few things in `magi_job/`; otherwise, ignore this section.
 
