@@ -446,7 +446,10 @@ def job_script(job_data, n_cpd=None):
     account_id = 'm2650' # metatlas
     
     # where to write the job script to
-    out_path = '/'.join(job_data['fields']['fasta_file'].split('/')[:-1])
+    if job_data['fields']['fasta_file'] != '':
+        out_path = '/'.join(job_data['fields']['fasta_file'].split('/')[:-1])
+    else:
+        out_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1])
 
     # prepare score weights
     score_weights = [
