@@ -254,13 +254,13 @@ def adjust_file_paths(
         if job['fields']['fasta_file'] != '':
             job['fields']['fasta_file'] = os.path.join(newroot, job['fields']['fasta_file'].split('/')[-1])
             if not os.path.isfile(job['fields']['fasta_file']):
-                print('ERROR: fasta file for job %s does not exist' % (pk))
+                print('ERROR: fasta file for job %s does not exist' % (job['pk']))
                 to_pop.append(i)
                 continue
         if job['fields']['metabolite_file'] != '':
             job['fields']['metabolite_file'] = os.path.join(newroot, job['fields']['metabolite_file'].split('/')[-1])
             if not os.path.isfile(job['fields']['metabolite_file']):
-                print('ERROR: metabolite file for job %s does not exist' % (pk))
+                print('ERROR: metabolite file for job %s does not exist' % (job['pk']))
                 to_pop.append(i)
                 continue
     # remove the jobs that didn't have input files
@@ -292,10 +292,7 @@ def jobs_to_script(
     to_script = []
     mass_search = []
     for i, job in enumerate(all_jobs):
-        year = job['fields']['uploaded_at'].split('-')[0]
-        month = job['fields']['uploaded_at'].split('-')[1]
-        pk = job['pk']
-        job_path = os.path.join(dir_root, year, month, pk)
+        job_path = get_job_dir(job)
         script_path = os.path.join(job_path, 'admin')
         if not (os.path.isfile(os.path.join(script_path, 'job_script.sbatch')) or os.path.isfile(os.path.join(script_path, 'job_script.qsub'))):            
             mass_search.append(job['fields']['is_mass_search'])
