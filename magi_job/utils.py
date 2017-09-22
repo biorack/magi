@@ -169,6 +169,18 @@ def change_params(
     else:
         return None
 
+def get_job_dir(job_json):
+    """
+    uses upload time to get what the job directory path should be:
+    year/month/primary_key
+    """
+    uptime = job_json['fields']['uploaded_at']
+    y = uptime.split('-')[0]
+    m = uptime.split('-')[1]
+    pk = job_json['pk']
+    job_path = os.path.join(y, m, pk)
+    return job_path
+
 def mirror_inputs(all_jobs,
     base_url=my_settings.magiweburl,
     dir_root=my_settings.magi_task_path,
@@ -178,29 +190,37 @@ def mirror_inputs(all_jobs,
     """
     base_url = os.path.join(base_url, 'files', 'input')
     for job in all_jobs:
+        fasta_exist = False
+        met_exist = False
+        if job['fields']['fasta_file'] != '':
+            fasta_exist = True
+        if job['fields']['metabolite_file'] != '':
+            met_exist = True
+        if not fasta_exist and not met_exist:
+            if verbose:
+                print('no input files for %s' % (job['pk']))
+            continue
         try:
-            fasta_file = job['fields']['fasta_file'].split('input/')[1]
-            metabolite_file = job['fields']['metabolite_file'].split(
+            if fasta_exist:
+                fasta_file = job['fields']['fasta_file'].split('input/')[1]
+            if met_exist:
+                metabolite_file = job['fields']['metabolite_file'].split(
                 'input/')[1]
         except IndexError:
             print('WARNING: job %s input path not properly formatted; skipping' 
                 % (job['pk']))
             continue
-        job_path = '/'.join(fasta_file.split('/')[:-1])
+        job_path = get_job_dir(job)
         job_path = os.path.join(dir_root, job_path)
 
-        if os.path.isfile(os.path.join(dir_root, fasta_file)) and \
-            os.path.isfile(os.path.join(dir_root, metabolite_file)):
-            if verbose:
-                print('job inputs exist for %s' % (job['pk']))
-            continue
-
+        # make directory
         if not os.path.isdir(job_path):
             if verbose:
                 print('making %s' % (job_path))
             os.makedirs(os.path.join(job_path, 'admin'))
 
-        if not os.path.isfile(os.path.join(dir_root, fasta_file)):
+        # make file if exists
+        if fasta_exist and not os.path.isfile(os.path.join(dir_root, fasta_file)):
             if verbose:
                 print('getting %s' % os.path.join(base_url, fasta_file))
             fasta_data = requests.get(os.path.join(base_url, fasta_file))
@@ -208,7 +228,7 @@ def mirror_inputs(all_jobs,
                 print('writing %s' % os.path.join(dir_root, fasta_file))
             with open(os.path.join(dir_root, fasta_file), 'w') as f:
                 f.write(fasta_data.text)
-        if not os.path.isfile(os.path.join(dir_root, metabolite_file)):
+        if met_exist and not os.path.isfile(os.path.join(dir_root, metabolite_file)):
             if verbose:
                 print('getting %s' % (os.path.join(base_url, metabolite_file)))
             metabolite_data = requests.get(os.path.join(base_url,
@@ -224,22 +244,25 @@ def adjust_file_paths(
     dir_root=my_settings.magi_task_path):
     """
     creates appropriate full path for input files after being mirrored to disk
+
+    removes jobs that don't have a file they are supposed to
     """
     to_pop = []
     for i, job in enumerate(all_jobs):
-        pk = job['pk']
-        try:
-            job['fields']['fasta_file'] = os.path.join(dir_root, job['fields']['fasta_file'].split('input/')[1])
-            job['fields']['metabolite_file'] = os.path.join(dir_root, job['fields']['metabolite_file'].split('input/')[1])
-        except IndexError:
-            print('WARNING: could not find input file(s) for job %s index %s' % (pk, i))
-            to_pop.append(i)
-        if not os.path.isfile(job['fields']['fasta_file']):
-            print('WARNING: fasta file for job %s does not exist' % (pk))
-            continue
-        if not os.path.isfile(job['fields']['metabolite_file']):
-            print('WARNING: fasta file for job %s does not exist' % (pk))
-            continue
+        job_path = get_job_dir(job)
+        newroot = os.path.join(dir_root, job_path)
+        if job['fields']['fasta_file'] != '':
+            job['fields']['fasta_file'] = os.path.join(newroot, job['fields']['fasta_file'].split('/')[-1])
+            if not os.path.isfile(job['fields']['fasta_file']):
+                print('ERROR: fasta file for job %s does not exist' % (pk))
+                to_pop.append(i)
+                continue
+        if job['fields']['metabolite_file'] != '':
+            job['fields']['metabolite_file'] = os.path.join(newroot, job['fields']['metabolite_file'].split('/')[-1])
+            if not os.path.isfile(job['fields']['metabolite_file']):
+                print('ERROR: metabolite file for job %s does not exist' % (pk))
+                to_pop.append(i)
+                continue
     # remove the jobs that didn't have input files
     if len(to_pop) > 0:
         for i in to_pop:
