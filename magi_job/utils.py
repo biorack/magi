@@ -546,6 +546,19 @@ def job_script(job_data, n_cpd=None):
     os.umask(old_mask)
     return None
 
+def ppm_error(mass, theoretical_mass):
+    """
+    Returns the ppm error of a given observed mass, and theoretical mass
+    """
+    try:
+        mass = float(mass)
+        theoretical_mass = float(theoretical_mass)
+    except Exception as e:
+        print('one of the arguments is not a number!')
+        raise e
+    ppm = (mass - theoretical_mass) / theoretical_mass * 1e6
+    return abs(ppm)
+
 def ppm_window(mass, ppm=5, result='bounds'):
     """
     Given a mass and a ppm error, returns lower and upper bounds 
@@ -596,7 +609,13 @@ def accurate_mass_match(mass, compound_df=None, ppm=5, extract='inchi_key'):
     potential_compounds = compound_df[
                             abs(compound_df['mono_isotopic_molecular_weight'] \
                             - mass) <= err]
-    cpds = potential_compounds[extract].values.tolist()
+
+    theoretical = potential_compounds['mono_isotopic_molecular_weight']
+    ppm_error = (theoretical - mass) / theoretical * 1e6
+    ppm_error = abs(ppm_error)
+    potential_compounds['ppm_error'] = ppm_error
+
+    cpds = potential_compounds[[extract, 'ppm_error']].values.tolist()
     if len(cpds) == 0:
         cpds = None
     return cpds
@@ -756,7 +775,9 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     data = {
         'original_compound': [],
         'searched_adduct': [],
-        'original_mz' : []
+        'original_mz': [],
+        'ppm_error': [],
+        'compound_score': []
     }
     # accurate mass search and store results
     for mz in compounds['original_mz'].unique():
@@ -771,7 +792,9 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
                                                  )
             if found_compounds is not None:
                 for cpd in found_compounds:
-                    data['original_compound'].append(cpd)
+                    data['original_compound'].append(cpd[0])
+                    data['ppm_error'].append(cpd[1])
+                    data['compound_score'].append(search_ppm + 1 - cpd[1])
                     data['searched_adduct'].append(adduct)
                     data['original_mz'].append(mz)
 
