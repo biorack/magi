@@ -191,6 +191,7 @@ def mirror_inputs(all_jobs,
     dir_root is where to mirror the files to
     """
     base_url = os.path.join(base_url, 'files', 'input')
+
     for job in all_jobs:
         fasta_exist = False
         met_exist = False
@@ -221,7 +222,11 @@ def mirror_inputs(all_jobs,
                 print('making %s' % (job_path))
             os.makedirs(os.path.join(job_path, 'admin'))
 
-        # make file if exists
+        # copy job's json
+        with open(os.path.join(job_path, 'admin', '%s.json' % (job['pk'])), 'w') as f:
+            json.dump(job, f)
+
+        # make file if does not exist
         if fasta_exist and not os.path.isfile(os.path.join(dir_root, fasta_file)):
             if verbose:
                 print('getting %s' % os.path.join(base_url, fasta_file))
