@@ -94,7 +94,7 @@ parser.add_argument('-o', '--output',
 	type=str)
 parser.add_argument('-l', '--level', 
 	help='how many levels deep to search the chemical network', 
-	type=int, choices=[1,2,3], default=2)
+	type=int, choices=[0,1,2,3], default=2)
 parser.add_argument('--tautomer', dest='tautomer', action='store_true',
 	help='include tautomers in search; default is False')
 parser.add_argument('--no-tautomer', dest='tautomer', action='store_false',
