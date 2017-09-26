@@ -25,15 +25,15 @@ sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 
 # needed for rdkit
-sys.path.insert(
-    0,
-    '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages'
-    )
-from rdkit import Chem
-# turn off rdkit warnings
-from rdkit import RDLogger
-lg = RDLogger.logger()
-lg.setLevel(RDLogger.ERROR)
+# sys.path.insert(
+#     0,
+#     '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages'
+#     )
+# from rdkit import Chem
+# # turn off rdkit warnings
+# from rdkit import RDLogger
+# lg = RDLogger.logger()
+# lg.setLevel(RDLogger.ERROR)
 
 from molvs.standardize import enumerate_tautomers_smiles
 import pandas as pd
@@ -564,78 +564,79 @@ def keep_top_blast(escore_series, filt=0.85):
     final = escore_series[escore_series >= (max_score * filt)]
     return final
 
-def tautomer_finder(compound_mol, result='split', raise_errors=False):
-    """
-    enumerates tautomers of a given compound
+# deprecated:
+# def tautomer_finder(compound_mol, result='split', raise_errors=False):
+#     """
+#     enumerates tautomers of a given compound
 
-    MolVS tautomer enumerator flattens compounds, so the default only
-    returns the first block of the inchikey
+#     MolVS tautomer enumerator flattens compounds, so the default only
+#     returns the first block of the inchikey
 
-    Inputs
-    ------
-    compound_mol: RdKit Mol object of the compound to tautomerize
-    result: "split" returns the first block of an inchikey
-            "full" returns the full inchikey
-            "smiles" returns the smiles string
-            "inchi" returns the InChI string 
-            "mol" returns RdKit Mol object
-    reaise_errors: when False, it still prints the error as a warning
+#     Inputs
+#     ------
+#     compound_mol: RdKit Mol object of the compound to tautomerize
+#     result: "split" returns the first block of an inchikey
+#             "full" returns the full inchikey
+#             "smiles" returns the smiles string
+#             "inchi" returns the InChI string 
+#             "mol" returns RdKit Mol object
+#     reaise_errors: when False, it still prints the error as a warning
 
-    Outputs
-    -------
-    tautomer_list: list of unique tautomers, in the output format
-                   specified by result argument
-    """
+#     Outputs
+#     -------
+#     tautomer_list: list of unique tautomers, in the output format
+#                    specified by result argument
+#     """
 
-    if not isinstance(compound_mol, type(Chem.Mol())):
-        raise RuntimeError('The input is not an rdkit Mol object!')
+#     if not isinstance(compound_mol, type(Chem.Mol())):
+#         raise RuntimeError('The input is not an rdkit Mol object!')
 
-    if not isinstance(result, str):
-        raise RuntimeError('"result" arg must be a string!')
-    if result.lower() not in ['split', 'full', 'smiles', 'inchi', 'mol']:
-        raise RuntimeError('"result" arg must be either "split", "full", \
-            "smiles", "inchi", or "mol"')
+#     if not isinstance(result, str):
+#         raise RuntimeError('"result" arg must be a string!')
+#     if result.lower() not in ['split', 'full', 'smiles', 'inchi', 'mol']:
+#         raise RuntimeError('"result" arg must be either "split", "full", \
+#             "smiles", "inchi", or "mol"')
 
-    compound_smiles = Chem.MolToSmiles(compound_mol, isomericSmiles=True)
+#     compound_smiles = Chem.MolToSmiles(compound_mol, isomericSmiles=True)
 
-    # some compounds break the tautomerizer
-    try:
-        enumerated_tautomers = enumerate_tautomers_smiles(compound_smiles)
-    except TypeError, e:
-        if e.message == 'tuple indices must be integers, not NoneType':
-            enumerated_tautomers = []
-    except Exception as e:
-        if raise_errors is False:
-            print 'WARNING: %s could not be tautomerized; %s' \
-                    % (Chem.InchiToInchiKey(Chem.MolToInchi(compound_mol)),
-                        e.args)
-            enumerated_tautomers = [compound_smiles]
-        else:
-            raise
+#     # some compounds break the tautomerizer
+#     try:
+#         enumerated_tautomers = enumerate_tautomers_smiles(compound_smiles)
+#     except TypeError, e:
+#         if e.message == 'tuple indices must be integers, not NoneType':
+#             enumerated_tautomers = []
+#     except Exception as e:
+#         if raise_errors is False:
+#             print 'WARNING: %s could not be tautomerized; %s' \
+#                     % (Chem.InchiToInchiKey(Chem.MolToInchi(compound_mol)),
+#                         e.args)
+#             enumerated_tautomers = [compound_smiles]
+#         else:
+#             raise
 
-    # convert smiles into inchikeys
-    tautomer_list = []
-    for ts in enumerated_tautomers:
-        if result.lower() in ['split', 'full']:
-            i = Chem.InchiToInchiKey(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
-            if result.lower() == 'split':
-                tautomer_list.append(i.split('-')[0])
-            elif result.lower() == 'full':
-                tautomer_list.append(i)
-            else:
-                raise RuntimeError(
-                    'could not determine what to do with %s' % (result))
-        elif result.lower() == 'smiles':
-            tautomer_list.append(ts)
-        elif result.lower() == 'inchi':
-            tautomer_list.append(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
-        elif result.lower() == 'mol':
-            tautomer_list.append(Chem.MolFromSmiles(ts))
-        else:
-            raise RuntimeError(
-                'could not determine what to do with %s' % (result))
+#     # convert smiles into inchikeys
+#     tautomer_list = []
+#     for ts in enumerated_tautomers:
+#         if result.lower() in ['split', 'full']:
+#             i = Chem.InchiToInchiKey(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
+#             if result.lower() == 'split':
+#                 tautomer_list.append(i.split('-')[0])
+#             elif result.lower() == 'full':
+#                 tautomer_list.append(i)
+#             else:
+#                 raise RuntimeError(
+#                     'could not determine what to do with %s' % (result))
+#         elif result.lower() == 'smiles':
+#             tautomer_list.append(ts)
+#         elif result.lower() == 'inchi':
+#             tautomer_list.append(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
+#         elif result.lower() == 'mol':
+#             tautomer_list.append(Chem.MolFromSmiles(ts))
+#         else:
+#             raise RuntimeError(
+#                 'could not determine what to do with %s' % (result))
 
-    return list(set(tautomer_list))
+#     return list(set(tautomer_list))
 
 def neighbor_finder(inchikey, chemical_network=net, cpd_group=None, level=2):
     """
@@ -762,30 +763,30 @@ def find_reactions_of_compound(inchikey, rxn_db=mrs_reaction,
 
 #     return compound_results
 
-def mol_from_inchikey(inchikey):
-    """
-    Returns an RdKit Mol object from an inchikey input via the compound
-    DataFrame
+# def mol_from_inchikey(inchikey):
+#     """
+#     Returns an RdKit Mol object from an inchikey input via the compound
+#     DataFrame
 
-    Inputs
-    ------
-    inchikey: a standard InChI key
+#     Inputs
+#     ------
+#     inchikey: a standard InChI key
 
-    Outputs
-    -------
-    Rdkit Mol object or None, if the inchikey input was not found in the
-    compound DataFrame
-    """
+#     Outputs
+#     -------
+#     Rdkit Mol object or None, if the inchikey input was not found in the
+#     compound DataFrame
+#     """
 
-    matched_inchis = compounds[compounds['inchi_key'].str.contains(
-        inchikey, regex=False)]['inchi'].values
-    if matched_inchis.any():
-        # in case there are duplicates, just take the first one
-        inchi = str(matched_inchis[0])
-        compound_mol = Chem.MolFromInchi(inchi)
-        return compound_mol
-    else:
-        return None
+#     matched_inchis = compounds[compounds['inchi_key'].str.contains(
+#         inchikey, regex=False)]['inchi'].values
+#     if matched_inchis.any():
+#         # in case there are duplicates, just take the first one
+#         inchi = str(matched_inchis[0])
+#         compound_mol = Chem.MolFromInchi(inchi)
+#         return compound_mol
+#     else:
+#         return None
 
 def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
     """
