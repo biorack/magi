@@ -52,7 +52,7 @@ for job_data in all_jobs:
         cmd.append(script_path)
         submit = True
     elif job_script.split('.')[1] == 'qsub' and 'genepool' in host:
-        cmd = ['qsub']
+        cmd = ['/opt/uge/genepool/uge/bin/lx-amd64/qsub']
         cmd.append(script_path)
         submit = True
 

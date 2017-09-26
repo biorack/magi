@@ -109,8 +109,6 @@ for job_data in unrun_jobs:
         cmd = ['qsub']
         cmd.append(script_path)
         submit = True
-    else:
-    	print '%s not an understood machine' %(host)
 
     if submit: 
         # submit the job
