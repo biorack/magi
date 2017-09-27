@@ -467,12 +467,6 @@ def job_script(job_data, n_cpd=None):
     ]
     # need to convert this into string so we can join it later
     score_weights = [str(i) for i in score_weights]
-    
-    # need to interpret tautomer flag
-    if  job_data['fields']['is_tautomers']:
-        tautomer = '--tautomer'
-    else:
-        tautomer = '--no-tautomer'
 
     # estimate timing:
     if n_cpd <= 100:
@@ -536,9 +530,6 @@ def job_script(job_data, n_cpd=None):
         '%s' % (fasta_file_line),
         '%s' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
-        # not sure if this line will break anything at nersc
-        # if it does, put it at the end of the previous line
-        '%s \\' % (tautomer),
         '--final_weights %s \\' % (' '.join(score_weights)),
         '--blast_filter %s \\' % (job_data['fields']['blast_cutoff']),
         '--reciprocal_closeness %s \\' % (job_data['fields']['reciprocal_cutoff']),
