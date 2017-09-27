@@ -24,7 +24,7 @@ import sys
 sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 
-# needed for rdkit
+# needed for rdkit and molvs
 # sys.path.insert(
 #     0,
 #     '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages'
@@ -35,7 +35,7 @@ from local_settings import local_settings as settings_loc
 # lg = RDLogger.logger()
 # lg.setLevel(RDLogger.ERROR)
 
-from molvs.standardize import enumerate_tautomers_smiles
+# from molvs.standardize import enumerate_tautomers_smiles
 import pandas as pd
 import numpy as np
 import subprocess
