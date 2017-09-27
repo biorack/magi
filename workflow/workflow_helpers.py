@@ -25,17 +25,17 @@ sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 
 # needed for rdkit and molvs
-# sys.path.insert(
-#     0,
-#     '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages'
-#     )
-# from rdkit import Chem
-# # turn off rdkit warnings
-# from rdkit import RDLogger
-# lg = RDLogger.logger()
-# lg.setLevel(RDLogger.ERROR)
+sys.path.insert(
+    0,
+    '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages'
+    )
+from rdkit import Chem
+# turn off rdkit warnings
+from rdkit import RDLogger
+lg = RDLogger.logger()
+lg.setLevel(RDLogger.ERROR)
 
-# from molvs.standardize import enumerate_tautomers_smiles
+from molvs.standardize import enumerate_tautomers_smiles
 import pandas as pd
 import numpy as np
 import subprocess
@@ -564,79 +564,78 @@ def keep_top_blast(escore_series, filt=0.85):
     final = escore_series[escore_series >= (max_score * filt)]
     return final
 
-# deprecated:
-# def tautomer_finder(compound_mol, result='split', raise_errors=False):
-#     """
-#     enumerates tautomers of a given compound
+def tautomer_finder(compound_mol, result='split', raise_errors=False):
+    """
+    enumerates tautomers of a given compound
 
-#     MolVS tautomer enumerator flattens compounds, so the default only
-#     returns the first block of the inchikey
+    MolVS tautomer enumerator flattens compounds, so the default only
+    returns the first block of the inchikey
 
-#     Inputs
-#     ------
-#     compound_mol: RdKit Mol object of the compound to tautomerize
-#     result: "split" returns the first block of an inchikey
-#             "full" returns the full inchikey
-#             "smiles" returns the smiles string
-#             "inchi" returns the InChI string 
-#             "mol" returns RdKit Mol object
-#     reaise_errors: when False, it still prints the error as a warning
+    Inputs
+    ------
+    compound_mol: RdKit Mol object of the compound to tautomerize
+    result: "split" returns the first block of an inchikey
+            "full" returns the full inchikey
+            "smiles" returns the smiles string
+            "inchi" returns the InChI string 
+            "mol" returns RdKit Mol object
+    reaise_errors: when False, it still prints the error as a warning
 
-#     Outputs
-#     -------
-#     tautomer_list: list of unique tautomers, in the output format
-#                    specified by result argument
-#     """
+    Outputs
+    -------
+    tautomer_list: list of unique tautomers, in the output format
+                   specified by result argument
+    """
 
-#     if not isinstance(compound_mol, type(Chem.Mol())):
-#         raise RuntimeError('The input is not an rdkit Mol object!')
+    if not isinstance(compound_mol, type(Chem.Mol())):
+        raise RuntimeError('The input is not an rdkit Mol object!')
 
-#     if not isinstance(result, str):
-#         raise RuntimeError('"result" arg must be a string!')
-#     if result.lower() not in ['split', 'full', 'smiles', 'inchi', 'mol']:
-#         raise RuntimeError('"result" arg must be either "split", "full", \
-#             "smiles", "inchi", or "mol"')
+    if not isinstance(result, str):
+        raise RuntimeError('"result" arg must be a string!')
+    if result.lower() not in ['split', 'full', 'smiles', 'inchi', 'mol']:
+        raise RuntimeError('"result" arg must be either "split", "full", \
+            "smiles", "inchi", or "mol"')
 
-#     compound_smiles = Chem.MolToSmiles(compound_mol, isomericSmiles=True)
+    compound_smiles = Chem.MolToSmiles(compound_mol, isomericSmiles=True)
 
-#     # some compounds break the tautomerizer
-#     try:
-#         enumerated_tautomers = enumerate_tautomers_smiles(compound_smiles)
-#     except TypeError, e:
-#         if e.message == 'tuple indices must be integers, not NoneType':
-#             enumerated_tautomers = []
-#     except Exception as e:
-#         if raise_errors is False:
-#             print 'WARNING: %s could not be tautomerized; %s' \
-#                     % (Chem.InchiToInchiKey(Chem.MolToInchi(compound_mol)),
-#                         e.args)
-#             enumerated_tautomers = [compound_smiles]
-#         else:
-#             raise
+    # some compounds break the tautomerizer
+    try:
+        enumerated_tautomers = enumerate_tautomers_smiles(compound_smiles)
+    except TypeError, e:
+        if e.message == 'tuple indices must be integers, not NoneType':
+            enumerated_tautomers = []
+    except Exception as e:
+        if raise_errors is False:
+            print 'WARNING: %s could not be tautomerized; %s' \
+                    % (Chem.InchiToInchiKey(Chem.MolToInchi(compound_mol)),
+                        e.args)
+            enumerated_tautomers = [compound_smiles]
+        else:
+            raise
 
-#     # convert smiles into inchikeys
-#     tautomer_list = []
-#     for ts in enumerated_tautomers:
-#         if result.lower() in ['split', 'full']:
-#             i = Chem.InchiToInchiKey(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
-#             if result.lower() == 'split':
-#                 tautomer_list.append(i.split('-')[0])
-#             elif result.lower() == 'full':
-#                 tautomer_list.append(i)
-#             else:
-#                 raise RuntimeError(
-#                     'could not determine what to do with %s' % (result))
-#         elif result.lower() == 'smiles':
-#             tautomer_list.append(ts)
-#         elif result.lower() == 'inchi':
-#             tautomer_list.append(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
-#         elif result.lower() == 'mol':
-#             tautomer_list.append(Chem.MolFromSmiles(ts))
-#         else:
-#             raise RuntimeError(
-#                 'could not determine what to do with %s' % (result))
+    # convert smiles into inchikeys
+    tautomer_list = []
+    for ts in enumerated_tautomers:
+        if result.lower() in ['split', 'full']:
+            i = Chem.InchiToInchiKey(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
+            if result.lower() == 'split':
+                tautomer_list.append(i.split('-')[0])
+            elif result.lower() == 'full':
+                tautomer_list.append(i)
+            else:
+                raise RuntimeError(
+                    'could not determine what to do with %s' % (result))
+        elif result.lower() == 'smiles':
+            tautomer_list.append(ts)
+        elif result.lower() == 'inchi':
+            tautomer_list.append(Chem.MolToInchi(Chem.MolFromSmiles(ts)))
+        elif result.lower() == 'mol':
+            tautomer_list.append(Chem.MolFromSmiles(ts))
+        else:
+            raise RuntimeError(
+                'could not determine what to do with %s' % (result))
 
-#     return list(set(tautomer_list))
+    return list(set(tautomer_list))
 
 def neighbor_finder(inchikey, chemical_network=net, cpd_group=None, level=2):
     """
@@ -725,70 +724,69 @@ def find_reactions_of_compound(inchikey, rxn_db=mrs_reaction,
     else:
         return None
 
-# deprecated:
-# def enumerate_compound_results(original_compound, compound_results,
-#                                reaction_idx_list, level=0,
-#                                neighbor='', note=''):
-#     """
-#     Inputs
-#     ------
-#     original_compound: initial compound that began the search
-#     compound_results:   dictionary with the following keys:
-#                         'original_compound', 'level', 'neighbor',
-#                         'reaction_id', 'note' where each key-value is a
-#                         list
-#     reaction_idx_list:  the ouptut of find_reaction_of_compound()
-#     level:              The chemical network search level
-#     neighbor:           The chemical network neighbor of
-#                         original_compound
+def enumerate_compound_results(original_compound, compound_results,
+                               reaction_idx_list, level=0,
+                               neighbor='', note=''):
+    """
+    Inputs
+    ------
+    original_compound: initial compound that began the search
+    compound_results:   dictionary with the following keys:
+                        'original_compound', 'level', 'neighbor',
+                        'reaction_id', 'note' where each key-value is a
+                        list
+    reaction_idx_list:  the ouptut of find_reaction_of_compound()
+    level:              The chemical network search level
+    neighbor:           The chemical network neighbor of
+                        original_compound
 
-#     Outputs:
-#     --------
-#     An updated compound_results dictionary
-#     """
+    Outputs:
+    --------
+    An updated compound_results dictionary
+    """
 
-#     if reaction_idx_list is not None:
-#         for rxn_idx in reaction_idx_list:
-#             compound_results['original_compound'].append(original_compound)
-#             compound_results['level'].append(level)
-#             compound_results['neighbor'].append(neighbor)
-#             compound_results['reaction_id'].append(rxn_idx)
-#             compound_results['note'].append(note)
-#     else:
-#         compound_results['original_compound'].append(original_compound)
-#         compound_results['level'].append(level)
-#         compound_results['neighbor'].append(neighbor)
-#         compound_results['reaction_id'].append('')
-#         compound_results['note'].append(note)
+    if reaction_idx_list is not None:
+        for rxn_idx in reaction_idx_list:
+            compound_results['original_compound'].append(original_compound)
+            compound_results['level'].append(level)
+            compound_results['neighbor'].append(neighbor)
+            compound_results['reaction_id'].append(rxn_idx)
+            compound_results['note'].append(note)
+    else:
+        compound_results['original_compound'].append(original_compound)
+        compound_results['level'].append(level)
+        compound_results['neighbor'].append(neighbor)
+        compound_results['reaction_id'].append('')
+        compound_results['note'].append(note)
 
-#     return compound_results
+    return compound_results
 
-# def mol_from_inchikey(inchikey):
-#     """
-#     Returns an RdKit Mol object from an inchikey input via the compound
-#     DataFrame
+def mol_from_inchikey(inchikey):
+    """
+    Returns an RdKit Mol object from an inchikey input via the compound
+    DataFrame
 
-#     Inputs
-#     ------
-#     inchikey: a standard InChI key
+    Inputs
+    ------
+    inchikey: a standard InChI key
 
-#     Outputs
-#     -------
-#     Rdkit Mol object or None, if the inchikey input was not found in the
-#     compound DataFrame
-#     """
+    Outputs
+    -------
+    Rdkit Mol object or None, if the inchikey input was not found in the
+    compound DataFrame
+    """
 
-#     matched_inchis = compounds[compounds['inchi_key'].str.contains(
-#         inchikey, regex=False)]['inchi'].values
-#     if matched_inchis.any():
-#         # in case there are duplicates, just take the first one
-#         inchi = str(matched_inchis[0])
-#         compound_mol = Chem.MolFromInchi(inchi)
-#         return compound_mol
-#     else:
-#         return None
+    matched_inchis = compounds[compounds['inchi_key'].str.contains(
+        inchikey, regex=False)]['inchi'].values
+    if matched_inchis.any():
+        # in case there are duplicates, just take the first one
+        inchi = str(matched_inchis[0])
+        compound_mol = Chem.MolFromInchi(inchi)
+        return compound_mol
+    else:
+        return None
 
-def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
+def connect_compound_to_reaction(inchikey, tautomer=False, neighbor_level=2):
     """
     Connects a compound, its neighbors, and optionally its and its
     neighbors' tautomers to a reaction
@@ -825,46 +823,46 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
     # convert inchikey into two-block
     search_inchikey = '-'.join(inchikey.split('-')[:2])
 
-    # get level zero results
-    compound_results = c2r[search_inchikey].copy()
-    compound_results['level'] = [0]*len(compound_results['original_compound'])
-    compound_results['neighbor'] = ['']*len(compound_results['original_compound'])
-    compound_results_list = [pd.DataFrame(compound_results)]
+    # if tautomer flag, do it the legacy way (don't use precomputed c2r)
+    # useful when precomputing a new chemical database and/or chemical network
+    if tautomer:
+        # find any direct matches
+        direct_reaction_idx_list = find_reactions_of_compound(search_inchikey)
 
-    # deprecated:
-    # find any direct matches
-    # direct_reaction_idx_list = find_reactions_of_compound(search_inchikey)
+        # initialize the results dict
+        compound_results = {
+            'original_compound': [],
+            'level': [],
+            'neighbor': [],
+            'reaction_id': [],
+            'note': []
+            }
+        compound_results = enumerate_compound_results(
+            inchikey, compound_results, direct_reaction_idx_list,
+            level=0, neighbor='', note='direct')
+        # make an rdkit mol of the compound
+        compound_mol = mol_from_inchikey(inchikey)
+        if compound_mol is None:
+            print 'WARNING: Could not find "%s" in the compound database; \
+                skipping tautomer and neighbor searching' % (inchikey)
+            return pd.DataFrame(compound_results)
 
-    # # initialize the results dict
-    # compound_results = {
-    #     'original_compound': [],
-    #     'level': [],
-    #     'neighbor': [],
-    #     'reaction_id': [],
-    #     'note': []
-    #     }
-    # compound_results = enumerate_compound_results(
-    #     inchikey, compound_results, direct_reaction_idx_list,
-    #     level=0, neighbor='', note='direct')
-   
-    # if tautomer:
-    #     # make an rdkit mol of the compound
-    #     compound_mol = mol_from_inchikey(inchikey)
-    #     if compound_mol is None:
-    #         print 'WARNING: Could not find "%s" in the compound database; \
-    #             skipping tautomer and neighbor searching' % (inchikey)
-    #         return pd.DataFrame(compound_results)
+        # get tautomers of the compound
+        tautomer_list = tautomer_finder(compound_mol)
 
-    #     # get tautomers of the compound
-    #     tautomer_list = tautomer_finder(compound_mol)
-
-    #     # find reactions for the tautomers
-    #     tautomer_search_pattern = '|'.join(tautomer_list)
-    #     tautomer_reaction_idx_list = find_reactions_of_compound(
-    #         tautomer_search_pattern)
-    #     compound_results = enumerate_compound_results(
-    #         inchikey, compound_results, tautomer_reaction_idx_list, level=0,
-    #         neighbor='', note='flat tautomer')
+        # find reactions for the tautomers
+        tautomer_search_pattern = '|'.join(tautomer_list)
+        tautomer_reaction_idx_list = find_reactions_of_compound(
+            tautomer_search_pattern)
+        compound_results = enumerate_compound_results(
+            inchikey, compound_results, tautomer_reaction_idx_list, level=0,
+            neighbor='', note='flat tautomer')
+    else:
+        # get level zero results from precomputed results
+        compound_results = c2r[search_inchikey].copy()
+        compound_results['level'] = [0]*len(compound_results['original_compound'])
+        compound_results['neighbor'] = ['']*len(compound_results['original_compound'])
+        compound_results_list = [pd.DataFrame(compound_results)]
 
     # find neighbors
     if neighbor_level != 0:
@@ -873,35 +871,36 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
         # next look for reaction matches to neighbors
         for level, neighbor_compound_list in neighbor_groups:
             for neighbor_inchikey in neighbor_compound_list:
-                search_inchikey = '-'.join(neighbor_inchikey.split('-')[:2])
-                tmp_compound_results = c2r[search_inchikey].copy()
-                tmp_compound_results['level'] = [level]*len(tmp_compound_results['original_compound'])
-                tmp_compound_results['neighbor'] = tmp_compound_results['original_compound']
-                tmp_compound_results['original_compound'] = [inchikey]*len(tmp_compound_results['original_compound'])
-                compound_results_list.append(pd.DataFrame(tmp_compound_results))
-                # deprecated:
-                # first get the direct matches
-                # reaction_idx_list = find_reactions_of_compound(
-                #     neighbor_inchikey)
-                # compound_results = enumerate_compound_results(
-                #     inchikey, compound_results, reaction_idx_list,
-                #     level=level, neighbor=neighbor_inchikey, note='direct')
-                # if tautomer:
-                #     # then the flat tautomer searches
-                #     neighbor_mol = mol_from_inchikey(neighbor_inchikey)
-                #     if neighbor_mol is not None:
-                #         tautomer_list = tautomer_finder(neighbor_mol)
-                #         tautomer_search_pattern = '|'.join(tautomer_list)
-                #         tautomer_reaction_idx_list = \
-                #             find_reactions_of_compound(tautomer_search_pattern)
-                #         compound_results = enumerate_compound_results(
-                #             inchikey, compound_results,
-                #             tautomer_reaction_idx_list, level=level,
-                #             neighbor=neighbor_inchikey, note='flat tautomer')
-
-    # compound_reaction_result_df = pd.DataFrame(compound_results)
-
-    compound_reaction_result_df = pd.concat(compound_results_list)
+                if tautomer:
+                    # first get the direct matches
+                    reaction_idx_list = find_reactions_of_compound(
+                        neighbor_inchikey)
+                    compound_results = enumerate_compound_results(
+                        inchikey, compound_results, reaction_idx_list,
+                        level=level, neighbor=neighbor_inchikey, note='direct')
+                    if tautomer:
+                        # then the flat tautomer searches
+                        neighbor_mol = mol_from_inchikey(neighbor_inchikey)
+                        if neighbor_mol is not None:
+                            tautomer_list = tautomer_finder(neighbor_mol)
+                            tautomer_search_pattern = '|'.join(tautomer_list)
+                            tautomer_reaction_idx_list = \
+                                find_reactions_of_compound(tautomer_search_pattern)
+                            compound_results = enumerate_compound_results(
+                                inchikey, compound_results,
+                                tautomer_reaction_idx_list, level=level,
+                                neighbor=neighbor_inchikey, note='flat tautomer')
+                else:
+                    search_inchikey = '-'.join(neighbor_inchikey.split('-')[:2])
+                    tmp_compound_results = c2r[search_inchikey].copy()
+                    tmp_compound_results['level'] = [level]*len(tmp_compound_results['original_compound'])
+                    tmp_compound_results['neighbor'] = tmp_compound_results['original_compound']
+                    tmp_compound_results['original_compound'] = [inchikey]*len(tmp_compound_results['original_compound'])
+                    compound_results_list.append(pd.DataFrame(tmp_compound_results))
+    if tautomer:
+        compound_reaction_result_df = pd.DataFrame(compound_results)
+    else:
+        compound_reaction_result_df = pd.concat(compound_results_list)
 
     # now perform cleanup on the df
     # first sort the df so that all the direct hits come first

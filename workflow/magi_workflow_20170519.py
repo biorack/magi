@@ -39,7 +39,7 @@ and populated with 1.0
 
 import sys
 # load local settings
-sys.path.insert(0, '/Users/Onur/repos/magi')
+sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -95,11 +95,11 @@ parser.add_argument('-o', '--output',
 parser.add_argument('-l', '--level', 
 	help='how many levels deep to search the chemical network', 
 	type=int, choices=[0,1,2,3], default=2)
-parser.add_argument('--tautomer', dest='tautomer', action='store_true',
-	help='include tautomers in search; default is False')
-parser.add_argument('--no-tautomer', dest='tautomer', action='store_false',
-	help='do not include tautomers in search; default is False')
-parser.set_defaults(tautomer=True)
+parser.add_argument('--legacy', dest='legacy', action='store_true',
+	help='use legacy tautomer searching; default is no')
+parser.add_argument('--no-legacy', dest='legacy', action='store_false',
+	help='use precomputed compound-to-reaction; default is yes')
+parser.set_defaults(legacy=False)
 parser.add_argument('--mute', 
 	help='mutes pandas warnings', 
 	action='store_true')
@@ -181,7 +181,7 @@ if args.cpu_count == 0:
 if args.fasta is not None: 
 	print '@@@ BLAST filter: %s' % (args.blast_filter)
 if args.compounds is not None:
-	print '@@@ Searching Tautomers: %s' % (args.tautomer)
+	print '@@@ Using precomputed compound results: %s' % (not args.legacy)
 	print '@@@ Chemnet search to level %s' % (args.level)
 	print '@@@ Reciprocal closeness: %s' % (args.reciprocal_closeness)
 	print '@@@ chemnet base penalty: %s' % (args.chemnet_penalty)
@@ -331,7 +331,7 @@ if args.compound_to_reaction is None:
 	start = time.time()
 
 	def connect_compound_to_reaction_mp_helper(inchikey, 
-											tautomer=args.tautomer, 
+											tautomer=args.legacy, 
 											neighbor_level=args.level):
 	    try:
 	    	out = mg.connect_compound_to_reaction(inchikey, 
