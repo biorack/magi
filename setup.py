@@ -7,11 +7,17 @@ fname = raw_input('USER INPUT: Settings Name (leave blank for default): ')
 
 # step one: extract the db tarball
 print 'Extracting database files...'
-cmd = ['tar', '-xvzf', 'databases.tar.gz']
-subprocess.call(
-	cmd,
-    cwd = os.path.join(repo_path, 'workflow')
-    )
+db_dir = os.path.join(repo_path, 'workflow', 'database')
+# wipe out existing db directory
+if os.path.isdir(db_dir):
+    subprocess.call(['rm', '-r', db_dir])
+os.makedirs(db_dir)
+for zipfile in ['blastdb.zip', 'pickle_files.zip']:
+    cmd = ['unzip', '../%s' %(zipfile)]
+    subprocess.call(
+        cmd,
+        cwd = os.path.join(repo_path, 'workflow/database')
+        )
 print 'Done'
 
 # step two: make local_settings.py file
@@ -29,6 +35,7 @@ lines.append("mrs_reaction_path = os.path.join(repo_location, 'workflow/database
 lines.append("compounds_df =      os.path.join(repo_location, 'workflow/database/unique_compounds_groups_magi.pkl')\n")
 lines.append("mst_path =          os.path.join(repo_location, 'workflow/database/graph.pkl')\n")
 lines.append("chemnet_pickle =    os.path.join(repo_location, 'workflow/database/compound_groups.pkl')\n")
+lines.append("c2r =               os.path.join(repo_location, 'workflow/database/c2r.pkl')\n")
 lines.append("\n")
 lines.append("magi_results_storage = os.path.join(repo_location, 'outputs')\n")
 

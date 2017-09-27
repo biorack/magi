@@ -21,10 +21,10 @@ variables in the local_settings files used are:
 # All the setup junk
 import sys
 # local settings path
-sys.path.insert(0, '/Users/Onur/repos/magi')
+sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 
-# needed for rdkit
+# needed for rdkit and molvs
 sys.path.insert(
     0,
     '/global/project/projectdirs/metatlas/anaconda/lib/python2.7/site-packages'
@@ -135,6 +135,8 @@ print '!!!', len(mrs_reaction[mrs_reaction['ECs'] != '']), 'reactions with an EC
 
 print '!!! loading compound table'
 compounds = load_dataframe(my_settings.compounds_df)
+with open(my_settings.c2r, 'r') as fid:
+    c2r = pickle.load(fid)
 
 #chemnet files
 print '!!! loading chemnet files'
@@ -784,7 +786,7 @@ def mol_from_inchikey(inchikey):
     else:
         return None
 
-def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
+def connect_compound_to_reaction(inchikey, tautomer=False, neighbor_level=2):
     """
     Connects a compound, its neighbors, and optionally its and its
     neighbors' tautomers to a reaction
@@ -821,23 +823,23 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
     # convert inchikey into two-block
     search_inchikey = '-'.join(inchikey.split('-')[:2])
 
-    # find any direct matches
-    direct_reaction_idx_list = find_reactions_of_compound(search_inchikey)
-
-    # initialize the results dict
-    compound_results = {
-        'original_compound': [],
-        'level': [],
-        'neighbor': [],
-        'reaction_id': [],
-        'note': []
-        }
-
-    compound_results = enumerate_compound_results(
-        inchikey, compound_results, direct_reaction_idx_list,
-        level=0, neighbor='', note='direct')
-
+    # if tautomer flag, do it the legacy way (don't use precomputed c2r)
+    # useful when precomputing a new chemical database and/or chemical network
     if tautomer:
+        # find any direct matches
+        direct_reaction_idx_list = find_reactions_of_compound(search_inchikey)
+
+        # initialize the results dict
+        compound_results = {
+            'original_compound': [],
+            'level': [],
+            'neighbor': [],
+            'reaction_id': [],
+            'note': []
+            }
+        compound_results = enumerate_compound_results(
+            inchikey, compound_results, direct_reaction_idx_list,
+            level=0, neighbor='', note='direct')
         # make an rdkit mol of the compound
         compound_mol = mol_from_inchikey(inchikey)
         if compound_mol is None:
@@ -855,6 +857,12 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
         compound_results = enumerate_compound_results(
             inchikey, compound_results, tautomer_reaction_idx_list, level=0,
             neighbor='', note='flat tautomer')
+    else:
+        # get level zero results from precomputed results
+        compound_results = c2r[search_inchikey].copy()
+        compound_results['level'] = [0]*len(compound_results['original_compound'])
+        compound_results['neighbor'] = ['']*len(compound_results['original_compound'])
+        compound_results_list = [pd.DataFrame(compound_results)]
 
     # find neighbors
     if neighbor_level != 0:
@@ -863,26 +871,37 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
         # next look for reaction matches to neighbors
         for level, neighbor_compound_list in neighbor_groups:
             for neighbor_inchikey in neighbor_compound_list:
-                # first get the direct matches
-                reaction_idx_list = find_reactions_of_compound(
-                    neighbor_inchikey)
-                compound_results = enumerate_compound_results(
-                    inchikey, compound_results, reaction_idx_list,
-                    level=level, neighbor=neighbor_inchikey, note='direct')
                 if tautomer:
-                    # then the flat tautomer searches
-                    neighbor_mol = mol_from_inchikey(neighbor_inchikey)
-                    if neighbor_mol is not None:
-                        tautomer_list = tautomer_finder(neighbor_mol)
-                        tautomer_search_pattern = '|'.join(tautomer_list)
-                        tautomer_reaction_idx_list = \
-                            find_reactions_of_compound(tautomer_search_pattern)
-                        compound_results = enumerate_compound_results(
-                            inchikey, compound_results,
-                            tautomer_reaction_idx_list, level=level,
-                            neighbor=neighbor_inchikey, note='flat tautomer')
+                    # first get the direct matches
+                    reaction_idx_list = find_reactions_of_compound(
+                        neighbor_inchikey)
+                    compound_results = enumerate_compound_results(
+                        inchikey, compound_results, reaction_idx_list,
+                        level=level, neighbor=neighbor_inchikey, note='direct')
+                    if tautomer:
+                        # then the flat tautomer searches
+                        neighbor_mol = mol_from_inchikey(neighbor_inchikey)
+                        if neighbor_mol is not None:
+                            tautomer_list = tautomer_finder(neighbor_mol)
+                            tautomer_search_pattern = '|'.join(tautomer_list)
+                            tautomer_reaction_idx_list = \
+                                find_reactions_of_compound(tautomer_search_pattern)
+                            compound_results = enumerate_compound_results(
+                                inchikey, compound_results,
+                                tautomer_reaction_idx_list, level=level,
+                                neighbor=neighbor_inchikey, note='flat tautomer')
+                else:
+                    search_inchikey = '-'.join(neighbor_inchikey.split('-')[:2])
+                    tmp_compound_results = c2r[search_inchikey].copy()
+                    tmp_compound_results['level'] = [level]*len(tmp_compound_results['original_compound'])
+                    tmp_compound_results['neighbor'] = tmp_compound_results['original_compound']
+                    tmp_compound_results['original_compound'] = [inchikey]*len(tmp_compound_results['original_compound'])
+                    compound_results_list.append(pd.DataFrame(tmp_compound_results))
+    if tautomer:
+        compound_reaction_result_df = pd.DataFrame(compound_results)
+    else:
+        compound_reaction_result_df = pd.concat(compound_results_list)
 
-    compound_reaction_result_df = pd.DataFrame(compound_results)
     # now perform cleanup on the df
     # first sort the df so that all the direct hits come first
     compound_reaction_result_df.sort_values(
@@ -891,6 +910,7 @@ def connect_compound_to_reaction(inchikey, tautomer=True, neighbor_level=2):
     # only the direct hits
     compound_reaction_result_df.drop_duplicates(
         ['original_compound', 'reaction_id'], inplace=True)
+    compound_reaction_result_df.fillna('', inplace=True)
     return compound_reaction_result_df
 
 def refseq_to_reactions(blast_results, refseq_col):
