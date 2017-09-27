@@ -97,16 +97,12 @@ for job_data in unrun_jobs:
         job_script = job_script[0]
     script_path = os.path.join(script_dir, job_script)
     submit_protocol = job_script.split('.')[1]
-    if submit_protocol not in ['sbatch', 'qsub']:
+    if submit_protocol not in ['sbatch']:
         print 'Could not determine which machine to submit the following script to: %s' % (script_path)
         continue
 
     if job_script.split('.')[1] == 'sbatch' and 'cori' in host:
         cmd = ['sbatch']
-        cmd.append(script_path)
-        submit = True
-    elif job_script.split('.')[1] == 'qsub' and 'genepool' in host:
-        cmd = ['qsub']
         cmd.append(script_path)
         submit = True
 
