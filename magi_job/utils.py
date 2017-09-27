@@ -450,7 +450,8 @@ def job_script(job_data, n_cpd=None):
     ############################################################################
 
 
-    account_id = 'm2650' # metatlas
+    # account_id = 'm2650' # metatlas
+    account_id = 'm1541' # openmsi
     
     # where to write the job script to
     if job_data['fields']['fasta_file'] != '':
@@ -470,28 +471,28 @@ def job_script(job_data, n_cpd=None):
 
     # estimate timing:
     if n_cpd <= 100:
-        t_limit = '00:15:00'
+        t_limit = '00:10:00'
         partition = 'debug'
-        filetype = 'sbatch'
     else:
-        t_limit = '24:00:00'
-        partition = 'genepool'
-        filetype = 'qsub'
+        t_limit = '03:59:00'
+        partition = 'realtime'
 
-    if partition == 'genepool':
+    if partition == 'realtime':
         header_lines = [
-            '#!/bin/bash',
-            '#$ -M %s' % (MAGI_EMAIL),
-            '#$ -m a',
-            '#$ -l h_rt=%s' % (t_limit),
-            '#$ -pe pe_32 32',
-            '#$ -l ram.c=7.5G,h_vmem=7.5G',
-            '#$ -q exclusive.c',
-            '#$ -wd %s' % (out_path),
-            '#$ -o %s/log_out.txt' % (out_path),
-            '#$ -e %s/log_err.txt' % (out_path),
+            '#!/bin/bash -l',
+            '#SBATCH --account=%s' % (account_id),
+            '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
+            '#SBATCH --time=%s' % (t_limit),
+            '#SBATCH --nodes=1',
+            '#SBATCH --output=%s/log_out.txt' % (out_path),
+            '#SBATCH --error=%s/log_err.txt' % (out_path),
+            '#SBATCH --partition=%s' % (partition),
+            '#SBATCH --constraint=haswell',
+            '#SBATCH --license=project',
+            '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
+            '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            'module load python/2.7-anaconda',
             '',
             'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
             ''
@@ -501,7 +502,7 @@ def job_script(job_data, n_cpd=None):
             '#!/bin/bash -l',
             '#SBATCH --account=%s' % (account_id),
             '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
-            '#SBATCH --time=0:10:00',
+            '#SBATCH --time=%s' % (t_limit),
             '#SBATCH --output=%s/log_out.txt' % (out_path),
             '#SBATCH --error=%s/log_err.txt' % (out_path),
             '#SBATCH --partition=%s' % (partition),
@@ -543,7 +544,7 @@ def job_script(job_data, n_cpd=None):
     old_mask = os.umask(007)
     # write job
     script_path = os.path.join(out_path, 'admin')
-    with open(os.path.join(script_path, 'job_script.%s') % (filetype), 'w') as f:
+    with open(os.path.join(script_path, 'job_script.sbatch'), 'w') as f:
         f.write(job)
     os.umask(old_mask)
     return None
