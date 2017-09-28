@@ -473,9 +473,13 @@ def job_script(job_data, n_cpd=None):
     if n_cpd <= 100:
         t_limit = '00:10:00'
         partition = 'debug'
+        filetype = 'sbatch'
     else:
-        t_limit = '03:59:00'
-        partition = 'realtime'
+        t_limit = '02:00:00'
+        # partition = 'realtime'
+        # filetype = 'sbatch'
+        partition = 'genepool'
+        filetype = 'qsub'
 
     if partition == 'realtime':
         header_lines = [
@@ -493,11 +497,9 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
             'module load python/2.7-anaconda',
-            '',
-            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
             ''
         ]
-    else:
+    elif partition == 'debug':
         header_lines = [
             '#!/bin/bash -l',
             '#SBATCH --account=%s' % (account_id),
@@ -512,10 +514,27 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
             'module load python/2.7-anaconda',
-            '',
-            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
             ''
         ]
+    elif partition == 'genepool':
+        header_lines = [
+            '#!/bin/bash',
+            '#$ -M %s' % (MAGI_EMAIL),
+            '#$ -m a',
+            '#$ -l h_rt=%s' % (t_limit),
+            '#$ -pe pe_32 32',
+            '#$ -l ram.c=7.5G,h_vmem=7.5G',
+            '#$ -q exclusive.c',
+            '#$ -wd %s' % (out_path),
+            '#$ -o %s/log_out.txt' % (out_path),
+            '#$ -e %s/log_err.txt' % (out_path),
+            '',
+            'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            ''
+            ]
+
+    else:
+        raise RuntimeError('%s is an unknown partition' % (partition))
     if job_data['fields']['fasta_file'] != '':
         fasta_file_line = '--fasta %s \\' % (job_data['fields']['fasta_file'])
     else:
@@ -525,6 +544,8 @@ def job_script(job_data, n_cpd=None):
     else:
         met_file_line = '\\'
     job_lines = [
+        'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+        '',
         'umask 002',
         '',
         'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
@@ -544,7 +565,7 @@ def job_script(job_data, n_cpd=None):
     old_mask = os.umask(007)
     # write job
     script_path = os.path.join(out_path, 'admin')
-    with open(os.path.join(script_path, 'job_script.sbatch'), 'w') as f:
+    with open(os.path.join(script_path, 'job_script.%s') % (filetype), 'w') as f:
         f.write(job)
     os.umask(old_mask)
     return None
