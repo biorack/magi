@@ -494,7 +494,7 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda',
+            'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'debug':
@@ -511,7 +511,7 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda',
+            'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'genepool':
@@ -542,7 +542,7 @@ def job_script(job_data, n_cpd=None):
     else:
         met_file_line = '\\'
     job_lines = [
-        'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+        'date -u > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
         '',
         'umask 002',
         '',
@@ -834,11 +834,11 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
 
     return job_data
 
-def email_user(email, subject, text):
+def email_user(email, subject, text, subtype='plain'):
     """
     emails a MAGI user a specific message
     """
-    msg = MIMEText(text)
+    msg = MIMEText(text, subtype)
     msg['Subject'] = subject
     msg['From'] = 'magi_web@lbl.gov'
     msg['To'] = email
