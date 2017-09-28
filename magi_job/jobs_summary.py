@@ -13,6 +13,7 @@ import utils
 import pandas as pd
 import datetime
 import os
+import sys
 
 magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
 job_table = os.path.join(magi_task_root, 'submission_log.txt')
@@ -29,6 +30,9 @@ jobs = utils.retrieve_jobs(sift=[
 	('month_gte', m),
 	('day_gte', d)
 	])
+
+if len(jobs) == 0:
+    sys.exit()
 
 # load submission table and only keep jobs submitted in the last week
 df = pd.read_csv(job_table)
