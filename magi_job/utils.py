@@ -542,7 +542,7 @@ def job_script(job_data, n_cpd=None):
     else:
         met_file_line = '\\'
     job_lines = [
-        'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+        'date -u > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
         '',
         'umask 002',
         '',

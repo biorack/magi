@@ -1,6 +1,12 @@
 """
 This script prepares and sends a summary table of MAGI web jobs submitted
 in the past week.
+
+There is some serious timezone confusion because of the way I get file
+timestamps, how python datetime works, etc. Make sure to run this script
+before 2am Sundays to ensure there isn't a timezone mismatch within one
+report when daylight savings time changes.
+
 """
 
 import utils
@@ -57,7 +63,7 @@ for j in jobs:
     if os.path.isfile(fname):
         with open(fname, 'r') as f:
             start_time = f.read()
-        start_time = datetime.datetime.strptime(start_time, '%a %b %d %H:%M:%S PDT %Y ')
+        start_time = datetime.datetime.strptime(start_time, '%a %b %d %H:%M:%S UTC %Y ')
         data['start_time'].append(start_time)
     else:
         data['start_time'].append(pd.np.nan)
@@ -76,9 +82,9 @@ a = pd.DataFrame(data)
 # convert time zones
 # convert utc time to pacific
 a['upload_time'] = a['upload_time'].apply(lambda x: x.tz_localize('UTC').tz_convert('US/Pacific'))
+a['start_time'] = a['start_time'].apply(lambda x: x.tz_localize('UTC').tz_convert('US/Pacific'))
 # convert start and end times to pacific
 a['end_time'] = a['end_time'].apply(lambda x: x.tz_localize('US/Pacific'))
-a['start_time'] = a['start_time'].apply(lambda x: x.tz_localize('US/Pacific'))
 
 # merge tables and calculate job time
 b = df.merge(a, on='magi_web_pk')
