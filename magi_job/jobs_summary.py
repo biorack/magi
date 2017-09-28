@@ -35,16 +35,11 @@ df = pd.read_csv(job_table)
 df['submit_time'] = pd.to_datetime(df['submit_time'])
 df = df[df['submit_time'] >= one_week]
 
-import pickle
-with open('./tmp.pkl', 'w') as f:
-	pickle.dump(jobs, f)
-
 # make the report table
 data = {
     'magi_web_pk': [],
     'email': [],
     'upload_time': [],
-    # 'job_dir': [],
     'start_time': [],
     'end_time': []
 }
@@ -56,7 +51,6 @@ for j in jobs:
     y = uptime.split('-')[0]
     m = uptime.split('-')[1]
     jdir = os.path.join(magi_task_root, y, m, j['pk'])
-    # data['job_dir'].append(jdir)
     
     # job start time
     fname = os.path.join(jdir, 'admin', 'start_time.txt')
