@@ -834,11 +834,11 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
 
     return job_data
 
-def email_user(email, subject, text):
+def email_user(email, subject, text, subtype='plain'):
     """
     emails a MAGI user a specific message
     """
-    msg = MIMEText(text)
+    msg = MIMEText(text, subtype)
     msg['Subject'] = subject
     msg['From'] = 'magi_web@lbl.gov'
     msg['To'] = email
