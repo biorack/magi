@@ -448,7 +448,8 @@ def job_script(job_data, n_cpd=None):
     ############################################################################
 
 
-    account_id = 'm2650' # metatlas
+    # account_id = 'm2650' # metatlas
+    account_id = 'm1541' # openmsi
     
     # where to write the job script to
     if job_data['fields']['fasta_file'] != '':
@@ -465,24 +466,55 @@ def job_script(job_data, n_cpd=None):
     ]
     # need to convert this into string so we can join it later
     score_weights = [str(i) for i in score_weights]
-    
-    # need to interpret tautomer flag
-    if  job_data['fields']['is_tautomers']:
-        tautomer = '--tautomer'
-    else:
-        tautomer = '--no-tautomer'
 
     # estimate timing:
     if n_cpd <= 100:
-        t_limit = '00:15:00'
+        t_limit = '00:10:00'
         partition = 'debug'
         filetype = 'sbatch'
     else:
-        t_limit = '24:00:00'
+        t_limit = '02:00:00'
+        # partition = 'realtime'
+        # filetype = 'sbatch'
         partition = 'genepool'
         filetype = 'qsub'
 
-    if partition == 'genepool':
+    if partition == 'realtime':
+        header_lines = [
+            '#!/bin/bash -l',
+            '#SBATCH --account=%s' % (account_id),
+            '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
+            '#SBATCH --time=%s' % (t_limit),
+            '#SBATCH --nodes=1',
+            '#SBATCH --output=%s/log_out.txt' % (out_path),
+            '#SBATCH --error=%s/log_err.txt' % (out_path),
+            '#SBATCH --partition=%s' % (partition),
+            '#SBATCH --constraint=haswell',
+            '#SBATCH --license=project',
+            '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
+            '#SBATCH --mail-type=FAIL,TIME_LIMIT',
+            '',
+            'module load python/2.7-anaconda',
+            ''
+        ]
+    elif partition == 'debug':
+        header_lines = [
+            '#!/bin/bash -l',
+            '#SBATCH --account=%s' % (account_id),
+            '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
+            '#SBATCH --time=%s' % (t_limit),
+            '#SBATCH --output=%s/log_out.txt' % (out_path),
+            '#SBATCH --error=%s/log_err.txt' % (out_path),
+            '#SBATCH --partition=%s' % (partition),
+            '#SBATCH --constraint=haswell',
+            '#SBATCH --license=project',
+            '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
+            '#SBATCH --mail-type=FAIL,TIME_LIMIT',
+            '',
+            'module load python/2.7-anaconda',
+            ''
+        ]
+    elif partition == 'genepool':
         header_lines = [
             '#!/bin/bash',
             '#$ -M %s' % (MAGI_EMAIL),
@@ -496,29 +528,11 @@ def job_script(job_data, n_cpd=None):
             '#$ -e %s/log_err.txt' % (out_path),
             '',
             'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
-            '',
-            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
             ''
-        ]
+            ]
+
     else:
-        header_lines = [
-            '#!/bin/bash -l',
-            '#SBATCH --account=%s' % (account_id),
-            '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
-            '#SBATCH --time=0:10:00',
-            '#SBATCH --output=%s/log_out.txt' % (out_path),
-            '#SBATCH --error=%s/log_err.txt' % (out_path),
-            '#SBATCH --partition=%s' % (partition),
-            '#SBATCH --constraint=haswell',
-            '#SBATCH --license=project',
-            '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
-            '#SBATCH --mail-type=FAIL,TIME_LIMIT',
-            '',
-            'module load python/2.7-anaconda',
-            '',
-            'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
-            ''
-        ]
+        raise RuntimeError('%s is an unknown partition' % (partition))
     if job_data['fields']['fasta_file'] != '':
         fasta_file_line = '--fasta %s \\' % (job_data['fields']['fasta_file'])
     else:
@@ -528,15 +542,14 @@ def job_script(job_data, n_cpd=None):
     else:
         met_file_line = '\\'
     job_lines = [
+        'date > %s/start_time.txt' % (os.path.join(out_path, 'admin')),
+        '',
         'umask 002',
         '',
         'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
         '%s' % (fasta_file_line),
         '%s' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
-        # not sure if this line will break anything at nersc
-        # if it does, put it at the end of the previous line
-        '%s \\' % (tautomer),
         '--final_weights %s \\' % (' '.join(score_weights)),
         '--blast_filter %s \\' % (job_data['fields']['blast_cutoff']),
         '--reciprocal_closeness %s \\' % (job_data['fields']['reciprocal_cutoff']),
