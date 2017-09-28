@@ -44,7 +44,7 @@ data = {
     'magi_web_pk': [],
     'email': [],
     'upload_time': [],
-    'job_dir': [],
+    # 'job_dir': [],
     'start_time': [],
     'end_time': []
 }
@@ -56,7 +56,7 @@ for j in jobs:
     y = uptime.split('-')[0]
     m = uptime.split('-')[1]
     jdir = os.path.join(magi_task_root, y, m, j['pk'])
-    data['job_dir'].append(jdir)
+    # data['job_dir'].append(jdir)
     
     # job start time
     fname = os.path.join(jdir, 'admin', 'start_time.txt')
@@ -90,4 +90,43 @@ a['end_time'] = a['end_time'].apply(lambda x: x.tz_localize('US/Pacific'))
 b = df.merge(a, on='magi_web_pk')
 b['job_runtime'] = b['end_time'] - b['start_time']
 
+b.to_pickle('./tmp.pkl')
+
+total_submissions = b.shape[0]
+total_unique_jobs = b.drop_duplicates('magi_web_pk').shape[0]
+prolific_users = b['email'].value_counts()
+
+d = {
+    'Total Submissions': [total_submissions, 0],
+    'Total Unique Jobs': [total_unique_jobs, 1],
+    'Longest Job': [b['job_runtime'].max(), 2],
+    'Shortest Job': [b['job_runtime'].min(), 3]
+}
+numbers = pd.DataFrame(d).T.sort_values(1).drop(1, axis=1).to_html(header=False)
+
+d = []
+for u, n in prolific_users.iteritems():
+    d.append([u, n])
+
+users = pd.DataFrame(d, columns=['User', 'Submissions']).to_html(index=False)
+
+longest_job = b[b['job_runtime'] == b['job_runtime'].max()].to_html(index=False)
+shortest_job = b[b['job_runtime'] == b['job_runtime'].min()].to_html(index=False)
+
+html_df = b.to_html(index=False)
+
+msg = '<h2>MAGI Web Jobs this week</h2>'
+msg += '<h3>Summary:</h3>'
+msg += numbers + '<br>'
+msg += '<h3>User Submissions:</h3>'
+msg += users + '<br>'
+msg += '<h3>Longest Job:</h3>'
+msg += longest_job + '<br>'
+msg += '<h3>Shortest Job:</h3>'
+msg += shortest_job + '<br>'
+msg += '<h3>All Jobs:</h3>'
+msg += html_df
+
 # email formatted table
+
+utils.email_user('oerbilgin@lbl.gov', 'weekly summary', msg, subtype='html')
