@@ -494,7 +494,7 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda',
+            'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'debug':
@@ -511,7 +511,7 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda',
+            'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'genepool':
