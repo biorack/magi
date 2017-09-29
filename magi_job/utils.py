@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 import sys
 
 # load local settings
-sys.path.insert(0, '/global/homes/e/erbilgin/repos/magi/')
+sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -474,10 +474,10 @@ def job_script(job_data, n_cpd=None):
         filetype = 'sbatch'
     else:
         t_limit = '02:00:00'
-        # partition = 'realtime'
-        # filetype = 'sbatch'
-        partition = 'genepool'
-        filetype = 'qsub'
+        partition = 'realtime'
+        filetype = 'sbatch'
+        # partition = 'genepool'
+        # filetype = 'qsub'
 
     if partition == 'realtime':
         header_lines = [
@@ -486,6 +486,7 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --job-name=%s' % (job_data['pk'].split('-')[0]),
             '#SBATCH --time=%s' % (t_limit),
             '#SBATCH --nodes=1',
+            '#SBATCH -c 64',
             '#SBATCH --output=%s/log_out.txt' % (out_path),
             '#SBATCH --error=%s/log_err.txt' % (out_path),
             '#SBATCH --partition=%s' % (partition),
