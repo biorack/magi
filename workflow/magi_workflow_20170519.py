@@ -39,7 +39,7 @@ and populated with 1.0
 
 import sys
 # load local settings
-sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
+sys.path.insert(0, '/Users/Onur/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -270,6 +270,37 @@ if args.compounds is not None:
 	if 'original_compound' not in compounds.columns:
 		raise RuntimeError('Could not find "original_compound" as a column, please\
 			rename the column corresponding to inchi keys for the compounds')
+	
+	# remove compounds not in the database or network
+	print '!!! Scrubbing compounds'
+	compounds['adj'] = compounds['original_compound'].apply(
+		lambda x: '-'.join(x.split('-')[:2]))
+
+	mg.compounds['adj'] = mg.compounds['inchi_key'].apply(
+			lambda x: '-'.join(x.split('-')[:2]))
+
+	filt = compounds.merge(mg.compounds, on='adj', how='left', suffixes=('', '_db'))
+	# categorize their reason for not being searched
+	not_in_db = filt[pd.isnull(filt['cpd_group'])]
+	not_in_db['not_searched_reason'] = 'Not in metabolite database'
+	not_in_net = filt[filt['cpd_group'] < 0]
+	not_in_net['not_searched_reason'] = 'Not in similarity network yet'
+	# combine into one table
+	not_searched = pd.concat([not_in_db, not_in_net])
+	# make the columns same as user input
+	cols = compounds.columns[~compounds.columns.str.contains('adj')].tolist()
+	cols.append('not_searched_reason')
+	not_searched = not_searched[cols]
+	# inform the user and save file
+	if not_searched.shape[0] > 0:
+		print '!@#', not_searched['original_compound'].unique().shape[0],\
+			'Compounds not being searched; see notsearched_results.csv'
+		not_searched.to_csv(os.path.join(experiment_path,
+			'notsearched_results.csv'), index=False)
+
+	to_search = filt[filt['cpd_group'] > 0]['original_compound'].unique()
+	compounds = compounds[compounds['original_compound'].isin(to_search)]
+
 	u_cpds = compounds['original_compound'].unique()
 	print '!@#', len(u_cpds), 'total input compounds to search\n'
 
