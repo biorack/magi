@@ -293,6 +293,7 @@ if args.compounds is not None:
 	not_searched = not_searched[cols]
 	# inform the user and save file
 	if not_searched.shape[0] > 0:
+		print 'WARNING: some input compounds were not found in the metabolite database or chemical network; please report these compounds! (see log_unsearched_compounds.csv)'
 		print '!@#', not_searched['original_compound'].unique().shape[0],\
 			'Compounds not being searched; see log_unsearched_compounds.csv'
 		not_searched.to_csv(os.path.join(experiment_path,
