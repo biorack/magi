@@ -440,16 +440,8 @@ def job_script(job_data, n_cpd=None):
     uses job data json to create a magi job submission script for cori
     """
 
-    ############################################################################
-    # TEMPORARY STOPGAP BLOCK #
-    ############################################################################
-    job_data['fields']['blast_cutoff'] = int(job_data['fields']['blast_cutoff'])
-    job_data['fields']['reciprocal_cutoff'] = int(job_data['fields']['reciprocal_cutoff'])
-    ############################################################################
-
-
     # account_id = 'm2650' # metatlas
-    account_id = 'm1541' # openmsi
+    account_id = 'm1541' # openmsi - for realtime
     
     # where to write the job script to
     if job_data['fields']['fasta_file'] != '':
