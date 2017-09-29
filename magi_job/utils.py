@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 import sys
 
 # load local settings
-sys.path.insert(0, '/global/homes/e/erbilgin/repos/magi/')
+sys.path.insert(0, '/Users/Onur/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -457,6 +457,7 @@ def job_script(job_data, n_cpd=None):
     else:
         out_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1])
 
+    script_path = os.path.join(out_path, 'admin')
     # prepare score weights
     score_weights = [
         job_data['fields']['score_weight_compound'],
@@ -546,6 +547,8 @@ def job_script(job_data, n_cpd=None):
         '',
         'umask 002',
         '',
+        'python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/helpertools/nersc_memmonitor.py > %s &' % (os.path.join(script_path, 'memory.txt')),
+        '',
         'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
         '%s' % (fasta_file_line),
         '%s' % (met_file_line),
@@ -562,7 +565,6 @@ def job_script(job_data, n_cpd=None):
     # change umask temporarily; don't want job script to be world-read
     old_mask = os.umask(007)
     # write job
-    script_path = os.path.join(out_path, 'admin')
     with open(os.path.join(script_path, 'job_script.%s') % (filetype), 'w') as f:
         f.write(job)
     os.umask(old_mask)
