@@ -11,12 +11,15 @@ import socket
 import re
 import datetime
 
-base_url = 'https://magi.nersc.gov/'
+base_url = utils.my_settings.magiweburl
+magi_task_root = utils.my_settings.magi_task_path
+
+# base_url = 'https://magi.nersc.gov/'
 
 # get machine name to infer how to submit the job
 host = socket.gethostname()
 
-magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
+# magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
 
 all_jobs = utils.retrieve_jobs(sift=[('runflag', False)])
 if all_jobs is None:

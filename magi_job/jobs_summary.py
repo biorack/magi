@@ -15,7 +15,7 @@ import datetime
 import os
 import sys
 
-magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
+magi_task_root = utils.my_settings.magi_task_path
 job_table = os.path.join(magi_task_root, 'submission_log.txt')
 
 today = datetime.datetime.today()

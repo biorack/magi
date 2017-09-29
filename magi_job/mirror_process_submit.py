@@ -8,8 +8,11 @@ import re
 # utils is in same dir
 import utils
 
-base_url = 'https://magi.nersc.gov/'
-magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
+# base_url = 'https://magi.nersc.gov/'
+# magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
+
+base_url = utils.my_settings.magiweburl
+magi_task_root = utils.my_settings.magi_task_path
 
 # get machine name to infer how to submit the job
 host = socket.gethostname()

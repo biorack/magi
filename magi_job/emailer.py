@@ -3,8 +3,11 @@ import os
 import subprocess
 import glob
 
-magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
-base_url = base_url = 'https://magi.nersc.gov/'
+# magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
+# base_url = base_url = 'https://magi.nersc.gov/'
+
+base_url = utils.my_settings.magiweburl
+magi_task_root = utils.my_settings.magi_task_path
 
 # get only jobs that have been submitted
 run_jobs = utils.retrieve_jobs(sift=[('runflag', 'True')])
