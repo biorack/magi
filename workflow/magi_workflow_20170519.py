@@ -294,9 +294,9 @@ if args.compounds is not None:
 	# inform the user and save file
 	if not_searched.shape[0] > 0:
 		print '!@#', not_searched['original_compound'].unique().shape[0],\
-			'Compounds not being searched; see notsearched_results.csv'
+			'Compounds not being searched; see log_unsearched_compounds.csv'
 		not_searched.to_csv(os.path.join(experiment_path,
-			'notsearched_results.csv'), index=False)
+			'log_unsearched_compounds.csv'), index=False)
 
 	to_search = filt[filt['cpd_group'] > 0]['original_compound'].unique()
 	compounds = compounds[compounds['original_compound'].isin(to_search)]
