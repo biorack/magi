@@ -473,6 +473,10 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     """
     db_name = database_path.split('/')[-1]
 
+    # don't open more processes than necessary
+    if cpu > len(query_list):
+        cpu = len(query_list)
+
     # set up the blast search strings
     idxes = partition_indexes(len(query_list), cpu)
     mplist = []
