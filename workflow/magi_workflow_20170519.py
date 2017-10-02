@@ -39,7 +39,7 @@ and populated with 1.0
 
 import sys
 # load local settings
-sys.path.insert(0, '/Users/Onur/repos/magi')
+sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -316,7 +316,7 @@ if args.compounds is not None:
 if args.fasta is not None:
 	# Conduct gene to reaction search
 	if args.gene_to_reaction is None:
-		print '!@# Conducting gene to reaction search'
+		print '!@# Conducting gene to reaction search | TLOG %s' % (time.time())
 		start = time.time()
 		gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
 			intfile_path, raise_blast_error=False, cpu=args.cpu_count)
@@ -358,7 +358,7 @@ if args.fasta is not None:
 
 # compound to reaction search
 if args.compound_to_reaction is None:
-	print '\n!@# Conducting compound to reaction search'
+	print '\n!@# Conducting compound to reaction search | TLOG %s' % (time.time())
 	sys.stdout.flush()
 	start = time.time()
 
@@ -412,7 +412,7 @@ else:
 
 # reaction to gene search
 if args.reaction_to_gene is None:
-	print '\n!@# Conducting reaction to gene search'
+	print '\n!@# Conducting reaction to gene search | TLOG %s' % (time.time())
 	sys.stdout.flush()
 	start = time.time()
 
@@ -466,7 +466,7 @@ else:
 
 
 if args.merged_before_score is None:
-	print '\n!@# Merging final table'
+	print '\n!@# Merging final table | TLOG %s' % (time.time())
 	sys.stdout.flush()
 	start = time.time()
 
@@ -532,10 +532,10 @@ else:
 	del reaction_to_gene_top
 	del compound_to_reaction
 	del gene_to_reaction_top
-	df = pd.read_hdf(args.merged_prescore, 'merged_before_score')
+	df = pd.read_hdf(args.merged_before_score, 'merged_before_score')
 	print '\n!@# merged_before_score successfully loaded'
 
-print '\n!@# Calculating final scores...'
+print '\n!@# Calculating final scores | TLOG %s' % (time.time())
 start = time.time()
 sys.stdout.flush()
 
@@ -554,19 +554,16 @@ df['homology_score'] = score
 df['reaction_connection'] = df[['reaction_id_r2g', 'reaction_id_g2r']]\
 								.apply(pd.notnull).sum(axis=1) + 0.01
 
-print '!@# Pre-scoring done in %s minutes' %((time.time() - start) / 60)
-print '!@# Calculating final integrated MAGI score'
-sys.stdout.flush()
-start = time.time()
-
 # calculate final MAGI integrated score
 scoring_data = ['compound_score', 'reciprocal_score', \
 				'homology_score', 'reaction_connection']
 scores = []
 to_score = df[scoring_data].values
-data = []
-for s in to_score:
-    data.append(mg.magi_score(s, weights=args.final_weights))
+if args.final_weights is not None:
+	weights = np.asarray([args.final_weights] * to_score.shape[0])
+	data = mg.magi_score(to_score, weights)
+else:
+	data = mg.magi_score(to_score)
 scores.append(data)
 df['MAGI_score'] = scores[0] / (args.chemnet_penalty ** df['level'].values)
 
@@ -574,6 +571,11 @@ df['MAGI_score'] = scores[0] / (args.chemnet_penalty ** df['level'].values)
 float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
 df.loc[float_entries, 'subject acc.'] = df.loc[float_entries, \
 				'subject acc.'].apply(lambda x: "{:.0f}".format(x))
+
+print '!@# Scoring done in %s minutes' %((time.time() - start) / 60)
+print '\n!@# Formatting final table | TLOG %s' % (time.time())
+start = time.time()
+sys.stdout.flush()
 
 # sort the final table and drop key duplicates
 df = df.sort_values(
@@ -598,6 +600,10 @@ df = df[['MAGI_score','gene_id', 'original_compound', 'neighbor',
 	'note', 'compound_score','level','homology_score','reciprocal_score',
 	'reaction_connection', 'e_score_r2g','database_id_r2g', 'e_score_g2r',
 	'database_id_g2r']]
+
+print '\n!@# Saving Tables | TLOG %s' % (time.time())
+start = time.time()
+sys.stdout.flush()
 
 # save the full dataframe
 df.to_csv(os.path.join(experiment_path, 'magi_results.csv'), index=False)
