@@ -564,9 +564,11 @@ scoring_data = ['compound_score', 'reciprocal_score', \
 				'homology_score', 'reaction_connection']
 scores = []
 to_score = df[scoring_data].values
-data = []
-for s in to_score:
-    data.append(mg.magi_score(s, weights=args.final_weights))
+if args.final_weights is not None:
+	weights = np.asarray([args.final_weights] * to_score.shape[0])
+	data = mg.magi_score(to_score, weights)
+else:
+	data = mg.magi_score(to_score)
 scores.append(data)
 df['MAGI_score'] = scores[0] / (args.chemnet_penalty ** df['level'].values)
 

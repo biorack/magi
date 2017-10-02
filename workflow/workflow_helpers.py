@@ -1036,7 +1036,7 @@ def homology_score(df, forward_name='e_score_r2g', reverse_name='e_score_g2r'):
 
     return score
 
-def magi_score(s, weights=None):
+def magi_score(s, w=np.asarray([np.nan, np.nan])):
     """
     Calculates the geometric mean of an array of numbers.
     Used to calculate one score even if sub-scores are scaled differently.
@@ -1050,18 +1050,30 @@ def magi_score(s, weights=None):
     -------
     The (weighted) geometric mean
     """
-
+    
     if not isinstance(s, np.ndarray):
         s = np.asarray(s)
     s = s.astype(float)
-    if weights:
-        if not isinstance(weights, np.ndarray):
-            weights = np.asarray(weights)
-        weights = weights.astype(float)
-    else:
-        weights = np.ones(s.shape)
 
-    return np.exp(np.sum(np.multiply(weights, np.log(s))) / weights.sum())
+    if not isinstance(w, np.ndarray):
+        w = np.asarray(w)
+    # if no weights provided, make them all ones
+    if np.isnan(w).all():
+        w = np.ones(s.shape)
+    w = w.astype(float)
+
+    # infer summing axis
+    a = len(s.shape) - 1
+    if a > 1:
+        raise RuntimeError(
+            'Scores array has too many dimensions (%s)' % (s.shape)
+            )
+    if w.shape != s.shape:
+        raise RuntimeError(
+            'Weights array does not have same dimensions as Scores array: %s vs %s' % (w.shape, s.shape)
+            )
+
+    return np.exp(np.sum(np.multiply(w, np.log(s)), axis=a) / np.sum(w, axis=a))
 
 def mass_from_inchikey(inchikey_list, compound_db=compounds,
                        inchi_key_col='inchi_key',
