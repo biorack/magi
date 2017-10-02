@@ -527,12 +527,12 @@ if args.merged_before_score is None:
 	print '!@# Final Merged table done in %s minutes'\
 		%((time.time() - start) / 60)
 	print '!!! Final Merged table saved to %s'\
-			% (os.path.join(intfile_path, 'merged_before_score.pkl'))
+			% (os.path.join(intfile_path, 'merged_before_score.h5'))
 else:
 	del reaction_to_gene_top
 	del compound_to_reaction
 	del gene_to_reaction_top
-	df = pd.read_pickle(args.merged_prescore, 'merged_before_score')
+	df = pd.read_hdf(args.merged_prescore, 'merged_before_score')
 	print '\n!@# merged_before_score successfully loaded'
 
 print '\n!@# Calculating final scores...'
