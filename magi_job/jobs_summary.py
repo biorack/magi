@@ -67,10 +67,11 @@ for j in jobs:
         data['start_time'].append(pd.np.nan)
     
     # job end time
-    fname = os.path.join(jdir, 'magi_results.csv')
+    fname = os.path.join(jdir, 'admin', 'end_time.txt')
     if os.path.isfile(fname):
-        timestamp = os.path.getmtime(fname)
-        end_time = pd.to_datetime(datetime.datetime.fromtimestamp(timestamp))
+        with open(fname, 'r') as f:
+            end_time = f.read()
+        end_time = datetime.datetime.strptime(end_time, '%a %b %d %H:%M:%S UTC %Y ')
         data['end_time'].append(end_time)
     else:
         data['end_time'].append(pd.np.nan)
