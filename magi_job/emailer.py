@@ -1,13 +1,14 @@
 import utils
 import os
 import subprocess
-import glob
+# import glob
 
 # magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
 # base_url = base_url = 'https://magi.nersc.gov/'
 
 base_url = utils.my_settings.magiweburl
 magi_task_root = utils.my_settings.magi_task_path
+MAGI_EMAIL = 'oerbilgin@lbl.gov'
 
 # get only jobs that have been submitted
 run_jobs = utils.retrieve_jobs(sift=[('runflag', 'True')])
@@ -18,6 +19,16 @@ for job in run_jobs:
     job_path = utils.get_job_dir(job)
     admin_path = os.path.join(magi_task_root, job_path, 'admin')
     job_link = os.path.join(base_url, 'jobs/?id=%s' % (job['pk']))
+    if os.path.isfile(os.path.join(admin_path, 'incomplete')):
+        if not os.path.isfile(os.path.join(admin_path, 'incomplete_email.txt')):
+            subj = 'MAGI JOB ERROR!'
+            msg = ''
+            msg += '%s' % (job_link)
+
+            utils.email_user(MAGI_EMAIL, subj, msg)
+
+            subprocess.call(['touch', '%s/incomplete_email.txt' % (admin_path)])
+            continue
     if os.path.isfile(os.path.join(admin_path, 'start_time.txt')):
         if not os.path.isfile(os.path.join(admin_path, 'start_email.txt')):
             subj = 'MAGI Job Started!'
@@ -35,8 +46,7 @@ for job in run_jobs:
             
             # print 'emailed %s start email for job %s' % (job['fields']['email'], job['pk'])
             continue
-    result_files = glob.glob(os.path.join(magi_task_root, job_path, '*results.csv'))
-    if len(result_files) > 0:
+    if os.path.isfile(os.path.join(admin_path, 'end_time.txt')):
         if not os.path.isfile(os.path.join(admin_path, 'end_email.txt')):
             subj = 'MAGI Job is Done!'
             msg = ''
