@@ -551,6 +551,13 @@ def job_script(job_data, n_cpd=None):
         '--reciprocal_closeness %s \\' % (job_data['fields']['reciprocal_cutoff']),
         '--chemnet_penalty %s \\' % (job_data['fields']['chemnet_penalty']),
         '--output %s --mute' % (out_path),
+        '',
+        'if [ $? -eq 0 ]',
+        'then',
+        '  date -u > %s/end_time.txt' % (os.path.join(out_path, 'admin')),
+        'else',
+        '  touch %s/incomplete' % (os.path.join(out_path, 'admin')),
+        'fi'
     ]
     
     job = '\n'.join(header_lines) + '\n' + '\n'.join(job_lines) + '\n'
