@@ -13,12 +13,6 @@ ENV PATH=/miniconda/bin:${PATH}
 RUN curl -LO http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh && \
     bash Miniconda-latest-Linux-x86_64.sh -p /miniconda -b && \
     rm Miniconda-latest-Linux-x86_64.sh
-# RUN conda update -y conda && \
-#     conda install numpy pandas networkx requests && \
-#     pip install molvs && \
-#     conda install -c rdkit rdkit && \
-#     conda install -c anaconda pytables && \
-#     conda clean -a
 RUN conda update -y conda
 COPY magi_env.yml /
 RUN conda config --add channels conda-forge && \
@@ -35,7 +29,6 @@ COPY local_settings magi/local_settings
 COPY tests magi/tests
 COPY __init__.py magi/
 COPY setup_docker.py magi/
-RUN ls -l magi/
 RUN python /magi/setup_docker.py
 
 ENTRYPOINT ["python", "/magi/workflow/magi_workflow_20170519.py"]
