@@ -46,7 +46,7 @@ ENTRYPOINT ["python", "/magi/workflow/magi_workflow_20170519.py"]
 # docker run --entrypoint /bin/bash -it magi_test
 
 # run a job
-# docker run -v [LOCAL OUTPUTS DIR]:/magi/outputs -v [LOCAL INPUTS DIR]:/magi/inputs -t magi_test -f [FASTA INPUT] -c [COMPOUND INPUT]
+# docker run -v [LOCAL OUTPUTS DIR]:/magi/outputs -v [LOCAL INPUTS DIR]:/magi/inputs -t magi_test -f /magi/inputs/[FASTA INPUT] -c /magi/inputs/[COMPOUND INPUT]
 
 # run a test
 # docker run -v ~/Desktop/magi_outputs:/magi/outputs -v ~/Desktop/magi_inputs:/magi/inputs -t magi_test -f /magi/inputs/s_coelicolor_genes_fasta_smallset.faa -c magi/inputs/s_coelicolor_pactolus_data_smallset.csv

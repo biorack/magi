@@ -2,7 +2,7 @@
 ---
 ## Instructions:
 1. Install [Docker](https://www.docker.com/)
-1. Pull the image
+1. Pull the image: `docker pull oerbilgin/magi`
 1. Make at least one directory on your local machine to be mounted on the docker image, *e.g.* `~/Desktop/magi_inputs/` and `~/Desktop/magi_outputs/`
 1. Move your input files into the directory you will use as inputs (*e.g.* `~/Desktop/magi_inputs/`)
 1. Run the following docker command: `docker run -v [LOCAL OUTPUTS DIR]:/magi/outputs -v [LOCAL INPUTS DIR]:/magi/inputs -t magi_test -f /magi/inputs/[FASTA INPUT] -c /magi/inputs/[COMPOUND INPUT] [OTHER ARGS]`
