@@ -14,7 +14,10 @@ For more documentation and a tutorial on how to analyze MAGI results, you can vi
 - Compounds in those reactions
 - API for accessing this information programmaticallly
 
-## Local Installation (simple)
+## Docker Image (easiest, especially for Windows users)
+We have created a Docker image that *should* make running MAGI locally a breeze! Please follow the steps in the [docs](docker/README.md).
+
+## Local Installation (simple, not recommended for Windows users)
 There are three steps you need to complete to install MAGI:
 1. Clone the repository and set up local environment and paths
 2. Install BLAST to the appropriate repository directory

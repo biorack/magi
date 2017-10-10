@@ -2,10 +2,11 @@ name: magi
 channels:
 - rdkit
 - conda-forge
+- anaconda
 - defaults
 dependencies:
 - hdf5=1.8.18=0
-- libgfortran=3.0.0=0
+- libgfortran=3.0.0
 - numexpr=2.6.2=py27_1
 - pytables=3.4.2=np111py27_1
 - bzip2=1.0.6=3
