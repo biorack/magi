@@ -1,14 +1,13 @@
 import utils
 import os
 import subprocess
-# import glob
 
 # magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
 # base_url = base_url = 'https://magi.nersc.gov/'
 
 base_url = utils.my_settings.magiweburl
 magi_task_root = utils.my_settings.magi_task_path
-MAGI_EMAIL = 'oerbilgin@lbl.gov'
+MAGI_EMAIL = utils.my_settings.admin_email
 
 # get only jobs that have been submitted
 run_jobs = utils.retrieve_jobs(sift=[('runflag', 'True')])
@@ -43,9 +42,6 @@ for job in run_jobs:
             utils.email_user(job['fields']['email'], subj, msg)
 
             subprocess.call(['touch', '%s/start_email.txt' % (admin_path)])
-            
-            # print 'emailed %s start email for job %s' % (job['fields']['email'], job['pk'])
-            continue
     if os.path.isfile(os.path.join(admin_path, 'end_time.txt')):
         if not os.path.isfile(os.path.join(admin_path, 'end_email.txt')):
             subj = 'MAGI Job is Done!'
@@ -57,6 +53,3 @@ for job in run_jobs:
             utils.email_user(job['fields']['email'], subj, msg)
 
             subprocess.call(['touch', '%s/end_email.txt' % (admin_path)])
-
-            # print 'emailed %s end email for job %s' % (job['fields']['email'], job['pk'])
-            continue

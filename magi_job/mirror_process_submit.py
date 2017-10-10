@@ -152,11 +152,8 @@ for job_data in unrun_jobs:
         utils.email_user(job_data['fields']['email'], subj, msg)
 # if needed, notify admin
 if admin_msg != '':
-    # for dev, just print to stdout
-    print admin_msg
-    # for prod, email magi_web
-    # subj = 'ERROR SUBMITTING MAGI WEB JOB(S)'
-    # utils.email_user('magi_web@lbl.gov', subj, msg)
+    subj = 'ERROR SUBMITTING MAGI WEB JOB(S)'
+    utils.email_user(utils.my_settings.admin_email, subj, msg)
 
 # finally, write to the logfile
 os.umask(007)

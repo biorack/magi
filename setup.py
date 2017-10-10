@@ -75,6 +75,11 @@ def main():
         lines.append("c2r =               os.path.join(repo_location, 'workflow/database/c2r.pkl')\n")
         lines.append("\n")
         lines.append("magi_results_storage = os.path.join(repo_location, 'outputs')\n")
+        lines.append("magi_task_path = ''\n")
+        lines.append("magiweburl = 'https://magi.nersc.gov'\n")
+        lines.append("magiwebsuperuser = ''\n")
+        lines.append("magiwebsuperuserpass = ''\n")
+        lines.append("admin_email = ''\n")
 
         with open('local_settings/%s.py' %(fname), 'w') as f:
             for line in lines:
