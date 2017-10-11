@@ -55,6 +55,7 @@ import numpy as np
 import time
 import pickle
 import datetime
+import dask.dataframe as dd
 
 # print versions of troublesome modules
 print '!!! Python version:', sys.version
@@ -247,6 +248,8 @@ intfile_path = os.path.join(experiment_path, args.intermediate_files)
 print '!!! Saving all results here:', experiment_path
 if not os.path.isdir(experiment_path):
 	os.makedirs(experiment_path)
+if not os.path.isdir(intfile_path):
+	os.makedirs(intfile_path)
 
 main_start = time.time() # overall program timer
 
@@ -470,8 +473,9 @@ if args.merged_before_score is None:
 	sys.stdout.flush()
 	start = time.time()
 
-	compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top, 
-								on='reaction_id', how='left')
+	compound_to_reaction = dd.from_pandas(compound_to_reaction, chunksize=20000)
+	reaction_to_gene_top = dd.from_pandas(reaction_to_gene_top, chunksize=20000)
+	compound_to_gene = dd.merge(compound_to_reaction, reaction_to_gene_top, on='reaction_id', how='left')
 	del reaction_to_gene_top
 	del compound_to_reaction
 
@@ -486,20 +490,32 @@ if args.merged_before_score is None:
 	# matter or can easily be re-expanded by joining 
 	compound_to_gene_small.drop_duplicates(inplace=True)
 
+	gene_to_reaction_top = dd.from_pandas(gene_to_reaction_top, chunksize=20000)
 	gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id',
 													'e_score']]
 	del gene_to_reaction_top
 	gene_to_reaction_small.drop_duplicates(inplace=True)
-
 	# Make an integrated dataframe, joining on the gene
-	df = pd.merge(compound_to_gene_small, gene_to_reaction_small, 
+	df = dd.merge(compound_to_gene_small, gene_to_reaction_small,
 		left_on='subject acc.', right_on='query acc.', 
 		suffixes=('_r2g', '_g2r'), how='outer')
+	# df = pd.merge(compound_to_gene_small, gene_to_reaction_small, 
+	# 	left_on='subject acc.', right_on='query acc.', 
+	# 	suffixes=('_r2g', '_g2r'), how='outer')
+
+	del compound_to_gene_small
+	del gene_to_reaction_small
+
+	print '\n!@# Cleaning merged table | TLOG %s' % (time.time())
+	sys.stdout.flush()
+	df.drop_duplicates(inplace=True)
+	# convert dask df into a single df
+	df = df.compute()
 
 	df.reset_index(inplace=True, drop=True)
-	df.drop_duplicates(inplace=True)
 
 	# Clean up reaction_id_r2g column
+
 	idx = df[df['reaction_id_r2g'] == ''].index
 	df.loc[idx, 'reaction_id_r2g'] = np.nan
 	df['reaction_id_r2g'] = df['reaction_id_r2g'].astype(float)
@@ -510,7 +526,6 @@ if args.merged_before_score is None:
 	        return True
 	    else:
 	        return False
-
 	for c in df.columns:
 	    if len(df[c].apply(type).unique()) > 1:
 	        string_checked = df[c].apply(check_str)
@@ -518,6 +533,7 @@ if args.merged_before_score is None:
 	            df[c].fillna('', inplace=True)
 
 	# Clean up neighbor column
+
 	df['neighbor'] = df['neighbor'].astype(str)
 
 	df.to_hdf(os.path.join(intfile_path, 'merged_before_score.h5'),
