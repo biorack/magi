@@ -55,6 +55,7 @@ import numpy as np
 import time
 import pickle
 import datetime
+import dask.dataframe as dd
 
 # print versions of troublesome modules
 print '!!! Python version:', sys.version
@@ -247,6 +248,8 @@ intfile_path = os.path.join(experiment_path, args.intermediate_files)
 print '!!! Saving all results here:', experiment_path
 if not os.path.isdir(experiment_path):
 	os.makedirs(experiment_path)
+if not os.path.isdir(intfile_path):
+	os.makedirs(intfile_path)
 
 main_start = time.time() # overall program timer
 
@@ -470,10 +473,13 @@ if args.merged_before_score is None:
 	sys.stdout.flush()
 	start = time.time()
 
-	compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top, 
-								on='reaction_id', how='left')
+	left = dd.from_pandas(compound_to_reaction, chunksize=20000)
+	right = dd.from_pandas(reaction_to_gene_top, chunksize=20000)
 	del reaction_to_gene_top
 	del compound_to_reaction
+	compound_to_gene = dd.merge(left, right, on='reaction_id', how='left').compute()
+	del left
+	del right
 
 	compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id',
 								'e_score', 'compound_score',
