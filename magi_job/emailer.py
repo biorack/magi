@@ -2,9 +2,6 @@ import utils
 import os
 import subprocess
 
-# magi_task_root = '/project/projectdirs/metatlas/projects/magi_tasks'
-# base_url = base_url = 'https://magi.nersc.gov/'
-
 base_url = utils.my_settings.magiweburl
 magi_task_root = utils.my_settings.magi_task_path
 MAGI_EMAIL = utils.my_settings.admin_email
@@ -18,6 +15,7 @@ for job in run_jobs:
     job_path = utils.get_job_dir(job)
     admin_path = os.path.join(magi_task_root, job_path, 'admin')
     job_link = os.path.join(base_url, 'jobs/?id=%s' % (job['pk']))
+    # check if a job ended with error code
     if os.path.isfile(os.path.join(admin_path, 'incomplete')):
         if not os.path.isfile(os.path.join(admin_path, 'incomplete_email.txt')):
             subj = 'MAGI JOB ERROR!'
@@ -28,6 +26,7 @@ for job in run_jobs:
 
             subprocess.call(['touch', '%s/incomplete_email.txt' % (admin_path)])
             continue
+    # check if a job started
     if os.path.isfile(os.path.join(admin_path, 'start_time.txt')):
         if not os.path.isfile(os.path.join(admin_path, 'start_email.txt')):
             subj = 'MAGI Job Started!'
@@ -42,6 +41,7 @@ for job in run_jobs:
             utils.email_user(job['fields']['email'], subj, msg)
 
             subprocess.call(['touch', '%s/start_email.txt' % (admin_path)])
+    # check if a job successfully ended
     if os.path.isfile(os.path.join(admin_path, 'end_time.txt')):
         if not os.path.isfile(os.path.join(admin_path, 'end_email.txt')):
             subj = 'MAGI Job is Done!'

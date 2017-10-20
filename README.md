@@ -15,7 +15,7 @@ For more documentation and a tutorial on how to analyze MAGI results, you can vi
 - API for accessing this information programmaticallly
 
 ## Docker Image (easiest, especially for Windows users)
-We have created a Docker image that *should* make running MAGI locally a breeze! Please follow the steps in the [docs](docker/README.md).
+We have created a Docker image that *should* make running MAGI locally a breeze! Please follow the steps in the [docs](docker/Docker_instructions.md).
 
 ## Local Installation (simple, not recommended for Windows users)
 There are three steps you need to complete to install MAGI:

@@ -1,7 +1,10 @@
 # crontab locations:
-# cori: corigrid (cori17)
-# genepool: genepool14
-MAGI_PATH='/global/homes/e/erbilgin/repos/magi/magi_job'
+# pasteur@corigrid
+# erbilgin@corigrid (without the jobs_summary.py job)
+
+MAILTO="oerbilgin@lbl.gov"
+MAGI_PATH='/global/homes/p/pasteur/repos/magi/magi_job'
 
 * * * * * $MAGI_PATH/magi_web_mirror_process_submit.sh
+* * * * * $MAGI_PATH/start_end_emailer.sh
 0 0 * * 7 /usr/common/software/python/2.7-anaconda-4.4/bin/python -W ignore $MAGI_PATH/jobs_summary.py
