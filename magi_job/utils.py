@@ -20,7 +20,7 @@ my_settings = getattr(
         'local_settings',
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
 
-MAGI_EMAIL = 'oerbilgin@lbl.gov'
+MAGI_EMAIL = my_settings.admin_email
 
 def retrieve_jobs(
         username=my_settings.magiwebsuperuser,
