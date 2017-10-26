@@ -1,5 +1,6 @@
 import utils
 import os
+import sys
 import subprocess
 
 base_url = utils.my_settings.magiweburl
@@ -9,6 +10,8 @@ MAGI_EMAIL = utils.my_settings.admin_email
 # get only jobs that have been submitted
 run_jobs = utils.retrieve_jobs(sift=[('runflag', 'True')])
 
+if run_jobs is None:
+    sys.exit()
 run_jobs = utils.adjust_file_paths(run_jobs)
 
 for job in run_jobs:
