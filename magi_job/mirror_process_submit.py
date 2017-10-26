@@ -24,6 +24,8 @@ os.umask(002)
 all_jobs = utils.retrieve_jobs()
 
 # mirror
+if all_jobs is None:
+    sys.exit()
 utils.mirror_inputs(all_jobs)
 
 # adjust paths and remove jobs where the input files could not be found
@@ -36,8 +38,7 @@ for job in all_jobs:
 		keep.append(job)
 if len(keep) == 0:
     sys.exit()
-else:
-	unrun_jobs = keep
+unrun_jobs = keep
 
 # keep only jobs that need a job script made
 script_jobs, mass_search = utils.jobs_to_script(all_jobs)
