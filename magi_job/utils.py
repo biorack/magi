@@ -391,9 +391,9 @@ def determine_fasta_language(job_data, translate=True):
     # convert newlines
     for newline in ['\r\n', '\n\r']:
         if newline in file_data:
-            file_data.replace(newline, '\n')
+            file_data = file_data.replace(newline, '\n')
     if '\r' in file_data:
-        file_data.replace('\r', '\n')
+        file_data = file_data.replace('\r', '\n')
     
     # parse gene sequences into one long string and convert to DNA if RNA
     genes = file_data.split('>')[1:]
