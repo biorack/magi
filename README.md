@@ -24,10 +24,10 @@ There are three steps you need to complete to install MAGI:
 3. Test MAGI to make sure it works correctly
 4. (Optional) If interfacing with the magi website, you need to adjust some additional paths
 
+These will take approximately 10 minutes to install.
+
 ### 1. Clone repository and set up environment
-If you don't have Anaconda already, install [Anaconda](https://www.anaconda.com/distribution/). 
-[miniconda](https://docs.anaconda.com/docs_oss/conda/install/quick#miniconda-quick-install-requirements) 
-might also work, but I have not tested it.
+If you don't have Anaconda already, install [Anaconda](https://www.anaconda.com/distribution/) or [miniconda](https://docs.anaconda.com/docs_oss/conda/install/quick#miniconda-quick-install-requirements).
 
 #### Linux & MacOS
 The following will:
