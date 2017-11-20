@@ -21,7 +21,7 @@ variables in the local_settings files used are:
 # All the setup junk
 import sys
 # local settings path
-sys.path.insert(0, '/Users/Onur/repos/magi')
+sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
 from local_settings import local_settings as settings_loc
 
 # needed for rdkit and molvs
@@ -539,7 +539,9 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     results_table.loc[idx, 'e_score'] = 200.
 
     # clean up temp folders
-    rmtree(cwd)
+    # don't do this anymore. makes debugging really hard.
+    # maybe do a cleanup step every once in a while via cronjob
+    # rmtree(cwd)
 
     return results_table
 
