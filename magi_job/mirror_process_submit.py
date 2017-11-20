@@ -41,7 +41,7 @@ if len(keep) == 0:
 unrun_jobs = keep
 
 # keep only jobs that need a job script made
-script_jobs, mass_search = utils.jobs_to_script(all_jobs)
+script_jobs, mass_search = utils.jobs_to_script(unrun_jobs)
 
 # load up compound dataframe if necessary
 if mass_search:
