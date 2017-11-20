@@ -405,10 +405,10 @@ def determine_fasta_language(job_data, translate=True):
     if len(letters) <= 4 and letters.str.contains('[ACTG]').all():
         answer = 'dna'
     # then amino acids 
-    elif letters.str.contains('[ACDEFGHIKLMNPQRSTVWY*]').all():
+    elif letters.str.contains('[ACDEFGHIKLMNPQRSTVWYX*]').all():
         answer = 'protein'
     else:
-        no = letters[~letters.str.contains('[ACDEFGHIKLMNPQRSTVWY*]')].values
+        no = letters[~letters.str.contains('[ACDEFGHIKLMNPQRSTVWYX*]')].values
         raise RuntimeError('Could not determine if FASTA is nucleotide or protein. Offending character(s): %s; file: %s' % (no, job_data['fields']['fasta_file']))
     
     # translate if desired
