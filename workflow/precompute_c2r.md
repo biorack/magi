@@ -36,6 +36,19 @@ c2rdf['index'] = c2rdf['original_compound'].apply(lambda x: '-'.join(x.split('-'
 c2rdf.set_index('index', inplace=True)
 c2rdf.sort_index(inplace=True)
 
+c2r = {}
+for inchikey in c2rdf.index.unique():
+    c2r[inchikey] = {
+            'note': [],
+            'original_compound': [],
+            'reaction_id': []
+        }
+    slc = c2rdf.loc[[inchikey]]
+    for original_compound, note, reaction_id in slc.values.tolist():
+        c2r[inchikey]['note'].append(note)
+        c2r[inchikey]['original_compound'].append(original_compound)
+        c2r[inchikey]['reaction_id'].append(reaction_id)
+
 with open('<path>/magi/workflow/database/c2r.pkl', 'w') as f:
     pickle.dump(c2r, f)
 ```

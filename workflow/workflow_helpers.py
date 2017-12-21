@@ -857,12 +857,13 @@ def connect_compound_to_reaction(inchikey, tautomer=False, neighbor_level=2):
         tautomer_list = tautomer_finder(compound_mol)
 
         # find reactions for the tautomers
-        tautomer_search_pattern = '|'.join(tautomer_list)
-        tautomer_reaction_idx_list = find_reactions_of_compound(
-            tautomer_search_pattern)
-        compound_results = enumerate_compound_results(
-            inchikey, compound_results, tautomer_reaction_idx_list, level=0,
-            neighbor='', note='flat tautomer')
+        if len(tautomer_list) > 0:
+            tautomer_search_pattern = '|'.join(tautomer_list)
+            tautomer_reaction_idx_list = find_reactions_of_compound(
+                tautomer_search_pattern)
+            compound_results = enumerate_compound_results(
+                inchikey, compound_results, tautomer_reaction_idx_list, level=0,
+                neighbor='', note='flat tautomer')
     else:
         # get level zero results from precomputed results
         compound_results = c2r[search_inchikey].copy()
@@ -889,13 +890,14 @@ def connect_compound_to_reaction(inchikey, tautomer=False, neighbor_level=2):
                         neighbor_mol = mol_from_inchikey(neighbor_inchikey)
                         if neighbor_mol is not None:
                             tautomer_list = tautomer_finder(neighbor_mol)
-                            tautomer_search_pattern = '|'.join(tautomer_list)
-                            tautomer_reaction_idx_list = \
-                                find_reactions_of_compound(tautomer_search_pattern)
-                            compound_results = enumerate_compound_results(
-                                inchikey, compound_results,
-                                tautomer_reaction_idx_list, level=level,
-                                neighbor=neighbor_inchikey, note='flat tautomer')
+                            if len(tautomer_list) > 0:
+                                tautomer_search_pattern = '|'.join(tautomer_list)
+                                tautomer_reaction_idx_list = \
+                                    find_reactions_of_compound(tautomer_search_pattern)
+                                compound_results = enumerate_compound_results(
+                                    inchikey, compound_results,
+                                    tautomer_reaction_idx_list, level=level,
+                                    neighbor=neighbor_inchikey, note='flat tautomer')
                 else:
                     search_inchikey = '-'.join(neighbor_inchikey.split('-')[:2])
                     tmp_compound_results = c2r[search_inchikey].copy()
