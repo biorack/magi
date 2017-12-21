@@ -900,7 +900,10 @@ def connect_compound_to_reaction(inchikey, tautomer=False, neighbor_level=2):
                                     neighbor=neighbor_inchikey, note='flat tautomer')
                 else:
                     search_inchikey = '-'.join(neighbor_inchikey.split('-')[:2])
-                    tmp_compound_results = c2r[search_inchikey].copy()
+                    try:
+                        tmp_compound_results = c2r[search_inchikey].copy()
+                    except KeyError:
+                        continue
                     tmp_compound_results['level'] = [level]*len(tmp_compound_results['original_compound'])
                     tmp_compound_results['neighbor'] = tmp_compound_results['original_compound']
                     tmp_compound_results['original_compound'] = [inchikey]*len(tmp_compound_results['original_compound'])
