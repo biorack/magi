@@ -335,7 +335,7 @@ def protein_translate(seq, warnings=False):
     # check input sequence
     if len(seq) % 3 != 0:
         raise RuntimeError(
-            'The nucelotide sequence is not a multiple of 3: %s' % (seq)
+            'The nucelotide sequence is not a multiple of 3'
             )
     
     # replace all Uracil with Thymine
@@ -420,7 +420,19 @@ def determine_fasta_language(job_data, translate=True):
             header = gene.split('\n')[0]
             seq = gene.split('\n')[1:]
             seq = ''.join([i for i in seq if i != ''])
-            protein = protein_translate(seq)
+            try:
+                protein = protein_translate(seq)
+            except RuntimeError as e:
+                change_params(job_data['pk'], 'runflag', 'True')
+                msg = 'There was an error translating the DNA sequence for'
+                msg += '%s.\n\n' % (header)
+                msg += 'Please check all your DNA sequences and resubmit your job.'
+                msg += '\nThe error message was:', e.args[0]
+                msg += '\nIf you believe this was in error, please reply to this email.'
+                subj = 'DNA translation error'
+                # utils.email_user(job['fields']['email'], subj, msg)
+                utils.email_user('oerbilgin@lbl.gov', subj, msg)
+                return None
             new_data += '>' + header + '\n'
             new_data += protein + '\n\n'
         

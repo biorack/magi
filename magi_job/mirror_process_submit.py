@@ -52,6 +52,9 @@ for job in script_jobs:
     # determine fasta language and translate if needed
     if job['fields']['fasta_file'] != '':
         job = utils.determine_fasta_language(job)
+        # usually means that one of the dna sequences was not a multiple of 3
+        if job is None:
+            continue
     
     # conduct accurate mass search if needed
     if job['fields']['metabolite_file'] != '':
