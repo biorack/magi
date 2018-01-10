@@ -424,14 +424,14 @@ def determine_fasta_language(job_data, translate=True):
                 protein = protein_translate(seq)
             except RuntimeError as e:
                 change_params(job_data['pk'], 'runflag', 'True')
-                msg = 'There was an error translating the DNA sequence for'
-                msg += '%s.\n\n' % (header)
-                msg += 'Please check all your DNA sequences and resubmit your job.'
-                msg += '\nIf you believe this was in error, please reply to this email.'
-                subj = 'DNA translation error'
-                # email_user(job['fields']['email'], subj, msg)
-                # email admin
-                msg += '\nThe error message was:%s' %(e.args)
+                msg = 'There was an error translating the DNA sequence with the header:\n'
+                msg += '"%s"\n\n' % (header)
+                msg += '\nThe error message was:\n%s\n\n' %(e.args)
+                msg += 'Please check all your DNA sequences and resubmit your job.\n'
+                msg += 'Also note that MAGI does not do any gene calling; do not submit scaffolds or contigs.' 
+                msg += '\n\nIf you believe this was in error, please reply to this email.'
+                subj = 'MAGI DNA translation error'
+                email_user(job['fields']['email'], subj, msg)
                 email_user(MAGI_EMAIL, subj, msg)
                 return None
             new_data += '>' + header + '\n'
