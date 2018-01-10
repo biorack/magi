@@ -431,7 +431,7 @@ def determine_fasta_language(job_data, translate=True):
                 msg += 'Also note that MAGI does not do any gene calling; do not submit scaffolds or contigs.' 
                 msg += '\n\nIf you believe this was in error, please reply to this email.'
                 subj = 'MAGI DNA translation error'
-                email_user(job['fields']['email'], subj, msg)
+                email_user(job_data['fields']['email'], subj, msg)
                 email_user(MAGI_EMAIL, subj, msg)
                 return None
             new_data += '>' + header + '\n'
