@@ -430,8 +430,8 @@ def determine_fasta_language(job_data, translate=True):
                 msg += '\nThe error message was:', e.args[0]
                 msg += '\nIf you believe this was in error, please reply to this email.'
                 subj = 'DNA translation error'
-                # utils.email_user(job['fields']['email'], subj, msg)
-                utils.email_user('oerbilgin@lbl.gov', subj, msg)
+                # email_user(job['fields']['email'], subj, msg)
+                email_user('oerbilgin@lbl.gov', subj, msg)
                 return None
             new_data += '>' + header + '\n'
             new_data += protein + '\n\n'
