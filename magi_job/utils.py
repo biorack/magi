@@ -431,7 +431,7 @@ def determine_fasta_language(job_data, translate=True):
                 subj = 'DNA translation error'
                 # email_user(job['fields']['email'], subj, msg)
                 # email admin
-                msg += '\nThe error message was:%s', %(e.args)
+                msg += '\nThe error message was:%s' %(e.args)
                 email_user(MAGI_EMAIL, subj, msg)
                 return None
             new_data += '>' + header + '\n'
