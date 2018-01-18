@@ -783,7 +783,7 @@ def mz_neutral_transform(val, adduct, transform='neutralize'):
            x = (val / 3) + three_charge[adduct]
     return x
 
-def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=2500):
+def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25000):
     """
     performs accurate mass search using unique_compounds table
     """
