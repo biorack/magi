@@ -49,6 +49,11 @@ if mass_search:
 
 # process each job
 for job in script_jobs:
+    # skip job if there's an error file
+    note_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    if 'too many compounds' in os.listdir(note_path):
+        continue
+
     # determine fasta language and translate if needed
     if job['fields']['fasta_file'] != '':
         job = utils.determine_fasta_language(job)
