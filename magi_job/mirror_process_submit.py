@@ -50,7 +50,7 @@ if mass_search:
 # process each job
 for job in script_jobs:
     # skip job if there's an error file
-    note_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    note_path = '/'.join(job['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
     if 'too many compounds' in os.listdir(note_path):
         continue
 
