@@ -4,8 +4,11 @@ First, clone the repo: https://github.com/biorack/md2st and create a standardize
 
 Next, the following codes will create a reaction json file for each reaction in metacyc and rhea.
 
-1. create_rhea_sequences.py
-2. create_biocyc_sequences.py
-3. create_rhea_reactions.py
-4. create_biocyc_reactions.py
+1. rhea_sequences.py
+2. biocyc_sequences.py
+3. rhea_reactions.py
+4. biocyc_reactions.py
 
+These codes are not meant to be run very often.  Care should be taken at each step to ensure that the necessary sequences and compounds are found.
+
+For BioCyc reactions, stoichiometry is calculated using the ChemPy.  For about 1/3 of the reactions, the values are higher than you would expect.  Its likely that for some of these a lower stoichiometry exists that satisfies the balanced reaction.

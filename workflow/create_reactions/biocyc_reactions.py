@@ -19,16 +19,7 @@ from chempy import balance_stoichiometry
 
 from io import open
 
-metatlas_rxn_path = '/Users/bpb/repos/build_magi_ref_data/'
-sys.path.append(metatlas_rxn_path)
-
-# import refdata_tools.biopax as bp
-import refdata_tools.data_loading_3 as metdata
-
-# from local_settings import local_settings as settings_loc
-# my_settings = getattr(__import__('local_settings', fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
-# sys.path.append(my_settings.path_to_magi)
-# import metatlas_reactions.reaction_objects as mr
+import data_loading as metdata
 
 url_pattern = "href=([^>]+)"
 import imp
@@ -36,7 +27,10 @@ import imp
 pd.set_option('display.max_rows', 500)
 pd.set_option("display.max_colwidth", 1000000)
 
+
+
 """
+#Specify locations of flatfile databases
 # Using Metacyc 21.5 flat files
 
 Get them here: http://bioinformatics.ai.sri.com/ecocyc/dist/flatfiles-52983746/
@@ -47,9 +41,15 @@ Password: ####-#####
 
 Search your email for actual password.  Subject = Pathway Tools and BioCyc distribution available
 """
-
-#Specify locations of flatfile databases
 biocyc_paths = ['../../data/tier1/metacyc_21.5/data/','../../data/tier1/Eco_21.5/data/','../../data/tier1/Sco_17.5/data/']
+
+# location of table with original compounds and standardized forms
+standardized_molecule_path = '../../data/standardized_molecules_2.csv'
+
+
+monomer_path='/users/bpb/repos/build_magi_ref_data/data/tier1/monomer_sequences'
+
+
 
 # #Make a compounds dataframe (name and ID only)
 # my_files = [os.path.join(path,'compounds.dat') for path in biocyc_paths]
@@ -68,7 +68,7 @@ rxn_df.drop_duplicates(subset='UNIQUE-ID',inplace=True)
 
 # Check all reactions to ensure all compounds are accounted for
 
-cpd_df = pd.read_csv('../../data/standardized_molecules_2.csv')
+cpd_df = pd.read_csv(standardized_molecule_path)
 cpd_df.set_index('original_id',drop=True,inplace=True)
 
 # get the few sequences provided in flatfile download and store in prot_df
@@ -97,6 +97,8 @@ for path in biocyc_paths:
     temp = pd.read_csv(os.path.join(path,'enzymes.col'),sep='\t',comment='#',encoding='ISO-8859-1')
     all_enzymes_dfs.append(temp[['UNIQUE-ID','NAME','SUBUNIT-COMPOSITION']])
 enzyme_df = pd.concat(all_enzymes_dfs)
+
+
 all_subunits = []
 for index,row in enzyme_df.iterrows():
     if not pd.isnull(row['SUBUNIT-COMPOSITION']):
@@ -110,10 +112,6 @@ all_subunits_df = pd.DataFrame(all_subunits,columns=['protein_id'])
 all_subunits_df = all_subunits_df.merge(prot_df,how='outer',left_on='protein_id',right_on='UNIQUE-ID')
 all_subunits_df['sequence'] = all_subunits_df['sequence'].replace(pd.np.nan,'',regex=True)
 all_subunits_df.drop('UNIQUE-ID',axis=1,inplace=True)
-
-monomer_path='/users/bpb/repos/build_magi_ref_data/data/tier1/monomer_sequences'
-
-
 
 # populate dataframe with sequences in files
 
