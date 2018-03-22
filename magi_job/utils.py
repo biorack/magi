@@ -808,6 +808,8 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
 
     # rename original_compounds column
     columns = compounds.columns.values
+    if 'original_compound' not in columns:
+        raise RuntimeError('no original_compound')
     columns[columns == 'original_compound'] = 'original_mz'
     compounds.columns = columns
 

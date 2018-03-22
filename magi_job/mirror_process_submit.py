@@ -77,6 +77,12 @@ for job in script_jobs:
                         msg += 'lower the ppm by editing your job here: %s. ' % (job_link)
                         msg += 'You can reply to this email for more help. '
                         msg += 'Thanks for using MAGI!' 
+                    elif e.args[0] == 'no original_compound':
+                        fname = 'too many compounds'
+                        msg = 'There is no "original_compound" column in your '
+                        msg += 'metabolite file! Please check your file and '
+                        msg += 'make sure it has _comma_ separated values '
+                        msg += 'and resubmit your job here: %s.' % (job_link)
                     else:
                         raise e
                     utils.email_user(job['fields']['email'], subj, msg)
