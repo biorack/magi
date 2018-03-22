@@ -401,8 +401,10 @@ def determine_fasta_language(job_data, translate=True):
     
     # determine what letters are in the gene sequences
     letters = pd.Series(list(set(seqs)))
-    # first check for DNA
-    if len(letters) <= 4 and letters.str.contains('[ACTG]').all():
+    letter_ratios = pd.Series(list(seqs)).value_counts() / float(len(seqs))
+    base_sum = letter_ratios[['C', 'G', 'A', 'T']].sum()
+    # first check for DNA: if >90% of the letters are CGAT, it's probably DNA
+    if base_sum > 0.9:
         answer = 'dna'
     # then amino acids 
     elif letters.str.contains('[ACDEFGHIKLMNPQRSTVWYX*]').all():
@@ -412,8 +414,8 @@ def determine_fasta_language(job_data, translate=True):
         raise RuntimeError('Could not determine if FASTA is nucleotide or protein. Offending character(s): %s; file: %s' % (no, job_data['fields']['fasta_file']))
     
     # translate if desired
-    if translate and answer == 'dna':       
-        # translate the genes
+    if translate and answer == 'dna':      
+        # translate the genes 
         new_data = ''
         gene_list = file_data.split('>')[1:]
         for gene in gene_list:
