@@ -791,6 +791,7 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     note_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
     if 'cpd_override' in os.listdir(note_path):
         max_compounds = 1e6
+        print 'compound limit override'
     search_ppm = job_data['fields']['ppm']
 
     # get adducts according to polarity
