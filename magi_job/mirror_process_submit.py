@@ -49,11 +49,6 @@ if mass_search:
 
 # process each job
 for job in script_jobs:
-    # skip job if there's an error file
-    note_path = '/'.join(job['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
-    if 'too many compounds' in os.listdir(note_path):
-        continue
-
     # determine fasta language and translate if needed
     if job['fields']['fasta_file'] != '':
         job = utils.determine_fasta_language(job)
@@ -63,6 +58,10 @@ for job in script_jobs:
     
     # conduct accurate mass search if needed
     if job['fields']['metabolite_file'] != '':
+        # skip job if there's an error file
+        note_path = '/'.join(job['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+        if 'too many compounds' in os.listdir(note_path):
+            continue
         if job['fields']['is_mass_search']:
             proceed = utils.accurate_mass_checkpoint(job)
             if proceed:
@@ -78,6 +77,12 @@ for job in script_jobs:
                         msg += 'lower the ppm by editing your job here: %s. ' % (job_link)
                         msg += 'You can reply to this email for more help. '
                         msg += 'Thanks for using MAGI!' 
+                    elif e.args[0] == 'no original_compound':
+                        fname = 'too many compounds'
+                        msg = 'There is no "original_compound" column in your '
+                        msg += 'metabolite file! Please check your file and '
+                        msg += 'make sure it has _comma_ separated values '
+                        msg += 'and resubmit your job here: %s.' % (job_link)
                     else:
                         raise e
                     utils.email_user(job['fields']['email'], subj, msg)
