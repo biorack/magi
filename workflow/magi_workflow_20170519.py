@@ -133,6 +133,10 @@ parser.add_argument('--chemnet_penalty',
 parser.add_argument('--intermediate_files',
 	help='What directory within --output to store intermediate files',
 	type=str, default='intermediate_files')
+parser.add_argument('--recipweights',
+	help='Defined weights to weight the reciprocal (dis)agreements:\
+	disagreement, no comparison possible, iffy disagreement, agreement',
+	type=float, nargs=4, default=None)
 
 args = parser.parse_args()
 
@@ -541,6 +545,14 @@ sys.stdout.flush()
 
 # score reciprocal agreement
 df = mg.reciprocal_agreement(df, closeness_threshold=args.reciprocal_closeness)
+if args.recipweights is not None:
+	score_remapper = {
+		0.01: args.recipweights[0],
+		0.1: args.recipweights[1],
+		1: args.recipweights[2],
+		2: args.recipweights[3]
+	}
+	df.loc[:, 'reciprocal_score'] = df['reciprocal_score'].replace(score_remapper)
 
 # calculate homology score
 score = mg.homology_score(df)
