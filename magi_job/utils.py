@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 import sys
 
 # load local settings
-sys.path.insert(0, '/Users/bpb/repos/magi')
+sys.path.insert(0, '/global/homes/p/pasteur/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -26,7 +26,7 @@ def retrieve_jobs(
         username=my_settings.magiwebsuperuser,
         password=my_settings.magiwebsuperuserpass,
         base_url=my_settings.magiweburl,
-        admin_logon='admin/login',
+        admin_logon='admin/login/',
         sift=[('filter', 'all')]
     ):
     """
@@ -55,7 +55,7 @@ def retrieve_jobs(
 
     client = requests.session()
     # Retrieve the CSRF token first
-    client.get(auth_url,verify=False)  # sets cookie
+    client.get(auth_url)#,verify=False)  # sets cookie
     csrftoken = client.cookies['csrftoken']
     login_data = {'username': username,
                   'password': password,
@@ -73,7 +73,7 @@ def retrieve_jobs(
         filter_string += '%s=%s&' %(f[0], f[1])
 
     get_url = os.path.join(base_url,'admin/ids/?%sjson=True' % (filter_string))
-
+    print(get_url)
     r = client.get(get_url)
     if r.status_code not in [200]:
         raise RuntimeError(
@@ -97,7 +97,7 @@ def change_params(
         username=my_settings.magiwebsuperuser,
         password=my_settings.magiwebsuperuserpass,
         base_url=my_settings.magiweburl,
-        admin_logon='admin/login',
+        admin_logon='admin/login/',
         post_suffix='admin/',
         verify=True
         ):

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PIDFILE= /global/u2/p/pasteur/repos/magi/magi_job/task.pid
+PIDFILE='/global/homes/p/pasteur/repos/magi/magi_job/task.pid'
 
 # does PIDFILE exist as a file?
 if [ -f $PIDFILE ]
@@ -34,5 +34,6 @@ else
   fi
 fi
 
-/usr/common/software/python/2.7-anaconda-4.4/bin/python -W ignore /global/u2/p/pasteur/repos/magi/magi_job/mirror_process_submit.py
+/global/common/software/m2650/python-cori/bin/python -W ignore /global/u2/p/pasteur/repos/magi/magi_job/mirror_process_submit.py
+#/usr/common/software/python/2.7-anaconda-4.4/bin/python -W ignore /global/u2/p/pasteur/repos/magi/magi_job/mirror_process_submit.py
 rm $PIDFILE
