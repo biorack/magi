@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 import sys
 
 # load local settings
-sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
+sys.path.insert(0, '/Users/bpb/repos/magi')
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
