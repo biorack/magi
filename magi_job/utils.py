@@ -557,7 +557,7 @@ def job_script(job_data, n_cpd=None):
         '',
         'python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/helpertools/nersc_memmonitor.py > %s &' % (os.path.join(script_path, 'memory.txt')),
         '',
-        'time python /global/homes/e/erbilgin/repos/magi/workflow/magi_workflow_20170519.py \\',
+        'time python /global/homes/p/pasteur/repos/magi/workflow/magi_workflow_20170519.py \\',
         '%s' % (fasta_file_line),
         '%s' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
