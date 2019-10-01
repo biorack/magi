@@ -114,13 +114,13 @@ parser.add_argument('--debug',
 	action='store_true')
 parser.add_argument('--blast_filter', 
 	help='How stringent to filter the top BLAST results, as percent;\
-	default is 85 meaning that only BLAST results within 85% of the top\
+	default is 85 meaning that only BLAST results within 85%% of the top\
 	result will be taken.', 
 	type=int, choices=range(0, 101), default=85)
 parser.add_argument('--reciprocal_closeness', 
 	help='Cutoff to call a reciprocal disagreement as "close", as percent;\
 	default is 75 meaning that a reciprocal disagreement will be classified\
-	as "close" if the lower blast score (e score) is within 75% of the higher\
+	as "close" if the lower blast score (e score) is within 75%% of the higher\
 	score', 
 	type=int, choices=range(0, 101), default=75)
 parser.add_argument('--final_weights', 
