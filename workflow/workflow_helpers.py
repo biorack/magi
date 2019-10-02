@@ -19,6 +19,7 @@ variables in the local_settings files used are:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # All the setup junk
+import os
 import sys
 # local settings path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,7 +42,6 @@ import numpy as np
 import subprocess
 import time
 import multiprocessing as mp
-import os
 import pickle
 import re
 import networkx as nx

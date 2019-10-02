@@ -38,6 +38,7 @@ and populated with 1.0
 # TODO: find the best way to level adjust the MAGI score. 10^n is too strong
 
 import sys
+import os
 # load local settings
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
@@ -47,7 +48,6 @@ my_settings = getattr(
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
         
 import argparse
-import os
 import warnings
 import multiprocessing as mp
 import pandas as pd
