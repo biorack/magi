@@ -21,7 +21,7 @@ variables in the local_settings files used are:
 # All the setup junk
 import sys
 # local settings path
-sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 
 # needed for rdkit and molvs

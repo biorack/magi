@@ -39,7 +39,7 @@ and populated with 1.0
 
 import sys
 # load local settings
-sys.path.insert(0, '../../magi')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
