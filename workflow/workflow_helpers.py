@@ -19,9 +19,10 @@ variables in the local_settings files used are:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # All the setup junk
+import os
 import sys
 # local settings path
-sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 
 # needed for rdkit and molvs
@@ -41,7 +42,6 @@ import numpy as np
 import subprocess
 import time
 import multiprocessing as mp
-import os
 import pickle
 import re
 import networkx as nx
@@ -82,7 +82,7 @@ def load_dataframe(fname, filetype=None, key=None):
     """
 
     if filetype is None:
-        file_ext = fname.split('.')[-1]
+        file_ext = os.path.splitext(fname)[1][1:]
     else:
         file_ext = filetype
     if file_ext in ['pkl', 'pickle']:
@@ -345,7 +345,7 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
     print '!@# FASTA file loaded with', len(genome), 'genes'
 
     genome.set_index('Gene_ID', inplace=True, drop=True)
-    genome_name = fasta.split('/')[-1].split('.')[0]
+    genome_name = os.path.splitext(os.path.basename(fasta))[0]
     if MAGI_PATH is not None:
         gene_fasta_path = os.path.join(MAGI_PATH, 'gene_fastas')
         if not os.path.isdir(gene_fasta_path):
@@ -361,8 +361,7 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
         # this command makes the blast database for a given fasta file.
         makeblastdb_path = '%s/makeblastdb' % (blastbin)
         fasta_path = fasta
-        db_path = MAGI_PATH + '/BLAST_dbs/' + fasta_path.split('/')[-1].split(
-            '.')[0] + '.db'
+        db_path = os.path.join(MAGI_PATH, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
         print '!!! blast database stored here:', db_path
         make_db_command = '%s -in %s -out %s -dbtype prot' \
             % (makeblastdb_path, fasta_path, db_path)
@@ -471,7 +470,7 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     -------
     blast_results: pandas DataFrame that stores all blast results.
     """
-    db_name = database_path.split('/')[-1]
+    db_name = os.path.basename(database_path)
 
     # don't open more processes than necessary
     if cpu > len(query_list):

@@ -38,8 +38,9 @@ and populated with 1.0
 # TODO: find the best way to level adjust the MAGI score. 10^n is too strong
 
 import sys
+import os
 # load local settings
-sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -47,7 +48,6 @@ my_settings = getattr(
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
         
 import argparse
-import os
 import warnings
 import multiprocessing as mp
 import pandas as pd
@@ -232,12 +232,12 @@ if args.output is None:
 	# autoname the directory based on fasta, or compound file
 	# this will change eventually
 	if args.fasta is not None:
-		experiment_name = args.fasta.split('/')[-1].split('.')[0]
+		experiment_name = os.path.splitext(os.path.basename(args.fasta.split))[0]
 	else:
-		experiment_name = args.compounds.split('/')[-1].split('.')[0]
+		experiment_name = os.path.splitext(os.path.basename(args.compounds))[0]
 	today = datetime.datetime.now()
 	experiment_name += today.strftime('_%Y%m%d')
-	experiment_path = '%s/%s' %(MAGI_PATH, experiment_name)
+	experiment_path = os.path.join(MAGI_PATH, experiment_name)
 else:
 	experiment_path = args.output
 
