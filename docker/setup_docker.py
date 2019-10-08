@@ -52,7 +52,7 @@ def main():
     # steps 3 and 4: change localsettings paths
     files = [
         'magi/workflow/workflow_helpers.py',
-        'magi/workflow/magi_workflow_20170519.py',
+        'magi/workflow/magi_workflow.py',
     ]
     for fname in files:
         change_localsettings_path(fname, repo_path)

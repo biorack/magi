@@ -98,7 +98,7 @@ $ ./run_full_workflow_test.sh
 
 #### Windows
 ```
-$ python time python ../../workflow/magi_workflow_20170519.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
+$ python time python ../../workflow/magi_workflow.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
 ```
 
 ### 4. MAGI website interface (optional)
@@ -106,7 +106,7 @@ $ python time python ../../workflow/magi_workflow_20170519.py --fasta ./s_coelic
 If you are interfacing with the magi_web repository, you need to manually change a few things in `magi_job/`; otherwise, ignore this section.
 
 1. change local settings import path in magi_job/utils.py
-2. set absolute path to workflow/magi_workflow_20170519.py in job_data() in magi_job/utils.py
+2. set absolute path to workflow/magi_workflow.py in job_data() in magi_job/utils.py
 
 ## Local Installation (custom)
 
