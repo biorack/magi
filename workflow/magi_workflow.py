@@ -134,6 +134,24 @@ parser.add_argument('--intermediate_files',
 	help='What directory within --output to store intermediate files',
 	type=str, default='intermediate_files')
 
+# Parameters for accurate mass search
+parser.add_argument('--accurate_mass_search',
+                    tpe=str, choices=['pos','neg','neut'], default=None,
+                    help = "Perform accurate mass search on m/z values in original_compound column in the input compounds file. \
+                    Specify if the masses are measured in negative mode, positive mode or if they have been transformed to neutral masses."
+                    )
+parser.add_argument('--accurate_mass_search_only',
+                    action='store_true', default=False,
+                    help = "If this parameter is used, MAGI will stop after performing the accurate mass search."
+                    )
+parser.add_argument('--adducts_file',
+                    tpe=str, default=None,
+                    help="optionally specify which adducts to investigate. If not specified, it will search for M+,M+H,M+NH4,M+Na in positive mode or M-H,M+Cl,M+FA-H,M+Hac-H in negative mode."
+                    )
+parser.add_argument('--ppm_cutoff', 
+	help='The ppm cutoff for the accurate mass search. Default is 10 ppm.', 
+	type=int, default=10)
+
 args = parser.parse_args()
 
 if args.fasta is None and args.compounds is None:
@@ -256,6 +274,33 @@ if args.fasta is not None:
 	genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH, 
 										annotation_file=args.annotations)
 
+if args.accurate_mass_search is not None and args.compounds is not None:
+    # Perform accurate mass search and set compounds file to mass-searched file.
+    print("\n!!! Performing accurate mass search for {}".format(args.compounds))
+    polarity = args.accurate_mass_search    
+    #Make list of adducts to search for
+    if args.adduct_list is not None:
+        adducts = []
+        with open(args.adduct_list) as adduct_file:
+            try:
+                for line in adduct_file:
+                    adducts.append(line.rstrip())
+            except:
+                print("File cannot be converted to adducts list. Please specify one adduct per line.")
+                raise
+    elif polarity == 'pos':
+        adducts = ['M+', 'M+H', 'M+NH4', 'M+Na']
+    elif polarity == 'neg':
+        adducts = ['M-H', 'M+Cl', 'M+FA-H', 'M+Hac-H']
+    elif polarity == 'neut':
+        adducts = ['']
+    else:
+        raise RuntimeError('Could not understand polarity')
+    args.compounds = mg.accurate_mass_search(args.compounds, polarity, adducts, args.ppm_cutoff)
+    print("\n!!! Accurate mass search done. Mass-searched file stored in {}".format(args.compounds))    
+    if args.accurate_mass_search_only:
+        sys.exit() # done with mass search. Exiting
+    
 # load compound results
 if args.compounds is not None:
 	print '\n!!! LOADING COMPOUNDS'
