@@ -31,7 +31,7 @@ COPY __init__.py magi/
 COPY setup_docker.py magi/
 RUN python /magi/setup_docker.py
 
-ENTRYPOINT ["python", "/magi/workflow/magi_workflow_20170519.py"]
+ENTRYPOINT ["python", "/magi/workflow/magi_workflow.py"]
 
 # commands:
 

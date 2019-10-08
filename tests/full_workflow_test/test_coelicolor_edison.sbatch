@@ -13,7 +13,7 @@
 
 module load python/2.7-anaconda
 
-time python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/magi_workflow_20170519.py \
+time python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/magi_workflow.py \
 --fasta /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/s_coelicolor_genes_fasta_smallset.faa \
 --compounds /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/s_coelicolor_pactolus_data_smallset.csv \
 --annotations /project/projectdirs/metatlas/projects/metatlas_reactions/tests/full_workflow_test/s_coelicolor_genes_annotations_smallset.tab \

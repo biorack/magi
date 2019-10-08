@@ -17,7 +17,7 @@ df.to_csv('<path>/all_compounds.csv')
 ## 2. Submit the job
 The script command should look like this. the `--legacy` flag is critical here!
 ```bash
-$ python <path>/magi_workflow_20170519.py \
+$ python <path>/magi_workflow.py \
 $ --compounds <path>/all_compounds.csv \
 $ --level 0 \
 $ --output <path>/all_cpds

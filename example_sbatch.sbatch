@@ -20,7 +20,7 @@
 
 module load python/2.7-anaconda-4.4
 
-python <PATH>/magi/workflow/magi_workflow_20170519.py \
+python <PATH>/magi/workflow/magi_workflow.py \
 --fasta <PATH>/fasta_file.faa \          # required
 --compounds <PATH>/metabolite_file.csv \ # required
 --level 2 \                       # optional
