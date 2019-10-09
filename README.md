@@ -44,31 +44,12 @@ $ source activate magi
 ```
 
 #### Windows
-The Windows installation is a little more involved.
+The Windows installation is a little different.
 
 ```
 $ git clone https://github.com/biorack/magi.git
 $ cd magi
-```
-
-First, you will need to extract the database files manually and make sure they
-are in the folder `/workflow/database/`. 
-
-Second, **comment out or delete** the following lines in `setup.py` :
-```python
-# step one: extract the db tarball
-print 'Extracting database files...'
-cmd = ['tar', '-xvzf', 'databases.tar.gz']
-subprocess.call(
-	cmd,
-    cwd = os.path.join(repo_path, 'workflow')
-    )
-print 'Done'
-```
-
-Now you can run `setup.py` and continue installation:
-```
-$ python setup.py
+$ python setup_windows.py
 $ conda env create -f magi_env.yml
 $ activate magi
 $ cd tests/full_workflow_test/
