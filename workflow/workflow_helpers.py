@@ -1369,6 +1369,6 @@ def accurate_mass_search(mz_filename, polarity, adducts, ppm_cutoff, reference_c
     features_to_search = features_to_search.merge(df, on='original_mz', how='left')
     
     # save the new table
-    mass_searched_filename = os.path.splitext(mz_filename) + '_mass_searched.csv'
-    compounds.to_csv(mass_searched_filename)
+    mass_searched_filename = os.path.splitext(mz_filename)[0] + '_mass_searched_{}.csv'.format(polarity)
+    features_to_search.to_csv(mass_searched_filename, index = False)
     return mass_searched_filename
