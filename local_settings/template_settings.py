@@ -9,6 +9,3 @@ mrs_reaction_path = os.path.join(repo_location, 'workflow/database/mrs_reaction_
 compounds_df =      os.path.join(repo_location, 'workflow/database/unique_compounds_groups_magi.pkl')
 mst_path =          os.path.join(repo_location, 'workflow/database/graph.pkl')
 chemnet_pickle =    os.path.join(repo_location, 'workflow/database/compound_groups.pkl')
-
-magi_results_storage = os.path.join(repo_location, 'outputs')
-

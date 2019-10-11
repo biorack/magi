@@ -242,20 +242,19 @@ if args.mute:
 # import workflow helpers after all the argument checking
 import workflow_helpers as mg
 
-# path to MAGI data storage
-MAGI_PATH = my_settings.magi_results_storage
-
 # set up where the results will be stored
 if args.output is None:
 	# autoname the directory based on fasta, or compound file
 	# this will change eventually
 	if args.fasta is not None:
-		experiment_name = os.path.splitext(os.path.basename(args.fasta.split))[0]
+		experiment_name = os.path.splitext(os.path.basename(args.fasta))[0]
+		experiment_dir = os.path.abspath(os.path.dirname(args.fasta))
 	else:
 		experiment_name = os.path.splitext(os.path.basename(args.compounds))[0]
+		experiment_dir = os.path.abspath(os.path.dirname(args.compounds))
 	today = datetime.datetime.now()
 	experiment_name += today.strftime('_%Y%m%d')
-	experiment_path = os.path.join(MAGI_PATH, experiment_name)
+	experiment_path = os.path.join(experiment_dir, experiment_name)
 else:
 	experiment_path = args.output
 
@@ -271,7 +270,7 @@ main_start = time.time() # overall program timer
 if args.fasta is not None:
 	# load genome
 	print '\n!!! LOADING GENOME'
-	genome, genome_db_path = mg.load_genome(args.fasta, MAGI_PATH, 
+	genome, genome_db_path = mg.load_genome(args.fasta, intfile_path, 
 										annotation_file=args.annotations)
 
 if args.accurate_mass_search is not None:
