@@ -6,7 +6,7 @@ channels:
 - defaults
 dependencies:
 - hdf5=1.8.18=0
-- libgfortran=3.0.0
+#- libgfortran=3.0.0
 - numexpr=2.6.2=py27_1
 - pytables=3.4.2=np111py27_1
 - bzip2=1.0.6=3
@@ -17,7 +17,7 @@ dependencies:
 - freetype=2.5.5=2
 - jbig=2.1=0
 - jpeg=9b=0
-- libiconv=1.14=0
+#- libiconv=1.14=0
 - libpng=1.6.30=1
 - libtiff=4.0.6=3
 - libxml2=2.9.4=0
