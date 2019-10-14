@@ -11,7 +11,7 @@ tests/full_workflow_test/test_output_files/
 *nohup*
 *testlog*
 workflow/database/
-workflow/blastbin/blastp
-workflow/blastbin/makeblastdb
+workflow/blastbin/blastp*
+workflow/blastbin/makeblastdb*
 outputs/
 

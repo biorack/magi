@@ -363,8 +363,12 @@ def load_genome(fasta, intfile_path, annotation_file=None):
         fasta_path = fasta
         db_path = os.path.join(intfile_path, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
         print '!!! blast database stored here:', db_path
-        make_db_command = '%s -in %s -out %s -dbtype prot' \
-            % (makeblastdb_path, fasta_path, db_path)
+        if os.name == 'nt': #Check if the operating system is windows or linux/mac
+            make_db_command = '%s -in %s -out %s -dbtype prot' \
+                % (makeblastdb_path+'.exe', fasta_path, db_path)
+        else:
+            make_db_command = '%s -in %s -out %s -dbtype prot' \
+                % (makeblastdb_path, fasta_path, db_path)
         blastp = subprocess.Popen(
             make_db_command,
             shell=True, stdin=subprocess.PIPE,
@@ -508,18 +512,25 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     print '!!! results stored:', cwd
     sys.stdout.flush()
     blaster_file = "{}__{}.txt".format(os.path.join(result_path, 'blasterr'), db_name)
-    subprocess.call(
+    if os.name == 'nt': #Check if the operating system is windows or linux/mac
+        subprocess.call('{0} -query  {1} -db {2} -outfmt "10 qacc sacc qcovs length ppos evalue bitscore" -evalue 1 -max_target_seqs 10 > {3} &'.format(
+        os.path.join(blastbin, "blastp.exe"),
+        os.path.join(cwd, "tmp_seq_0.faa"),
+        database_path,
+        os.path.join(cwd, "tmp_out_blasted_0.txt")), shell=True)
+    else:
+        subprocess.call(
         '%s %s %s %s %s 2> %s'
         % (scriptpath, cpu, database_path, cwd, my_settings.repo_location,blaster_file),
         shell=True)
-    with open(blaster_file, 'r') as f:
-        msg = f.read()
-    if msg != '':
-        print '!@# WARNING: BLAST script error message:'
-        print msg
-        print '-'*80
-        if raise_blast_error:
-            raise RuntimeError('blast had an error message')
+        with open(blaster_file, 'r') as f:
+            msg = f.read()
+        if msg != '':
+            print '!@# WARNING: BLAST script error message:'
+            print msg
+            print '-'*80
+            if raise_blast_error:
+                raise RuntimeError('blast had an error message')
     sys.stdout.flush()
 
     # collect the results
