@@ -40,7 +40,6 @@ def main():
     lines.append("chemnet_pickle =    os.path.join(repo_location, 'workflow/database/compound_groups.pkl')\n")
     lines.append("c2r =               os.path.join(repo_location, 'workflow/database/c2r.pkl')\n")
     lines.append("\n")
-    lines.append("magi_results_storage = os.path.join(repo_location, 'outputs')\n")
 
     with open('magi/local_settings/%s.py' %(fname), 'w') as f:
         for line in lines:

@@ -73,7 +73,6 @@ def main():
         lines.append("chemnet_pickle =    os.path.join(repo_location, 'workflow/database/compound_groups.pkl')\n")
         lines.append("c2r =               os.path.join(repo_location, 'workflow/database/c2r.pkl')\n")
         lines.append("\n")
-        lines.append("magi_results_storage = os.path.join(repo_location, 'outputs')\n")
         lines.append("magi_task_path = ''\n")
         lines.append("magiweburl = 'https://magi.nersc.gov'\n")
         lines.append("magiwebsuperuser = ''\n")

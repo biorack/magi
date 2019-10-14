@@ -137,8 +137,6 @@ compounds_df =  ''        # path to compounds database
 mst_path =  ''            # path to chemical similarity network graph
 chemnet_pickle = ''       # path to chemical similarity network descriptions
 
-magi_results_storage = '' # path to where to store magi outputs and blast databases
-
 # The next 2 lines are only required if you are interfacing with magi_web
 magiwebsuperuser = ''     # admin username for magi_web
 magiwebsuperuserpass = '' # admin password for magi_web

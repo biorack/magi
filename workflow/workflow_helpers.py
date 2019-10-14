@@ -265,7 +265,7 @@ def ec_parse(x):
     else:
         return out
 
-def load_genome(fasta, MAGI_PATH, annotation_file=None):
+def load_genome(fasta, intfile_path, annotation_file=None):
     """
     This function will take some standard fasta a input and convert it
     to an appropriate genome dataframe.
@@ -278,7 +278,7 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
            >UNIQUE_GENE_IDENTIFIER OTHER_INFORMATION
            Note the space between the unique identifier and other info
 
-    MAGI_PATH: path to the root directory of MAGI Data. If None, the
+    intfile_path: path to the temporary storage place of the database. If None, the
                BLAST database is not made, and the gene table is not
                stored.
 
@@ -291,7 +291,7 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
     -------
     genome: gene sequence table that is merged with the annotation table
             if one is provided. This table is saved as a pickle file to
-            MAGI_PATH/gene_fastas/filename.pkl
+            intfile_path/gene_fastas/filename.pkl
     db_path: path to the genome's BLAST database
     """
     # TODO: find a way to handle windows text files (\n\r for new lines)
@@ -305,10 +305,10 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
 
     data = []
     for entry in genes.split('>')[1:]:
-        h = '>' + entry.split('\n')[0]
-        img = h.split(' ')[0][1:]
-        s = ''.join(entry.split('\n')[1:])
-        data.append([img, h, s])
+        header = '>' + entry.splitlines()[0]
+        gene_id = header.split(' ')[0][1:]
+        sequence = ''.join(entry.splitlines()[1:])
+        data.append([gene_id, header, sequence])
     genome = pd.DataFrame(data, columns=['Gene_ID', 'header', 'sequence'])
     if genome['Gene_ID'].duplicated().any():
         first_dup = genome[genome['Gene_ID'].duplicated()].head(1)
@@ -346,34 +346,37 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
 
     genome.set_index('Gene_ID', inplace=True, drop=True)
     genome_name = os.path.splitext(os.path.basename(fasta))[0]
-    if MAGI_PATH is not None:
-        gene_fasta_path = os.path.join(MAGI_PATH, 'gene_fastas')
+    if intfile_path is not None:
+        gene_fasta_path = os.path.join(intfile_path, 'gene_fastas')
         if not os.path.isdir(gene_fasta_path):
             os.makedirs(gene_fasta_path)
         gene_seq_path = os.path.join(gene_fasta_path,
             '%s_sequences.pkl' % (genome_name))
         # gene_seq_path = '%s/gene_fastas/%s_sequences.pkl' \
-        #                 % (MAGI_PATH, genome_name)
+        #                 % (intfile_path, genome_name)
         genome.to_pickle(gene_seq_path)
         print '!!! saved gene_sequence table here:', gene_seq_path
 
-        # Make the blast database of the fasta if it doesn't already exist
+        # Make the blast database of the fasta
         # this command makes the blast database for a given fasta file.
-        makeblastdb_path = '%s/makeblastdb' % (blastbin)
+        makeblastdb_path = os.path.join(blastbin, 'makeblastdb')
         fasta_path = fasta
-        db_path = os.path.join(MAGI_PATH, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
+        db_path = os.path.join(intfile_path, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
         print '!!! blast database stored here:', db_path
-        make_db_command = '%s -in %s -out %s -dbtype prot' \
-            % (makeblastdb_path, fasta_path, db_path)
-        if not os.path.isfile(db_path + '.pin'):
-            blastp = subprocess.Popen(
-                make_db_command,
-                shell=True, stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            if blastp.stdout is not None:
-                print blastp.stdout.read()
-            if blastp.stderr is not None:
-                print blastp.stderr.read()
+        if os.name == 'nt': #Check if the operating system is windows or linux/mac
+            make_db_command = '%s -in %s -out %s -dbtype prot' \
+                % (makeblastdb_path+'.exe', fasta_path, db_path)
+        else:
+            make_db_command = '%s -in %s -out %s -dbtype prot' \
+                % (makeblastdb_path, fasta_path, db_path)
+        blastp = subprocess.Popen(
+            make_db_command,
+            shell=True, stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if blastp.stdout is not None:
+            print blastp.stdout.read()
+        if blastp.stderr is not None:
+            print blastp.stderr.read()
     else:
         db_path = None
     return genome, db_path
@@ -494,7 +497,7 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     # call a shell script that opens n blasts,
     # instead of opening pool of workers
     # first need to save the input seq as a temporary file
-    cwd = result_path + '/' + 'multi_blast_files'
+    cwd = os.path.join(result_path, 'multi_blast_files')
     if not os.path.isdir(cwd):
         os.makedirs(cwd)
     for i, seq in enumerate(mplist):
@@ -502,31 +505,38 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
             f.write(seq)
 
     # then call the job
-    scriptpath = '%s/recip_blaster.sh' % (blastbin)
+    scriptpath = os.path.join(blastbin, 'recip_blaster.sh')
     print '!!! blast script:', scriptpath
     print '!!! # processes to open:', cpu
     print '!!! database path:', database_path
     print '!!! results stored:', cwd
     sys.stdout.flush()
-    subprocess.call(
-        '%s %s %s %s %s 2> %s/blasterr__%s.txt'
-        % (scriptpath, cpu, database_path, cwd, my_settings.repo_location,
-            result_path, db_name),
+    blaster_file = "{}__{}.txt".format(os.path.join(result_path, 'blasterr'), db_name)
+    if os.name == 'nt': #Check if the operating system is windows or linux/mac
+        subprocess.call('{0} -query  {1} -db {2} -outfmt "10 qacc sacc qcovs length ppos evalue bitscore" -evalue 1 -max_target_seqs 10 > {3} &'.format(
+        os.path.join(blastbin, "blastp.exe"),
+        os.path.join(cwd, "tmp_seq_0.faa"),
+        database_path,
+        os.path.join(cwd, "tmp_out_blasted_0.txt")), shell=True)
+    else:
+        subprocess.call(
+        '%s %s %s %s %s 2> %s'
+        % (scriptpath, cpu, database_path, cwd, my_settings.repo_location,blaster_file),
         shell=True)
-    with open('%s/blasterr__%s.txt' % (result_path, db_name), 'r') as f:
-        msg = f.read()
-    if msg != '':
-        print '!@# WARNING: BLAST script error message:'
-        print msg
-        print '-'*80
-        if raise_blast_error:
-            raise RuntimeError('blast had an error message')
+        with open(blaster_file, 'r') as f:
+            msg = f.read()
+        if msg != '':
+            print '!@# WARNING: BLAST script error message:'
+            print msg
+            print '-'*80
+            if raise_blast_error:
+                raise RuntimeError('blast had an error message')
     sys.stdout.flush()
 
     # collect the results
     results = ''
     for i, seq in enumerate(mplist):
-        with open('%s/tmp_out_blasted_%s.txt' % (cwd, i), 'r') as f:
+        with open(os.path.join(cwd, 'tmp_out_blasted_%s.txt' % i), 'r') as f:
             results += f.read()
     results_table = tabulate_blast(results)
 
