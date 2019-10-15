@@ -265,6 +265,39 @@ def load_fasta_genome(fasta_filename, intfile_path, annotation_file = None):
                                         annotation_file)
     return genome, genome_db_path
     
+def perform_accurate_mass_search(args):
+        if args.compounds is None:
+            raise RuntimeError("No compounds file specified. Exiting...")
+        else:
+            # Perform accurate mass search and set compounds file to mass-searched file.
+            print("\n!!! Performing accurate mass search for {}".format(args.compounds))
+            polarity = args.accurate_mass_search    
+            #Make list of adducts to search for
+            if args.adduct_file is not None:
+                args.adduct_file = os.path.abspath(args.adduct_file)
+                print('@@@ Adduct file input: %s' %(args.adduct_file))
+                with open(args.adduct_file) as adduct_file:
+                    adducts = []
+                    try:
+                        for line in adduct_file:
+                            adducts.append(line.rstrip())
+                    except:
+                        print("File cannot be converted to adducts list. Please specify one adduct per line.")
+                        raise
+            elif polarity == 'pos':
+                adducts = ['M+', 'M+H', 'M+NH4', 'M+Na']
+            elif polarity == 'neg':
+                adducts = ['M-H', 'M+Cl', 'M+FA-H', 'M+Hac-H']
+            elif polarity == 'neut':
+                adducts = ['']
+            else:
+                raise RuntimeError('Could not understand polarity')
+            args.compounds = mg.accurate_mass_search(args.compounds, polarity, adducts, args.ppm_cutoff)
+            print("\n!!! Accurate mass search done. Mass-searched file stored in {}".format(args.compounds))    
+            if args.accurate_mass_search_only:
+                sys.exit() # done with mass search. Exiting
+        return args
+
 
 def main(args):
     print_version_info()
@@ -273,6 +306,8 @@ def main(args):
     main_start = time.time() # overall program timer
     if args.fasta is not None:
         genome, genome_db_path = load_fasta_genome(args.fasta, intfile_path, args.annotations)
+    if args.accurate_mass_search is not None:
+        args = perform_accurate_mass_search(args)
     
 if __name__ == "__main__":
     arguments = parse_arguments()
