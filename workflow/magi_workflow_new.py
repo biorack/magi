@@ -232,10 +232,37 @@ def check_parameters(args):
         print '!!! Warnings are muted'
         warnings.filterwarnings('ignore')
     return args
+    
+def make_output_dir_name(args):
+    """set up where the results will be stored"""
+    if args.output is None:
+        # autoname the directory based on fasta, or compound file
+        # this will change eventually
+        if args.fasta is not None:
+            experiment_name = os.path.splitext(os.path.basename(args.fasta))[0]
+            experiment_dir = os.path.abspath(os.path.dirname(args.fasta))
+        else:
+            experiment_name = os.path.splitext(os.path.basename(args.compounds))[0]
+            experiment_dir = os.path.abspath(os.path.dirname(args.compounds))
+        today = datetime.datetime.now()
+        experiment_name += today.strftime('_%Y%m%d')
+        experiment_path = os.path.join(experiment_dir, experiment_name)
+    else:
+        experiment_path = args.output
+    
+    experiment_path = os.path.abspath(experiment_path)
+    intfile_path = os.path.join(experiment_path, args.intermediate_files)
+    
+    print '!!! Saving all results here:', experiment_path
+    if not os.path.isdir(experiment_path):
+        os.makedirs(experiment_path)
+    return args, intfile_path, experiment_path
+    
 
 def main(args):
     print_version_info()
     args = check_parameters(args)
+    args, intfile_path, experiment_path = make_output_dir_name(args) #TODO: rename this function
     
 if __name__ == "__main__":
     arguments = parse_arguments()
