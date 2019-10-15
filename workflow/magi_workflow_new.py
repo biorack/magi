@@ -298,6 +298,66 @@ def perform_accurate_mass_search(args):
                 sys.exit() # done with mass search. Exiting
         return args
 
+def load_compound_results(args, experiment_path):
+    """ load compound results"""
+    print '\n!!! LOADING COMPOUNDS'
+    compounds = mg.load_dataframe(args.compounds)
+    # auto-rename pactolus columns
+    if args.pactolus:
+        compounds = mg.reformat_pactolus(compounds)
+    # remove any missing compounds
+    compounds = compounds[~pd.isnull(compounds['original_compound'])]
+    compounds.fillna('', inplace=True)
+
+    if 'original_compound' not in compounds.columns:
+        raise RuntimeError('Could not find "original_compound" as a column, please\
+            rename the column corresponding to inchi keys for the compounds')
+    
+    # remove compounds not in the database or network
+    print '!!! Scrubbing compounds'
+    compounds['adj'] = compounds['original_compound'].apply(
+        lambda x: '-'.join(x.split('-')[:2]))
+
+    mg.compounds['adj'] = mg.compounds['inchi_key'].apply(
+            lambda x: '-'.join(x.split('-')[:2]))
+
+    filt = compounds.merge(mg.compounds, on='adj', how='left', suffixes=('', '_db'))
+    # categorize their reason for not being searched
+    not_in_db = filt[pd.isnull(filt['cpd_group'])]
+    not_in_db['not_searched_reason'] = 'Not in metabolite database'
+    not_in_net = filt[filt['cpd_group'] < 0]
+    not_in_net['not_searched_reason'] = 'Not in similarity network yet'
+    # combine into one table
+    not_searched = pd.concat([not_in_db, not_in_net])
+    # make the columns same as user input
+    cols = compounds.columns[~compounds.columns.str.contains('adj')].tolist()
+    cols.append('not_searched_reason')
+    not_searched = not_searched[cols]
+    # inform the user and save file
+    if not_searched.shape[0] > 0:
+        print 'WARNING: some input compounds were not found in the metabolite database or chemical network; please report these compounds! (see log_unsearched_compounds.csv)'
+        print '!@#', not_searched['original_compound'].unique().shape[0],\
+            'Compounds not being searched; see log_unsearched_compounds.csv'
+        not_searched.to_csv(os.path.join(experiment_path,
+            'log_unsearched_compounds.csv'), index=False)
+
+    to_search = filt[filt['cpd_group'] > 0]['original_compound'].unique()
+    compounds = compounds[compounds['original_compound'].isin(to_search)]
+
+    u_cpds = compounds['original_compound'].unique()
+    print '!@#', len(u_cpds), 'total input compounds to search\n'
+
+    if 'compound_score' not in compounds.columns:
+        print 'WARNING: "compound_score" not found as a column; assuming that\
+            there is no score for compounds, and setting the compound scores \
+            to 1.0'
+        compounds['compound_score'] = 1.0
+    else:
+        compounds['compound_score'] = compounds['compound_score'].apply(float)
+    return compounds
+
+
+
 
 def main(args):
     print_version_info()
@@ -308,6 +368,8 @@ def main(args):
         genome, genome_db_path = load_fasta_genome(args.fasta, intfile_path, args.annotations)
     if args.accurate_mass_search is not None:
         args = perform_accurate_mass_search(args)
+    if args.compounds is not None:
+        compounds = load_compound_results(args, experiment_path) #TODO: rename this function
     
 if __name__ == "__main__":
     arguments = parse_arguments()
