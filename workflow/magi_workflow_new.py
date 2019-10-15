@@ -258,11 +258,21 @@ def make_output_dir_name(args):
         os.makedirs(experiment_path)
     return args, intfile_path, experiment_path
     
+def load_fasta_genome(fasta_filename, intfile_path, annotation_file = None):
+    """load genome"""
+    print '\n!!! LOADING GENOME'
+    genome, genome_db_path = mg.load_genome(fasta_filename, intfile_path, 
+                                        annotation_file)
+    return genome, genome_db_path
+    
 
 def main(args):
     print_version_info()
     args = check_parameters(args)
     args, intfile_path, experiment_path = make_output_dir_name(args) #TODO: rename this function
+    main_start = time.time() # overall program timer
+    if args.fasta is not None:
+        genome, genome_db_path = load_fasta_genome(args.fasta, intfile_path, args.annotations)
     
 if __name__ == "__main__":
     arguments = parse_arguments()
