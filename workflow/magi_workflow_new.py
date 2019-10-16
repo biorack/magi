@@ -533,6 +533,147 @@ def reaction_to_gene_search(args, compound_to_reaction, genome_db_path, intfile_
     	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
     	print '\n!@# reaction_to_gene successfully loaded'
     return reaction_to_gene_top
+
+def merging_g2r_and_r2g_searches(args, compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top, intfile_path):
+    if args.merged_before_score is None:
+    	print '\n!@# Merging final table | TLOG %s' % (time.time())
+    	sys.stdout.flush()
+    	start = time.time()
+    
+    	compound_to_gene = pd.merge(compound_to_reaction, reaction_to_gene_top, 
+    								on='reaction_id', how='left')
+    	del reaction_to_gene_top
+    	del compound_to_reaction
+    
+    	compound_to_gene_small = compound_to_gene[['subject acc.', 'reaction_id',
+    								'e_score', 'compound_score',
+    								'original_compound', 'level', 'neighbor',
+    								'note']]
+    	del compound_to_gene
+    
+    	# okay to drop duplicates, because i only care about these columns 
+    	# anyway; if these are duplicated then other information doesn't really 
+    	# matter or can easily be re-expanded by joining 
+    	compound_to_gene_small.drop_duplicates(inplace=True)
+    
+    	gene_to_reaction_small = gene_to_reaction_top[['query acc.', 'reaction_id',
+    													'e_score']]
+    	del gene_to_reaction_top
+    	gene_to_reaction_small.drop_duplicates(inplace=True)
+    
+    	# Make an integrated dataframe, joining on the gene
+    	df = pd.merge(compound_to_gene_small, gene_to_reaction_small, 
+    		left_on='subject acc.', right_on='query acc.', 
+    		suffixes=('_r2g', '_g2r'), how='outer')
+    
+    	df.reset_index(inplace=True, drop=True)
+    	df.drop_duplicates(inplace=True)
+    
+    	# Clean up reaction_id_r2g column
+    	idx = df[df['reaction_id_r2g'] == ''].index
+    	df.loc[idx, 'reaction_id_r2g'] = np.nan
+    	df['reaction_id_r2g'] = df['reaction_id_r2g'].astype(float)
+    
+    	# Clean up stupid NaNs in string columns
+    	def check_str(x):
+    	    if isinstance(x, str):
+    	        return True
+    	    else:
+    	        return False
+    
+    	for c in df.columns:
+    	    if len(df[c].apply(type).unique()) > 1:
+    	        string_checked = df[c].apply(check_str)
+    	        if string_checked.any():
+    	            df[c].fillna('', inplace=True)
+    
+    	# Clean up neighbor column
+    	df['neighbor'] = df['neighbor'].astype(str)
+    
+    	df.to_hdf(os.path.join(intfile_path, 'merged_before_score.h5'),
+    		'merged_before_score', mode='w', format='table',
+    		complib='blosc', complevel=9)
+    
+    	print '!@# Final Merged table done in %s minutes'\
+    		%((time.time() - start) / 60)
+    	print '!!! Final Merged table saved to %s'\
+    			% (os.path.join(intfile_path, 'merged_before_score.h5'))
+    else:
+    	del reaction_to_gene_top
+    	del compound_to_reaction
+    	del gene_to_reaction_top
+    	df = pd.read_hdf(args.merged_before_score, 'merged_before_score')
+    	print '\n!@# merged_before_score successfully loaded'
+    return df
+
+def calculate_scores_and_format_tables(args, df):
+    print '\n!@# Calculating final scores | TLOG %s' % (time.time())
+    start = time.time()
+    sys.stdout.flush()
+    
+    # score reciprocal agreement
+    df = mg.reciprocal_agreement(df, closeness_threshold=args.reciprocal_closeness)
+    
+    # calculate homology score
+    score = mg.homology_score(df)
+    # the nulls get a really low score
+    score[pd.isnull(score)] = 1
+    df['homology_score'] = score
+    
+    # reaction connection score says if the compound got connected to any
+    # reaction in the database. Can't have zero because that messes up
+    # geometric mean, so added a small number.
+    df['reaction_connection'] = df[['reaction_id_r2g', 'reaction_id_g2r']]\
+    								.apply(pd.notnull).sum(axis=1) + 0.01
+    
+    # calculate final MAGI integrated score
+    scoring_data = ['compound_score', 'reciprocal_score', \
+    				'homology_score', 'reaction_connection']
+    scores = []
+    to_score = df[scoring_data].values
+    if args.final_weights is not None:
+    	weights = np.asarray([args.final_weights] * to_score.shape[0])
+    	data = mg.magi_score(to_score, weights)
+    else:
+    	data = mg.magi_score(to_score)
+    scores.append(data)
+    df['MAGI_score'] = scores[0] / (args.chemnet_penalty ** df['level'].values)
+    
+    # find gene ids that are floats, convert those to strings, without the decimal
+    float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
+    df.loc[float_entries, 'subject acc.'] = df.loc[float_entries, \
+    				'subject acc.'].apply(lambda x: "{:.0f}".format(x))
+    
+    print '!@# Scoring done in %s minutes' %((time.time() - start) / 60)
+    print '\n!@# Formatting final table | TLOG %s' % (time.time())
+    start = time.time()
+    sys.stdout.flush()
+    
+    # sort the final table and drop key duplicates
+    df = df.sort_values(
+    	['original_compound', 'MAGI_score'], 
+    	ascending=[True, False]
+    	).drop_duplicates(
+    		['original_compound', 'level', 'neighbor', 'compound_score',
+    		 'reciprocal_score', 'query acc.', 'reaction_id_r2g',
+    		 'reaction_id_g2r']
+    		 )
+    
+    df = df.merge(mg.mrs_reaction[['database_id']],
+    	left_on='reaction_id_r2g', right_index=True, how='left')
+    df = df.merge(mg.mrs_reaction[['database_id']],
+    	left_on='reaction_id_g2r', right_index=True, how='left',
+    	suffixes=('_r2g', '_g2r'))
+    cols = df.columns.values
+    idx = pd.np.argwhere(cols == 'query acc.')[0][0]
+    cols[idx] = 'gene_id'
+    df.columns = cols
+    df = df[['MAGI_score','gene_id', 'original_compound', 'neighbor',
+    	'note', 'compound_score','level','homology_score','reciprocal_score',
+    	'reaction_connection', 'e_score_r2g','database_id_r2g', 'e_score_g2r',
+    	'database_id_g2r']]
+    return df, start
+
 def main(args):
     print_version_info()
     args = check_parameters(args)
@@ -550,6 +691,7 @@ def main(args):
     if args.compounds is not None:
         compound_to_reaction = compound_to_reaction_search(args, compounds, experiment_path, intfile_path, main_start)
         reaction_to_gene_top = reaction_to_gene_search(args, compound_to_reaction, genome_db_path, intfile_path)
+    merged_dataframe = merging_g2r_and_r2g_searches(args, compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top, intfile_path)
     
 if __name__ == "__main__":
     arguments = parse_arguments()
