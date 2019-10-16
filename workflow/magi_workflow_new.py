@@ -674,6 +674,35 @@ def calculate_scores_and_format_tables(args, df):
     	'database_id_g2r']]
     return df, start
 
+def save_outputs(args, df, compounds, experiment_path, main_start, start):
+    # save the full dataframe
+    df.to_csv(os.path.join(experiment_path, 'magi_results.csv'), index=False)
+    print 'full results saved to', os.path.join(experiment_path, 'magi_results.csv')
+    # save a compound-centric dataframe, where only the best row for each
+    # original_compound was chosen (this is only for compound scoring, do
+    # not use this for any kind of gene function analysis!)
+    
+    compound_centric = df[pd.notnull(df['original_compound'])]\
+    					 .sort_values('MAGI_score', ascending=False)\
+    					 .drop_duplicates(['original_compound', 'compound_score'])
+    compound_centric = pd.merge(
+    	compound_centric, compounds,
+    	on=['original_compound', 'compound_score'],
+    	how='right')
+    compound_centric.to_csv(os.path.join(experiment_path, 
+    	'magi_compound_results.csv'), index=False)
+    
+    gene_centric = df.sort_values(['MAGI_score', 'e_score_g2r'], 
+    	ascending=[False, False])\
+    	.drop_duplicates(['gene_id', 'database_id_g2r'])
+    gene_centric.to_csv(os.path.join(experiment_path,
+    	'magi_gene_results.csv'), index=False)
+    
+    print '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60)
+    print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
+    print '!!! final results stored to %s' \
+    		%(os.path.join(experiment_path, 'magi_results.csv'))
+
 def main(args):
     print_version_info()
     args = check_parameters(args)
@@ -692,6 +721,8 @@ def main(args):
         compound_to_reaction = compound_to_reaction_search(args, compounds, experiment_path, intfile_path, main_start)
         reaction_to_gene_top = reaction_to_gene_search(args, compound_to_reaction, genome_db_path, intfile_path)
     merged_dataframe = merging_g2r_and_r2g_searches(args, compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top, intfile_path)
+    final_dataframe, start = calculate_scores_and_format_tables(args, merged_dataframe)
+    save_outputs(args, final_dataframe, compounds, experiment_path, main_start, start) 
     
 if __name__ == "__main__":
     arguments = parse_arguments()
