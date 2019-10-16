@@ -410,6 +410,65 @@ def gene_to_reaction_search(args, genome, intfile_path, experiment_path, main_st
         print '\n!@# gene_to_reaction successfully loaded'
     return gene_to_reaction_top
 
+def compound_to_reaction_search(args, compounds, experiment_path, intfile_path, main_start): 
+    """Perform compound to reaction search"""
+    def connect_compound_to_reaction_mp_helper(inchikey, 
+                                            tautomer=args.legacy, 
+                                            neighbor_level=args.level):
+        try:
+            out = mg.connect_compound_to_reaction(inchikey, 
+                                            tautomer=tautomer, 
+                                            neighbor_level=neighbor_level)
+        except Exception as e:
+            print inchikey
+            sys.stdout.flush()
+            raise RuntimeError('offending inchikey: %s; error message: %s' \
+                                %(inchikey, e.args))
+        return out
+    
+    if args.compound_to_reaction is None:
+        print '\n!@# Conducting compound to reaction search | TLOG %s' % (time.time())
+        sys.stdout.flush()
+        start = time.time()
+
+        input_compounds = compounds['original_compound'].unique()
+        if os.name == 'nt': #Check if the operating system is windows or linux/mac
+            #To do: fix this
+            print("!!! Operating system is Windows. No multiprocessing used for compound to reaction search")
+            out = map(connect_compound_to_reaction_mp_helper, input_compounds)
+        else:
+            p = mp.Pool(args.cpu_count)
+            out = p.map(connect_compound_to_reaction_mp_helper, input_compounds)
+            p.close()
+            p.terminate()
+        
+        compound_to_reaction = pd.concat(out)
+        del out
+        compound_to_reaction.reset_index(inplace=True, drop=True)
+    
+        # connect the compound score
+        compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
+                                        on='original_compound', how='inner')
+        print '!@# compound_to_reaction table done in %s minutes'\
+                    %((time.time()-start)/60)
+        # if no fasta file then just save these results and quit
+        if args.fasta is None:
+            compound_to_reaction.to_csv(os.path.join(experiment_path, 
+                                                    'magi_compound_results.csv'))
+            print '!!! compound_reaction table saved to %s'\
+                    % (os.path.join(experiment_path, 'magi_compound_results.csv'))
+            print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
+            sys.exit()
+        else:
+            compound_to_reaction.to_pickle(os.path.join(intfile_path, 
+                                                    'compound_to_reaction.pkl'))
+    
+            print '!!! compound_reaction table saved to %s'\
+                    % (os.path.join(intfile_path, 'compound_to_reaction.pkl'))
+    else:
+        compound_to_reaction = pd.read_pickle(args.compound_to_reaction)
+        print '\n!@# compound_to_reaction successfully loaded'
+    return compound_to_reaction
 
 def main(args):
     print_version_info()
@@ -425,6 +484,8 @@ def main(args):
     if args.fasta is not None:
         gene_to_reaction_top = gene_to_reaction_search(args, genome, intfile_path, experiment_path, main_start)
         del genome
+    if args.compounds is not None:
+        compound_to_reaction = compound_to_reaction_search(args, compounds, experiment_path, intfile_path, main_start)
     
 if __name__ == "__main__":
     arguments = parse_arguments()
