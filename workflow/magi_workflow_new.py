@@ -358,6 +358,58 @@ def load_compound_results(args, experiment_path):
 
 
 
+def gene_to_reaction_search(args, genome, intfile_path, experiment_path, main_start):
+    # Conduct gene to reaction search
+
+    def keep_top_blast_helper(x, param=args.blast_filter):
+        """
+        # setup multiprocessing helpers based on input params
+        x is the normal input
+        param is the defined parameter
+        """
+        return mg.keep_top_blast(x, filt=param)
+    #TODO: Maybe find a better way to set if something is already done?    
+    if args.gene_to_reaction is None:
+        print '!@# Conducting gene to reaction search | TLOG %s' % (time.time())
+        start = time.time()
+        gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
+            intfile_path, raise_blast_error=False, cpu=args.cpu_count)
+
+        print '!@# Homology searching done in %s minutes' \
+                %((time.time() - start) / 60)
+        gene_blast.to_pickle(os.path.join(intfile_path, 'gene_blast.pkl'))
+        print '!!! g2r blast results saved to %s' \
+                %(os.path.join(intfile_path, 'g2r_blast.pkl'))
+
+        start = time.time()
+        gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
+        del gene_blast
+        gene_groups = gene_to_reaction.groupby('query acc.')
+        multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
+        idx = multidx.levels[1]
+        gene_to_reaction_top = gene_to_reaction.loc[idx]
+        del gene_to_reaction
+        print '!@# gene_to_reaction table completed in %s minutes' \
+                %((time.time() - start) / 60)
+        # if not compounds file, then just quit
+        if args.compounds is None:
+            df = gene_to_reaction_top.merge(mg.mrs_reaction[['database_id']],
+                left_on='reaction_id', right_index=True, how='left')
+            df.to_csv(os.path.join(experiment_path, 'magi_gene_results.csv'))
+            print '!!! gene to reaction results saved to %s' \
+                    %(os.path.join(experiment_path, 'magi_gene_results.csv'))
+            print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
+            sys.exit()
+        else:
+            gene_to_reaction_top.to_pickle(os.path.join(intfile_path, 
+                                                    'gene_to_reaction.pkl'))
+            print '!!! gene to reaction results saved to %s' \
+                    %(os.path.join(intfile_path, 'gene_to_reaction.pkl'))
+    else:
+        gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
+        print '\n!@# gene_to_reaction successfully loaded'
+    return gene_to_reaction_top
+
 
 def main(args):
     print_version_info()
@@ -370,6 +422,9 @@ def main(args):
         args = perform_accurate_mass_search(args)
     if args.compounds is not None:
         compounds = load_compound_results(args, experiment_path) #TODO: rename this function
+    if args.fasta is not None:
+        gene_to_reaction_top = gene_to_reaction_search(args, genome, intfile_path, experiment_path, main_start)
+        del genome
     
 if __name__ == "__main__":
     arguments = parse_arguments()
