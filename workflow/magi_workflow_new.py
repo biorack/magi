@@ -470,6 +470,69 @@ def compound_to_reaction_search(args, compounds, experiment_path, intfile_path, 
         print '\n!@# compound_to_reaction successfully loaded'
     return compound_to_reaction
 
+def reaction_to_gene_search(args, compound_to_reaction, genome_db_path, intfile_path):
+    # reaction to gene search
+    def keep_top_blast_helper(x, param=args.blast_filter):
+        """
+        # setup multiprocessing helpers based on input params
+        x is the normal input
+        param is the defined parameter
+        """
+        return mg.keep_top_blast(x, filt=param)
+    
+    if args.reaction_to_gene is None:
+    	print '\n!@# Conducting reaction to gene search | TLOG %s' % (time.time())
+    	sys.stdout.flush()
+    	start = time.time()
+    
+    	# set up a list of reference sequences to blast against the genome
+    	reactions = compound_to_reaction[compound_to_reaction\
+    						['reaction_id'] != '']['reaction_id'].tolist()
+    	reactions_refseqs = mg.mrs_reaction.loc[reactions, 'refseq_id']
+    	del reactions
+    	reactions_refseqs = reactions_refseqs[reactions_refseqs != '']
+    	rseq_list = []
+    	for reaction in reactions_refseqs:
+    	    for rseq in reaction.split('|'):
+    	        if rseq != '':
+    	            rseq_list.append(rseq)
+    	rseq_list = list(set(rseq_list))
+    
+    	# rseq_list is the "query_list" for multi_blast()
+    	# query_full_table is the refseq table
+    	# database_path is the path to the genome's blast database
+    	print '!!!', len(rseq_list), 'reference sequences to search'
+    	sys.stdout.flush()
+    
+    	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, 
+    		genome_db_path, intfile_path, cpu=args.cpu_count, 
+    		raise_blast_error=False)
+    
+    	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast,
+    		'query acc.')
+    	del reaction_to_gene_blast
+    
+    	reaction_to_gene.to_pickle(os.path.join(intfile_path,
+    		'reaction_blast.pkl'))
+    	print '!!! r2g blast results saved to %s' \
+    			%(os.path.join(intfile_path, 'r2g_blast.pkl'))
+    
+    	reaction_groups = reaction_to_gene.groupby('query acc.')
+    	multidx = reaction_groups['e_score'].apply(keep_top_blast_helper).index
+    	del reaction_groups
+    	idx = multidx.levels[1]
+    	reaction_to_gene_top = reaction_to_gene.loc[idx]
+    	del reaction_to_gene
+    	reaction_to_gene_top.to_pickle(os.path.join(intfile_path, 
+    											'reaction_to_gene.pkl'))
+    	print '!@# reaction_to_gene table done in %s minutes'\
+    			%((time.time()-start)/60)
+    	print '!!! reaction_to_gene table saved to %s'\
+    			% (os.path.join(intfile_path, 'reaction_to_gene.pkl'))
+    else:
+    	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
+    	print '\n!@# reaction_to_gene successfully loaded'
+    return reaction_to_gene_top
 def main(args):
     print_version_info()
     args = check_parameters(args)
@@ -486,6 +549,7 @@ def main(args):
         del genome
     if args.compounds is not None:
         compound_to_reaction = compound_to_reaction_search(args, compounds, experiment_path, intfile_path, main_start)
+        reaction_to_gene_top = reaction_to_gene_search(args, compound_to_reaction, genome_db_path, intfile_path)
     
 if __name__ == "__main__":
     arguments = parse_arguments()
