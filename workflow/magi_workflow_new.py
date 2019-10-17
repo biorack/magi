@@ -233,30 +233,30 @@ def check_parameters(args):
         warnings.filterwarnings('ignore')
     return args
     
-def make_output_dir_name(args):
+def make_output_dir_name(output_dir, fasta_file, compounds_file, intermediate_files):
     """set up where the results will be stored"""
-    if args.output is None:
+    if output_dir is None:
         # autoname the directory based on fasta, or compound file
         # this will change eventually
-        if args.fasta is not None:
-            experiment_name = os.path.splitext(os.path.basename(args.fasta))[0]
-            experiment_dir = os.path.abspath(os.path.dirname(args.fasta))
+        if fasta_file is not None:
+            experiment_name = os.path.splitext(os.path.basename(fasta_file))[0]
+            experiment_dir = os.path.abspath(os.path.dirname(fasta_file))
         else:
-            experiment_name = os.path.splitext(os.path.basename(args.compounds))[0]
-            experiment_dir = os.path.abspath(os.path.dirname(args.compounds))
+            experiment_name = os.path.splitext(os.path.basename(compounds_file))[0]
+            experiment_dir = os.path.abspath(os.path.dirname(compounds_file))
         today = datetime.datetime.now()
         experiment_name += today.strftime('_%Y%m%d')
         experiment_path = os.path.join(experiment_dir, experiment_name)
     else:
-        experiment_path = args.output
+        experiment_path = output_dir
     
-    args.output = os.path.abspath(experiment_path)
-    args.intermediate_files = os.path.join(args.output, args.intermediate_files)
+    output_dir = os.path.abspath(experiment_path)
+    intermediate_files_dir = os.path.join(output_dir, intermediate_files)
     
-    print '!!! Saving all results here:', args.output
-    if not os.path.isdir(args.output):
-        os.makedirs(args.output)
-    return args
+    print '!!! Saving all results here:', output_dir
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+    return output_dir, intermediate_files_dir
     
 def load_fasta_genome(fasta_filename, intfile_path, annotation_file = None):
     """load genome"""
@@ -265,18 +265,17 @@ def load_fasta_genome(fasta_filename, intfile_path, annotation_file = None):
                                         annotation_file)
     return genome, genome_db_path
     
-def perform_accurate_mass_search(args):
-        if args.compounds is None:
+def perform_accurate_mass_search(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff):
+        if compounds_file is None:
             raise RuntimeError("No compounds file specified. Exiting...")
         else:
             # Perform accurate mass search and set compounds file to mass-searched file.
-            print("\n!!! Performing accurate mass search for {}".format(args.compounds))
-            polarity = args.accurate_mass_search    
+            print("\n!!! Performing accurate mass search for {}".format(compounds_file))
             #Make list of adducts to search for
-            if args.adduct_file is not None:
-                args.adduct_file = os.path.abspath(args.adduct_file)
-                print('@@@ Adduct file input: %s' %(args.adduct_file))
-                with open(args.adduct_file) as adduct_file:
+            if adduct_file is not None:
+                adduct_file = os.path.abspath(adduct_file)
+                print('@@@ Adduct file input: %s' %(adduct_file))
+                with open(adduct_file) as adduct_file:
                     adducts = []
                     try:
                         for line in adduct_file:
@@ -292,18 +291,18 @@ def perform_accurate_mass_search(args):
                 adducts = ['']
             else:
                 raise RuntimeError('Could not understand polarity')
-            args.compounds = mg.accurate_mass_search(args.compounds, polarity, adducts, args.ppm_cutoff)
-            print("\n!!! Accurate mass search done. Mass-searched file stored in {}".format(args.compounds))    
-            if args.accurate_mass_search_only:
+            mass_searched_compounds_filename = mg.accurate_mass_search(compounds_file, polarity, adducts, ppm_cutoff)
+            print("\n!!! Accurate mass search done. Mass-searched file stored in {}".format(compounds_file))    
+            if accurate_mass_search_only:
                 sys.exit() # done with mass search. Exiting
-        return args
+        return mass_searched_compounds_filename
 
-def load_compound_results(args):
+def load_compound_results(compounds_file, pactolus, output_dir):
     """ load compound results"""
     print '\n!!! LOADING COMPOUNDS'
-    compounds = mg.load_dataframe(args.compounds)
+    compounds = mg.load_dataframe(compounds_file)
     # auto-rename pactolus columns
-    if args.pactolus:
+    if pactolus:
         compounds = mg.reformat_pactolus(compounds)
     # remove any missing compounds
     compounds = compounds[~pd.isnull(compounds['original_compound'])]
@@ -338,7 +337,7 @@ def load_compound_results(args):
         print 'WARNING: some input compounds were not found in the metabolite database or chemical network; please report these compounds! (see log_unsearched_compounds.csv)'
         print '!@#', not_searched['original_compound'].unique().shape[0],\
             'Compounds not being searched; see log_unsearched_compounds.csv'
-        not_searched.to_csv(os.path.join(args.output,
+        not_searched.to_csv(os.path.join(output_dir,
             'log_unsearched_compounds.csv'), index=False)
 
     to_search = filt[filt['cpd_group'] > 0]['original_compound'].unique()
@@ -358,10 +357,10 @@ def load_compound_results(args):
 
 
 
-def gene_to_reaction_search(args, genome, main_start):
+def gene_to_reaction_search(blast_filter, gene_to_reaction, intermediate_files_dir, cpu_count, compounds_file, output_dir, legacy, level, genome, main_start):
     # Conduct gene to reaction search
 
-    def keep_top_blast_helper(x, param=args.blast_filter):
+    def keep_top_blast_helper(x, param=blast_filter):
         """
         # setup multiprocessing helpers based on input params
         x is the normal input
@@ -369,17 +368,17 @@ def gene_to_reaction_search(args, genome, main_start):
         """
         return mg.keep_top_blast(x, filt=param)
     #TODO: Maybe find a better way to set if something is already done?    
-    if args.gene_to_reaction is None:
+    if gene_to_reaction is None:
         print '!@# Conducting gene to reaction search | TLOG %s' % (time.time())
         start = time.time()
         gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
-            args.intermediate_files, raise_blast_error=False, cpu=args.cpu_count)
+            intermediate_files_dir, raise_blast_error=False, cpu=cpu_count)
 
         print '!@# Homology searching done in %s minutes' \
                 %((time.time() - start) / 60)
-        gene_blast.to_pickle(os.path.join(args.intermediate_files, 'gene_blast.pkl'))
+        gene_blast.to_pickle(os.path.join(intermediate_files_dir, 'gene_blast.pkl'))
         print '!!! g2r blast results saved to %s' \
-                %(os.path.join(args.intermediate_files, 'g2r_blast.pkl'))
+                %(os.path.join(intermediate_files_dir, 'g2r_blast.pkl'))
 
         start = time.time()
         gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
@@ -392,29 +391,29 @@ def gene_to_reaction_search(args, genome, main_start):
         print '!@# gene_to_reaction table completed in %s minutes' \
                 %((time.time() - start) / 60)
         # if not compounds file, then just quit
-        if args.compounds is None:
+        if compounds_file is None:
             df = gene_to_reaction_top.merge(mg.mrs_reaction[['database_id']],
                 left_on='reaction_id', right_index=True, how='left')
-            df.to_csv(os.path.join(args.output, 'magi_gene_results.csv'))
+            df.to_csv(os.path.join(output_dir, 'magi_gene_results.csv'))
             print '!!! gene to reaction results saved to %s' \
-                    %(os.path.join(args.output, 'magi_gene_results.csv'))
+                    %(os.path.join(output_dir, 'magi_gene_results.csv'))
             print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
             sys.exit()
         else:
-            gene_to_reaction_top.to_pickle(os.path.join(args.intermediate_files, 
+            gene_to_reaction_top.to_pickle(os.path.join(intermediate_files_dir, 
                                                     'gene_to_reaction.pkl'))
             print '!!! gene to reaction results saved to %s' \
-                    %(os.path.join(args.intermediate_files, 'gene_to_reaction.pkl'))
+                    %(os.path.join(intermediate_files_dir, 'gene_to_reaction.pkl'))
     else:
-        gene_to_reaction_top = pd.read_pickle(args.gene_to_reaction)
+        gene_to_reaction_top = pd.read_pickle(gene_to_reaction)
         print '\n!@# gene_to_reaction successfully loaded'
     return gene_to_reaction_top
 
-def compound_to_reaction_search(args, compounds, main_start): 
+def compound_to_reaction_search(legacy, level, compound_to_reaction, compounds, main_start, cpu_count, fasta_file, output_dir, intermediate_files_dir): 
     """Perform compound to reaction search"""
     def connect_compound_to_reaction_mp_helper(inchikey, 
-                                            tautomer=args.legacy, 
-                                            neighbor_level=args.level):
+                                            tautomer=legacy, 
+                                            neighbor_level=level):
         try:
             out = mg.connect_compound_to_reaction(inchikey, 
                                             tautomer=tautomer, 
@@ -426,7 +425,7 @@ def compound_to_reaction_search(args, compounds, main_start):
                                 %(inchikey, e.args))
         return out
     
-    if args.compound_to_reaction is None:
+    if compound_to_reaction is None:
         print '\n!@# Conducting compound to reaction search | TLOG %s' % (time.time())
         sys.stdout.flush()
         start = time.time()
@@ -437,7 +436,7 @@ def compound_to_reaction_search(args, compounds, main_start):
             print("!!! Operating system is Windows. No multiprocessing used for compound to reaction search")
             out = map(connect_compound_to_reaction_mp_helper, input_compounds)
         else:
-            p = mp.Pool(args.cpu_count)
+            p = mp.Pool(cpu_count)
             out = p.map(connect_compound_to_reaction_mp_helper, input_compounds)
             p.close()
             p.terminate()
@@ -452,27 +451,27 @@ def compound_to_reaction_search(args, compounds, main_start):
         print '!@# compound_to_reaction table done in %s minutes'\
                     %((time.time()-start)/60)
         # if no fasta file then just save these results and quit
-        if args.fasta is None:
-            compound_to_reaction.to_csv(os.path.join(args.output, 
+        if fasta_file is None:
+            compound_to_reaction.to_csv(os.path.join(output_dir, 
                                                     'magi_compound_results.csv'))
             print '!!! compound_reaction table saved to %s'\
-                    % (os.path.join(args.output, 'magi_compound_results.csv'))
+                    % (os.path.join(output_dir, 'magi_compound_results.csv'))
             print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
             sys.exit()
         else:
-            compound_to_reaction.to_pickle(os.path.join(args.intermediate_files, 
+            compound_to_reaction.to_pickle(os.path.join(intermediate_files_dir, 
                                                     'compound_to_reaction.pkl'))
     
             print '!!! compound_reaction table saved to %s'\
-                    % (os.path.join(args.intermediate_files, 'compound_to_reaction.pkl'))
+                    % (os.path.join(intermediate_files_dir, 'compound_to_reaction.pkl'))
     else:
-        compound_to_reaction = pd.read_pickle(args.compound_to_reaction)
+        compound_to_reaction = pd.read_pickle(compound_to_reaction)
         print '\n!@# compound_to_reaction successfully loaded'
     return compound_to_reaction
 
-def reaction_to_gene_search(args, compound_to_reaction, genome_db_path):
+def reaction_to_gene_search(compound_to_reaction, genome_db_path, blast_filter, reaction_to_gene, intermediate_files_dir, cpu_count):
     # reaction to gene search
-    def keep_top_blast_helper(x, param=args.blast_filter):
+    def keep_top_blast_helper(x, param=blast_filter):
         """
         # setup multiprocessing helpers based on input params
         x is the normal input
@@ -480,7 +479,7 @@ def reaction_to_gene_search(args, compound_to_reaction, genome_db_path):
         """
         return mg.keep_top_blast(x, filt=param)
     
-    if args.reaction_to_gene is None:
+    if reaction_to_gene is None:
     	print '\n!@# Conducting reaction to gene search | TLOG %s' % (time.time())
     	sys.stdout.flush()
     	start = time.time()
@@ -505,17 +504,17 @@ def reaction_to_gene_search(args, compound_to_reaction, genome_db_path):
     	sys.stdout.flush()
     
     	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, 
-    		genome_db_path, args.intermediate_files, cpu=args.cpu_count, 
+    		genome_db_path, intermediate_files_dir, cpu=cpu_count, 
     		raise_blast_error=False)
     
     	reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast,
     		'query acc.')
     	del reaction_to_gene_blast
     
-    	reaction_to_gene.to_pickle(os.path.join(args.intermediate_files,
+    	reaction_to_gene.to_pickle(os.path.join(intermediate_files_dir,
     		'reaction_blast.pkl'))
     	print '!!! r2g blast results saved to %s' \
-    			%(os.path.join(args.intermediate_files, 'r2g_blast.pkl'))
+    			%(os.path.join(intermediate_files_dir, 'r2g_blast.pkl'))
     
     	reaction_groups = reaction_to_gene.groupby('query acc.')
     	multidx = reaction_groups['e_score'].apply(keep_top_blast_helper).index
@@ -523,19 +522,19 @@ def reaction_to_gene_search(args, compound_to_reaction, genome_db_path):
     	idx = multidx.levels[1]
     	reaction_to_gene_top = reaction_to_gene.loc[idx]
     	del reaction_to_gene
-    	reaction_to_gene_top.to_pickle(os.path.join(args.intermediate_files, 
+    	reaction_to_gene_top.to_pickle(os.path.join(intermediate_files_dir, 
     											'reaction_to_gene.pkl'))
     	print '!@# reaction_to_gene table done in %s minutes'\
     			%((time.time()-start)/60)
     	print '!!! reaction_to_gene table saved to %s'\
-    			% (os.path.join(args.intermediate_files, 'reaction_to_gene.pkl'))
+    			% (os.path.join(intermediate_files_dir, 'reaction_to_gene.pkl'))
     else:
-    	reaction_to_gene_top = pd.read_pickle(args.reaction_to_gene)
+    	reaction_to_gene_top = pd.read_pickle(reaction_to_gene)
     	print '\n!@# reaction_to_gene successfully loaded'
     return reaction_to_gene_top
 
-def merging_g2r_and_r2g_searches(args, compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top):
-    if args.merged_before_score is None:
+def merging_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top, merged_before_score, intermediate_files_dir):
+    if merged_before_score is None:
     	print '\n!@# Merging final table | TLOG %s' % (time.time())
     	sys.stdout.flush()
     	start = time.time()
@@ -590,29 +589,29 @@ def merging_g2r_and_r2g_searches(args, compound_to_reaction, reaction_to_gene_to
     	# Clean up neighbor column
     	df['neighbor'] = df['neighbor'].astype(str)
     
-    	df.to_hdf(os.path.join(args.intermediate_files, 'merged_before_score.h5'),
+    	df.to_hdf(os.path.join(intermediate_files_dir, 'merged_before_score.h5'),
     		'merged_before_score', mode='w', format='table',
     		complib='blosc', complevel=9)
     
     	print '!@# Final Merged table done in %s minutes'\
     		%((time.time() - start) / 60)
     	print '!!! Final Merged table saved to %s'\
-    			% (os.path.join(args.intermediate_files, 'merged_before_score.h5'))
+    			% (os.path.join(intermediate_files_dir, 'merged_before_score.h5'))
     else:
     	del reaction_to_gene_top
     	del compound_to_reaction
     	del gene_to_reaction_top
-    	df = pd.read_hdf(args.merged_before_score, 'merged_before_score')
+    	df = pd.read_hdf(merged_before_score, 'merged_before_score')
     	print '\n!@# merged_before_score successfully loaded'
     return df
 
-def calculate_scores_and_format_tables(args, df):
+def calculate_scores_and_format_tables(df, reciprocal_closeness, final_weights, chemnet_penalty):
     print '\n!@# Calculating final scores | TLOG %s' % (time.time())
     start = time.time()
     sys.stdout.flush()
     
     # score reciprocal agreement
-    df = mg.reciprocal_agreement(df, closeness_threshold=args.reciprocal_closeness)
+    df = mg.reciprocal_agreement(df, closeness_threshold=reciprocal_closeness)
     
     # calculate homology score
     score = mg.homology_score(df)
@@ -631,13 +630,13 @@ def calculate_scores_and_format_tables(args, df):
     				'homology_score', 'reaction_connection']
     scores = []
     to_score = df[scoring_data].values
-    if args.final_weights is not None:
-    	weights = np.asarray([args.final_weights] * to_score.shape[0])
+    if final_weights is not None:
+    	weights = np.asarray([final_weights] * to_score.shape[0])
     	data = mg.magi_score(to_score, weights)
     else:
     	data = mg.magi_score(to_score)
     scores.append(data)
-    df['MAGI_score'] = scores[0] / (args.chemnet_penalty ** df['level'].values)
+    df['MAGI_score'] = scores[0] / (chemnet_penalty ** df['level'].values)
     
     # find gene ids that are floats, convert those to strings, without the decimal
     float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
@@ -674,10 +673,10 @@ def calculate_scores_and_format_tables(args, df):
     	'database_id_g2r']]
     return df, start
 
-def save_outputs(args, df, compounds, main_start, start):
+def save_outputs(df, compounds, main_start, start, output_dir):
     # save the full dataframe
-    df.to_csv(os.path.join(args.output, 'magi_results.csv'), index=False)
-    print 'full results saved to', os.path.join(args.output, 'magi_results.csv')
+    df.to_csv(os.path.join(output_dir, 'magi_results.csv'), index=False)
+    print 'full results saved to', os.path.join(output_dir, 'magi_results.csv')
     # save a compound-centric dataframe, where only the best row for each
     # original_compound was chosen (this is only for compound scoring, do
     # not use this for any kind of gene function analysis!)
@@ -689,41 +688,70 @@ def save_outputs(args, df, compounds, main_start, start):
     	compound_centric, compounds,
     	on=['original_compound', 'compound_score'],
     	how='right')
-    compound_centric.to_csv(os.path.join(args.output, 
+    compound_centric.to_csv(os.path.join(output_dir, 
     	'magi_compound_results.csv'), index=False)
     
     gene_centric = df.sort_values(['MAGI_score', 'e_score_g2r'], 
     	ascending=[False, False])\
     	.drop_duplicates(['gene_id', 'database_id_g2r'])
-    gene_centric.to_csv(os.path.join(args.output,
+    gene_centric.to_csv(os.path.join(output_dir,
     	'magi_gene_results.csv'), index=False)
     
     print '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60)
     print '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60)
     print '!!! final results stored to %s' \
-    		%(os.path.join(args.output, 'magi_results.csv'))
+    		%(os.path.join(output_dir, 'magi_results.csv'))
 
-def main(args):
+def main():
     print_version_info()
+    args = parse_arguments()
     args = check_parameters(args)
-    args = make_output_dir_name(args) #TODO: rename this function
-    main_start = time.time() # overall program timer
-    if args.fasta is not None:
-        genome, genome_db_path = load_fasta_genome(args.fasta, args.intermediate_files, args.annotations)
+    
+    #Set all MAGI parameters
     if args.accurate_mass_search is not None:
-        args = perform_accurate_mass_search(args)
-    if args.compounds is not None:
-        compounds = load_compound_results(args) #TODO: rename this function
-    if args.fasta is not None:
-        gene_to_reaction_top = gene_to_reaction_search(args, genome, main_start)
+        accurate_mass_search = True
+        polarity = args.accurate_mass_search
+    else:
+        accurate_mass_search = False
+    accurate_mass_search_only = args.accurate_mass_search_only
+    adduct_file = args.adduct_file
+    annotations = args.annotations
+    blast_filter = args.blast_filter
+    chemnet_penalty = args.chemnet_penalty
+    compound_to_reaction = args.compound_to_reaction
+    compounds_file = args.compounds
+    cpu_count = args.cpu_count
+    fasta_file = args.fasta
+    final_weights = args.final_weights
+    gene_to_reaction = args.gene_to_reaction
+    intermediate_files = args.intermediate_files
+    legacy = args.legacy
+    level = args.level
+    merged_before_score = args.merged_before_score
+    output_dir = args.output
+    pactolus = args.pactolus
+    ppm_cutoff = args.ppm_cutoff
+    reaction_to_gene = args.reaction_to_gene
+    reciprocal_closeness = args.reciprocal_closeness
+    
+    # start with magi workflow
+    output_dir, intermediate_files_dir = make_output_dir_name(output_dir, fasta_file, compounds_file, intermediate_files) #TODO: rename this function
+    main_start = time.time() # overall program timer
+    if fasta_file is not None:
+        genome, genome_db_path = load_fasta_genome(fasta_file, intermediate_files_dir, annotations)
+    if accurate_mass_search:
+        args, compounds_file = perform_accurate_mass_search(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff)
+    if compounds_file is not None:
+        compounds = load_compound_results(compounds_file, pactolus, output_dir) #TODO: rename this function
+    if fasta_file is not None:
+        gene_to_reaction_top = gene_to_reaction_search(blast_filter, gene_to_reaction, intermediate_files_dir, cpu_count, compounds_file, output_dir, legacy, level, genome, main_start)
         del genome
-    if args.compounds is not None:
-        compound_to_reaction = compound_to_reaction_search(args, compounds, main_start)
-        reaction_to_gene_top = reaction_to_gene_search(args, compound_to_reaction, genome_db_path)
-    merged_dataframe = merging_g2r_and_r2g_searches(args, compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top)
-    final_dataframe, start = calculate_scores_and_format_tables(args, merged_dataframe)
-    save_outputs(args, final_dataframe, compounds, main_start, start) 
+    if compounds_file is not None:
+        compound_to_reaction = compound_to_reaction_search(legacy, level, compound_to_reaction, compounds, main_start, cpu_count, fasta_file, output_dir, intermediate_files_dir)
+        reaction_to_gene_top = reaction_to_gene_search(compound_to_reaction, genome_db_path, blast_filter, reaction_to_gene, intermediate_files_dir, cpu_count)
+    merged_dataframe = merging_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top, merged_before_score, intermediate_files_dir)
+    final_dataframe, start = calculate_scores_and_format_tables(merged_dataframe, reciprocal_closeness, final_weights, chemnet_penalty)
+    save_outputs(final_dataframe, compounds, main_start, start, output_dir)
     
 if __name__ == "__main__":
-    arguments = parse_arguments()
-    main(arguments)
+    main()
