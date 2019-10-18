@@ -253,7 +253,7 @@ def make_output_dir_name(output_dir, fasta_file, compounds_file, intermediate_fi
     output_dir = os.path.abspath(experiment_path)
     intermediate_files_dir = os.path.join(output_dir, intermediate_files)
     
-    print( '!!! Saving all results here:', output_dir)
+    print( '!!! Saving all results here: {}'.format(output_dir))
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
     return output_dir, intermediate_files_dir
@@ -335,8 +335,7 @@ def load_compound_results(compounds_file, pactolus, output_dir):
     # inform the user and save file
     if not_searched.shape[0] > 0:
         print( 'WARNING: some input compounds were not found in the metabolite database or chemical network; please report these compounds! (see log_unsearched_compounds.csv)')
-        print( '!@#', not_searched['original_compound'].unique().shape[0],\
-            'Compounds not being searched; see log_unsearched_compounds.csv')
+        print( '!@# {} Compounds not being searched; see log_unsearched_compounds.csv'.format(not_searched['original_compound'].unique().shape[0]))
         not_searched.to_csv(os.path.join(output_dir,
             'log_unsearched_compounds.csv'), index=False)
 
@@ -344,7 +343,7 @@ def load_compound_results(compounds_file, pactolus, output_dir):
     compounds = compounds[compounds['original_compound'].isin(to_search)]
 
     u_cpds = compounds['original_compound'].unique()
-    print( '!@#', len(u_cpds), 'total input compounds to search\n')
+    print( '!@# {} total input compounds to search\n'.format(len(u_cpds)))
 
     if 'compound_score' not in compounds.columns:
         print( 'WARNING: "compound_score" not found as a column; assuming that\
@@ -431,9 +430,9 @@ def compound_to_reaction_search(legacy, level, compound_to_reaction, compounds, 
         start = time.time()
 
         input_compounds = compounds['original_compound'].unique()
-        if os.name == 'nt': #Check if the operating system is windows or linux/mac
+        if cpu_count == 1: #Quick fix for multiprocessing problems
             #To do: fix this
-            print("!!! Operating system is Windows. No multiprocessing used for compound to reaction search")
+            print("!!! No multiprocessing used for compound to reaction search")
             out = map(connect_compound_to_reaction_mp_helper, input_compounds)
         else:
             p = mp.Pool(cpu_count)
@@ -500,7 +499,7 @@ def reaction_to_gene_search(compound_to_reaction, genome_db_path, blast_filter, 
     	# rseq_list is the "query_list" for multi_blast()
     	# query_full_table is the refseq table
     	# database_path is the path to the genome's blast database
-    	print( '!!!', len(rseq_list), 'reference sequences to search')
+    	print( '!!! {} reference sequences to search'.format(len(rseq_list)))
     	sys.stdout.flush()
     
     	reaction_to_gene_blast = mg.multi_blast(rseq_list, mg.refseq, 
@@ -676,7 +675,7 @@ def calculate_scores_and_format_tables(df, reciprocal_closeness, final_weights, 
 def save_outputs(df, compounds, main_start, start, output_dir):
     # save the full dataframe
     df.to_csv(os.path.join(output_dir, 'magi_results.csv'), index=False)
-    print( 'full results saved to', os.path.join(output_dir, 'magi_results.csv'))
+    print( 'full results saved to {}'.format(os.path.join(output_dir, 'magi_results.csv')))
     # save a compound-centric dataframe, where only the best row for each
     # original_compound was chosen (this is only for compound scoring, do
     # not use this for any kind of gene function analysis!)

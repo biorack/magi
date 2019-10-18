@@ -113,10 +113,10 @@ blastbin = my_settings.blastbin
 print( '!!! loading refseq and reaction tables...')
 # this table is only refseqs that are found in mrs-reaction
 refseq_path = my_settings.refseq_path
-print( '!!! Reference sequences in this file:', refseq_path)
+print( '!!! Reference sequences in this file: {}'.format(refseq_path))
 refseq = load_dataframe(refseq_path)
 refseq.dropna(inplace=True)
-print( '!!!', len(refseq), 'reference sequences')
+print( '!!! {} reference sequences'.format(len(refseq)))
 
 # path to the refseq database (for reverse blasting)
 refseq_dbpath = my_settings.refseq_db
@@ -126,12 +126,12 @@ refseq_dbpath = my_settings.refseq_db
 # (those that had compounds with R-groups)
 mrs_reaction_path = my_settings.mrs_reaction_path
 
-print( '!!! MRS-Reaction:', mrs_reaction_path)
+print( '!!! MRS-Reaction: {}'.format(mrs_reaction_path))
 mrs_reaction = load_dataframe(mrs_reaction_path)
-print( '!!!', len(mrs_reaction), 'reactions')
+print( '!!! {} reactions'.format(len(mrs_reaction)))
 print( '!!!', len(mrs_reaction[mrs_reaction['refseq_id'] != '']), \
         'reactions with a refseq')
-print( '!!!', len(mrs_reaction[mrs_reaction['ECs'] != '']), 'reactions with an EC')
+print( '!!! {} reactions with an EC'.format(len(mrs_reaction[mrs_reaction['ECs'] != ''])))
 
 print( '!!! loading compound table')
 compounds = load_dataframe(my_settings.compounds_df)
@@ -342,7 +342,7 @@ def load_genome(fasta, intfile_path, annotation_file=None):
 
         genome = pd.merge(genome, annotation_table, on='Gene_ID', how='left')
 
-    print( '!@# FASTA file loaded with', len(genome), 'genes')
+    print( '!@# FASTA file loaded with {} genes'.format(len(genome)))
 
     genome.set_index('Gene_ID', inplace=True, drop=True)
     genome_name = os.path.splitext(os.path.basename(fasta))[0]
@@ -355,14 +355,14 @@ def load_genome(fasta, intfile_path, annotation_file=None):
         # gene_seq_path = '%s/gene_fastas/%s_sequences.pkl' \
         #                 % (intfile_path, genome_name)
         genome.to_pickle(gene_seq_path)
-        print( '!!! saved gene_sequence table here:', gene_seq_path)
+        print( '!!! saved gene_sequence table here: {}'.format(gene_seq_path))
 
         # Make the blast database of the fasta
         # this command makes the blast database for a given fasta file.
         makeblastdb_path = os.path.join(blastbin, 'makeblastdb')
         fasta_path = fasta
         db_path = os.path.join(intfile_path, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
-        print( '!!! blast database stored here:', db_path)
+        print( '!!! blast database stored here: {}'.format(db_path))
         if os.name == 'nt': #Check if the operating system is windows or linux/mac
             make_db_command = '%s -in %s -out %s -dbtype prot' \
                 % (makeblastdb_path+'.exe', fasta_path, db_path)
@@ -504,12 +504,12 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
         with open('%s/tmp_seq_%s.faa' % (cwd, i), 'w') as f:
             f.write(seq)
 
-    # then call the job
+    # then call the job. TODO: fix prints for windows. They are not accurate
     scriptpath = os.path.join(blastbin, 'recip_blaster.sh')
-    print( '!!! blast script:', scriptpath)
-    print( '!!! # processes to open:', cpu)
-    print( '!!! database path:', database_path)
-    print( '!!! results stored:', cwd)
+    print( '!!! blast script: {}'.format(scriptpath))
+    print( '!!! # processes to open: {}'.format(cpu))
+    print( '!!! database path: {}'.format(database_path))
+    print( '!!! results stored: {}'.format(cwd))
     sys.stdout.flush()
     blaster_file = "{}__{}.txt".format(os.path.join(result_path, 'blasterr'), db_name)
     if os.name == 'nt': #Check if the operating system is windows or linux/mac
