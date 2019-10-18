@@ -110,13 +110,13 @@ def load_dataframe(fname, filetype=None, key=None):
 # JGI custom compiled blast binaries
 blastbin = my_settings.blastbin
 
-print '!!! loading refseq and reaction tables...'
+print( '!!! loading refseq and reaction tables...')
 # this table is only refseqs that are found in mrs-reaction
 refseq_path = my_settings.refseq_path
-print '!!! Reference sequences in this file:', refseq_path
+print( '!!! Reference sequences in this file:', refseq_path)
 refseq = load_dataframe(refseq_path)
 refseq.dropna(inplace=True)
-print '!!!', len(refseq), 'reference sequences'
+print( '!!!', len(refseq), 'reference sequences')
 
 # path to the refseq database (for reverse blasting)
 refseq_dbpath = my_settings.refseq_db
@@ -126,20 +126,20 @@ refseq_dbpath = my_settings.refseq_db
 # (those that had compounds with R-groups)
 mrs_reaction_path = my_settings.mrs_reaction_path
 
-print '!!! MRS-Reaction:', mrs_reaction_path
+print( '!!! MRS-Reaction:', mrs_reaction_path)
 mrs_reaction = load_dataframe(mrs_reaction_path)
-print '!!!', len(mrs_reaction), 'reactions'
-print '!!!', len(mrs_reaction[mrs_reaction['refseq_id'] != '']), \
-        'reactions with a refseq'
-print '!!!', len(mrs_reaction[mrs_reaction['ECs'] != '']), 'reactions with an EC'
+print( '!!!', len(mrs_reaction), 'reactions')
+print( '!!!', len(mrs_reaction[mrs_reaction['refseq_id'] != '']), \
+        'reactions with a refseq')
+print( '!!!', len(mrs_reaction[mrs_reaction['ECs'] != '']), 'reactions with an EC')
 
-print '!!! loading compound table'
+print( '!!! loading compound table')
 compounds = load_dataframe(my_settings.compounds_df)
 with open(my_settings.c2r, 'r') as fid:
     c2r = pickle.load(fid)
 
 #chemnet files
-print '!!! loading chemnet files'
+print( '!!! loading chemnet files')
 with open(my_settings.chemnet_pickle, 'r') as fid:
     cpd_group_data = pickle.load(fid)
 cpd_df = pd.DataFrame(cpd_group_data, columns=['inchikey'])
@@ -168,7 +168,7 @@ for pair in to_blowup:
 
 rxn_refseq_join = pd.DataFrame(data, columns=['reaction_id', 'refseq_id'])
 
-print '!!! All databases loaded into memory'
+print( '!!! All databases loaded into memory')
 # setup junk has been loaded
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -337,12 +337,12 @@ def load_genome(fasta, intfile_path, annotation_file=None):
             newcols = cols[-1:] + cols[:-1]
             annotation_table = annotation_table[newcols]
         except KeyError:
-            print 'Could not find a column corresponding to EC annotations, \
-                    skipping EC parsing'
+            print( 'Could not find a column corresponding to EC annotations, \
+                    skipping EC parsing')
 
         genome = pd.merge(genome, annotation_table, on='Gene_ID', how='left')
 
-    print '!@# FASTA file loaded with', len(genome), 'genes'
+    print( '!@# FASTA file loaded with', len(genome), 'genes')
 
     genome.set_index('Gene_ID', inplace=True, drop=True)
     genome_name = os.path.splitext(os.path.basename(fasta))[0]
@@ -355,14 +355,14 @@ def load_genome(fasta, intfile_path, annotation_file=None):
         # gene_seq_path = '%s/gene_fastas/%s_sequences.pkl' \
         #                 % (intfile_path, genome_name)
         genome.to_pickle(gene_seq_path)
-        print '!!! saved gene_sequence table here:', gene_seq_path
+        print( '!!! saved gene_sequence table here:', gene_seq_path)
 
         # Make the blast database of the fasta
         # this command makes the blast database for a given fasta file.
         makeblastdb_path = os.path.join(blastbin, 'makeblastdb')
         fasta_path = fasta
         db_path = os.path.join(intfile_path, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
-        print '!!! blast database stored here:', db_path
+        print( '!!! blast database stored here:', db_path)
         if os.name == 'nt': #Check if the operating system is windows or linux/mac
             make_db_command = '%s -in %s -out %s -dbtype prot' \
                 % (makeblastdb_path+'.exe', fasta_path, db_path)
@@ -374,9 +374,9 @@ def load_genome(fasta, intfile_path, annotation_file=None):
             shell=True, stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if blastp.stdout is not None:
-            print blastp.stdout.read()
+            print( blastp.stdout.read())
         if blastp.stderr is not None:
-            print blastp.stderr.read()
+            print( blastp.stderr.read())
     else:
         db_path = None
     return genome, db_path
@@ -466,7 +466,7 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     result_path: where you want results saved
     cpu: number of processes to open
     scriptpath: path to shell script that opens multiple blast processes
-    raise_blast_error: boolean, False will still print BLAST errors/warnings,
+    raise_blast_error: boolean, False will still print( BLAST errors/warnings,
                         but will not raise an error
 
     Outputs
@@ -491,7 +491,7 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
                 seq += query_full_table.loc[gid, 'sequence']
                 seq += '\n'
             else:
-                print '%s not in sequence database!' % (gid)
+                print( '%s not in sequence database!' % (gid))
         mplist.append(seq)
 
     # call a shell script that opens n blasts,
@@ -506,10 +506,10 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
 
     # then call the job
     scriptpath = os.path.join(blastbin, 'recip_blaster.sh')
-    print '!!! blast script:', scriptpath
-    print '!!! # processes to open:', cpu
-    print '!!! database path:', database_path
-    print '!!! results stored:', cwd
+    print( '!!! blast script:', scriptpath)
+    print( '!!! # processes to open:', cpu)
+    print( '!!! database path:', database_path)
+    print( '!!! results stored:', cwd)
     sys.stdout.flush()
     blaster_file = "{}__{}.txt".format(os.path.join(result_path, 'blasterr'), db_name)
     if os.name == 'nt': #Check if the operating system is windows or linux/mac
@@ -526,9 +526,9 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
         with open(blaster_file, 'r') as f:
             msg = f.read()
         if msg != '':
-            print '!@# WARNING: BLAST script error message:'
-            print msg
-            print '-'*80
+            print( '!@# WARNING: BLAST script error message:')
+            print( msg)
+            print( '-'*80)
             if raise_blast_error:
                 raise RuntimeError('blast had an error message')
     sys.stdout.flush()
@@ -594,7 +594,7 @@ def tautomer_finder(compound_mol, result='split', raise_errors=False):
             "smiles" returns the smiles string
             "inchi" returns the InChI string 
             "mol" returns RdKit Mol object
-    reaise_errors: when False, it still prints the error as a warning
+    raise_errors: when False, it still prints the error as a warning
 
     Outputs
     -------
@@ -621,9 +621,9 @@ def tautomer_finder(compound_mol, result='split', raise_errors=False):
             enumerated_tautomers = []
     except Exception as e:
         if raise_errors is False:
-            print 'WARNING: %s could not be tautomerized; %s' \
+            print( 'WARNING: %s could not be tautomerized; %s' \
                     % (Chem.InchiToInchiKey(Chem.MolToInchi(compound_mol)),
-                        e.args)
+                        e.args))
             enumerated_tautomers = [compound_smiles]
         else:
             raise
@@ -706,8 +706,8 @@ def neighbor_finder(inchikey, chemical_network=net, cpd_group=None, level=2):
             neighbor_groups.append((level, neighbor_inchikey_list))
 
     else:
-        print '695 WARNING: Could not find "%s" in the chemical network' \
-              % (inchikey)
+        print( '695 WARNING: Could not find "%s" in the chemical network' \
+              % (inchikey))
 
     return neighbor_groups
 
@@ -858,8 +858,8 @@ def connect_compound_to_reaction(inchikey, tautomer=False, neighbor_level=2):
         # make an rdkit mol of the compound
         compound_mol = mol_from_inchikey(inchikey)
         if compound_mol is None:
-            print 'WARNING: Could not find "%s" in the compound database; \
-                skipping tautomer and neighbor searching' % (inchikey)
+            print( 'WARNING: Could not find "%s" in the compound database; \
+                skipping tautomer and neighbor searching' % (inchikey))
             return pd.DataFrame(compound_results)
 
         # get tautomers of the compound
