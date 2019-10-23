@@ -69,7 +69,7 @@ def main():
         lines.append("refseq_db =         os.path.join(repo_location, 'workflow/database/mrs_reaction_filtered_refseq_db_fasta_blastdb_actinofix')\n")
         lines.append("mrs_reaction_path = os.path.join(repo_location, 'workflow/database/mrs_reaction_newrxns_added_actinofix.pkl')\n")
         lines.append("compounds_df =      os.path.join(repo_location, 'workflow/database/unique_compounds_groups_magi.pkl')\n")
-        lines.append("mst_path =          os.path.join(repo_location, 'workflow/database/graph.pkl')\n")
+        lines.append("mst_path =          os.path.join(repo_location, 'workflow/database/magi_cpd_similarity.graphml')\n")
         lines.append("chemnet_pickle =    os.path.join(repo_location, 'workflow/database/compound_groups.pkl')\n")
         lines.append("c2r =               os.path.join(repo_location, 'workflow/database/c2r.pkl')\n")
         lines.append("\n")

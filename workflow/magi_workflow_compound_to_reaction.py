@@ -442,7 +442,7 @@ def load_objects():
     reference_compounds = mg.load_dataframe(my_settings.compounds_df)
     # load the MST chemical network
     with open(my_settings.mst_path, 'r') as f:
-        net = pickle.load(f)
+        chemical_network = nx.read_graphml(f, node_type=int)
     #chemnet files
     print( '!!! loading chemnet files')
     with open(my_settings.chemnet_pickle, 'r') as fid:
