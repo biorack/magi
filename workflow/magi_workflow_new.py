@@ -241,56 +241,21 @@ def print_parameters(args):
         warnings.filterwarnings('ignore')
     return args
     
-def make_output_dir_name(output_dir, fasta_file, compounds_file, intermediate_files):
-    """set up where the results will be stored"""
-    if output_dir is None:
-        # autoname the directory based on fasta, or compound file
-        # this will change eventually
-        if fasta_file is not None:
-            experiment_name = os.path.splitext(os.path.basename(fasta_file))[0]
-            experiment_dir = os.path.abspath(os.path.dirname(fasta_file))
-        else:
-            experiment_name = os.path.splitext(os.path.basename(compounds_file))[0]
-            experiment_dir = os.path.abspath(os.path.dirname(compounds_file))
-        today = datetime.datetime.now()
-        experiment_name += today.strftime('_%Y%m%d')
-        experiment_path = os.path.join(experiment_dir, experiment_name)
-    else:
-        experiment_path = output_dir
-    
-    output_dir = os.path.abspath(experiment_path)
-    intermediate_files_dir = os.path.join(output_dir, intermediate_files)
-    
-    print( '!!! Saving all results here: {}'.format(output_dir))
-    if not os.path.isdir(output_dir):
-        os.makedirs(output_dir)
-    return output_dir, intermediate_files_dir
-    
-def load_fasta_genome(fasta_filename, intfile_path, annotation_file = None):
-    """load genome"""
-    print( '\n!!! LOADING GENOME')
-    genome, genome_db_path = mg.load_genome(fasta_filename, intfile_path, 
-                                        annotation_file)
-    return genome, genome_db_path
-    
 def perform_accurate_mass_search(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff):
     import magi_workflow_accurate_mass_search
     mass_searched_compounds_filename = magi_workflow_accurate_mass_search.workflow(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff)
     return mass_searched_compounds_filename
 
-
-
-
-
-def gene_to_reaction_search(blast_filter, gene_to_reaction, intermediate_files_dir, cpu_count, compounds_file, output_dir, legacy, level, genome, main_start):
-    import magi_workflow_gene_to_reaction
-    gene_to_reaction_top = magi_workflow_gene_to_reaction.workflow(blast_filter, gene_to_reaction, intermediate_files_dir, cpu_count, compounds_file, output_dir, legacy, level, genome, main_start)
-    return gene_to_reaction_top
-
 def compound_to_reaction_search(legacy, level, compound_to_reaction, compounds_file, main_start, cpu_count, fasta_file, output_dir, intermediate_files_dir, pactolus): 
     import magi_workflow_compound_to_reaction
-    compound_to_reaction = magi_workflow_compound_to_reaction.workflow(legacy, level, compound_to_reaction, compounds_file, main_start, cpu_count, fasta_file, output_dir, intermediate_files_dir, pactolus)
-    return compound_to_reaction
+    compounds = mg.load_compound_results(compounds_file, pactolus, output_dir)
+    if compound_to_reaction is None:
+        compound_to_reaction_path = magi_workflow_compound_to_reaction.workflow(legacy, level, compounds, main_start, cpu_count, output_dir, intermediate_files_dir, pactolus)
+        compound_to_reaction = pd.read_pickle(compound_to_reaction_path)
+    else:
+        compound_to_reaction = pd.read_pickle(compound_to_reaction)
+        print( '\n!@# compound_to_reaction successfully loaded')
+    return compounds, compound_to_reaction
 
 def reaction_to_gene_search(compound_to_reaction, genome_db_path, blast_filter, reaction_to_gene, intermediate_files_dir, cpu_count):
     import magi_workflow_reaction_to_gene_search
@@ -500,16 +465,13 @@ def main():
     reciprocal_closeness = args.reciprocal_closeness
     
     # start with magi workflow
-    output_dir, intermediate_files_dir = make_output_dir_name(output_dir, fasta_file, compounds_file, intermediate_files) #TODO: rename this function
+    output_dir, intermediate_files_dir = mg.make_output_dirs(output_dir, fasta_file, compounds_file, intermediate_files) #TODO: rename this function
     main_start = time.time() # overall program timer
-    if fasta_file is not None:
-        genome, genome_db_path = load_fasta_genome(fasta_file, intermediate_files_dir, annotations)
+    
     if accurate_mass_search:
         compounds_file = perform_accurate_mass_search(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff)
     # Gene to reaction search
     if fasta_file is not None:
-        gene_to_reaction_top = gene_to_reaction_search(blast_filter, gene_to_reaction, intermediate_files_dir, cpu_count, compounds_file, output_dir, legacy, level, genome, main_start)
-        del genome
         if gene_to_reaction is None:
             gene_to_reaction_path, genome_db_path = magi_workflow_gene_to_reaction.workflow(fasta_file, intermediate_files_dir, cpu_count, annotations, blast_filter)
             gene_to_reaction_top = pd.read_pickle(gene_to_reaction_path)

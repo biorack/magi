@@ -2,6 +2,7 @@
 
 import sys
 import os
+import argparse
 import multiprocessing as mp
 import pandas as pd
 import time
@@ -11,65 +12,66 @@ from rdkit import Chem
 from molvs.standardize import enumerate_tautomers_smiles
 import networkx as nx
 import workflow_helpers_new as mg
+
+def parse_arguments():
+    def is_existing_file(filepath):
+        """Checks if a file exists and return absolute path if it exists"""
+        if not os.path.exists(filepath):
+            msg = "{0} does not exist".format(filepath)
+            raise argparse.ArgumentTypeError(msg)
+        else:
+            return os.path.abspath(filepath)
     
-def load_compound_results(compounds_file, pactolus, output_dir): #TODO: this to workflow helpers
-    """ load compound results"""
-    print( '\n!!! LOADING COMPOUNDS')
-    compounds = mg.load_dataframe(compounds_file)
-    # auto-rename pactolus columns
-    if pactolus:
-        compounds = mg.reformat_pactolus(compounds)
-    # remove any missing compounds
-    compounds = compounds[~pd.isnull(compounds['original_compound'])]
-    compounds.fillna('', inplace=True)
-
-    if 'original_compound' not in compounds.columns:
-        raise RuntimeError('Could not find "original_compound" as a column, please\
-            rename the column corresponding to inchi keys for the compounds')
-    
-    # remove compounds not in the database or network
-    print( '!!! Scrubbing compounds')
-    compounds['adj'] = compounds['original_compound'].apply(
-        lambda x: '-'.join(x.split('-')[:2]))
-    
-    my_settings = mg.get_settings()
-    reference_compounds = mg.load_dataframe(my_settings.compounds_df)
-    reference_compounds['adj'] = reference_compounds['inchi_key'].apply(
-            lambda x: '-'.join(x.split('-')[:2]))
-
-    filt = compounds.merge(reference_compounds, on='adj', how='left', suffixes=('', '_db'))
-    # categorize their reason for not being searched
-    not_in_db = filt[pd.isnull(filt['cpd_group'])]
-    not_in_db['not_searched_reason'] = 'Not in metabolite database'
-    not_in_net = filt[filt['cpd_group'] < 0]
-    not_in_net['not_searched_reason'] = 'Not in similarity network yet'
-    # combine into one table
-    not_searched = pd.concat([not_in_db, not_in_net])
-    # make the columns same as user input
-    cols = compounds.columns[~compounds.columns.str.contains('adj')].tolist()
-    cols.append('not_searched_reason')
-    not_searched = not_searched[cols]
-    # inform the user and save file
-    if not_searched.shape[0] > 0:
-        print( 'WARNING: some input compounds were not found in the metabolite database or chemical network; please report these compounds! (see log_unsearched_compounds.csv)')
-        print( '!@# {} Compounds not being searched; see log_unsearched_compounds.csv'.format(not_searched['original_compound'].unique().shape[0]))
-        not_searched.to_csv(os.path.join(output_dir,
-            'log_unsearched_compounds.csv'), index=False)
-
-    to_search = filt[filt['cpd_group'] > 0]['original_compound'].unique()
-    compounds = compounds[compounds['original_compound'].isin(to_search)]
-
-    u_cpds = compounds['original_compound'].unique()
-    print( '!@# {} total input compounds to search\n'.format(len(u_cpds)))
-
-    if 'compound_score' not in compounds.columns:
-        print( 'WARNING: "compound_score" not found as a column; assuming that\
-            there is no score for compounds, and setting the compound scores \
-            to 1.0')
-        compounds['compound_score'] = 1.0
-    else:
-        compounds['compound_score'] = compounds['compound_score'].apply(float)
-    return compounds
+    def set_cpu_count(cpu_count):
+        max_cpu = mp.cpu_count()  
+        if cpu_count == 0:
+            cpu_count = max_cpu    
+        if cpu_count > max_cpu:
+            msg = "ERROR: You have exceeded the cpus on this machine ({})".format(max_cpu)
+            raise argparse.ArgumentTypeError(msg)
+        return cpu_count
+    try:
+        """parse arguments"""
+        parser = argparse.ArgumentParser()
+        # required arguments
+        parser.add_argument('-c', '--compounds', type=is_existing_file, required=True,
+            help='path to observed compounds file')
+        
+        # optional runtime variables
+        parser.add_argument('-n', '--cpu_count', 
+            help='number of cpus to use for multiprocessing. Default is to use max!', 
+            type=int, default=0)
+        parser.add_argument('-o', '--output', 
+            help='path to a custom output', 
+            type=str)
+        parser.add_argument('-l', '--level', 
+            help='how many levels deep to search the chemical network', 
+            type=int, choices=[0,1,2,3], default=2)
+        parser.add_argument('--legacy', dest='legacy', action='store_true',
+            help='use legacy tautomer searching; default is no')
+        parser.add_argument('--no-legacy', dest='legacy', action='store_false',
+            help='use precomputed compound-to-reaction; default is yes')
+        parser.set_defaults(legacy=False)
+        parser.add_argument('--mute', 
+            help='mutes pandas warnings', 
+            action='store_true')
+        parser.add_argument('--pactolus', 
+            help='Flag to tell MAGI that the compounds input is a pactolus file', 
+            action='store_true')
+        parser.add_argument('--intermediate_files',
+            help='What directory within --output to store intermediate files',
+            type=str, default='intermediate_files')     
+        parser.add_argument('--compound_to_reaction_only',
+            help="Use this parameter if you are only interested in the compound to reaction search", 
+            action='store_true', default=False)
+        args = parser.parse_args()
+        
+        # Set number of required CPUs
+        args.cpu_count = set_cpu_count(args.cpu_count)
+    except argparse.ArgumentTypeError as ex:
+        print(ex.message)
+        sys.exit(1)
+    return args
 
 def find_reactions_of_compound(inchikey, rxn_db, 
                                compound_col='allcpd_ikeys'):
@@ -195,7 +197,7 @@ def enumerate_compound_results(original_compound, compound_results,
 
     return compound_results    
 
-def mol_from_inchikey(inchikey, compounds):
+def mol_from_inchikey(inchikey, reference_compounds):
     """
     Returns an RdKit Mol object from an inchikey input via the compound
     DataFrame
@@ -210,7 +212,7 @@ def mol_from_inchikey(inchikey, compounds):
     compound DataFrame
     """
 
-    matched_inchis = compounds[compounds['inchi_key'].str.contains(
+    matched_inchis = reference_compounds[reference_compounds['inchi_key'].str.contains(
         inchikey, regex=False)]['inchi'].values
     if matched_inchis.any():
         # in case there are duplicates, just take the first one
@@ -293,7 +295,7 @@ def tautomer_finder(compound_mol, result='split', raise_errors=False):
 
     return list(set(tautomer_list))
 
-def connect_compound_to_reaction(inchikey, reference_compounds, c2r, net, cpd_group_lookup, tautomer=False, neighbor_level=2):
+def connect_compound_to_reaction(inchikey, reference_compounds, c2r, chemical_network, cpd_group_lookup, tautomer_legacy=False, neighbor_level=2):
     """
     Connects a compound, its neighbors, and optionally its and its
     neighbors' tautomers to a reaction
@@ -305,7 +307,7 @@ def connect_compound_to_reaction(inchikey, reference_compounds, c2r, net, cpd_gr
     ------
     inchikey:       compound's inchikey
     mrs_reaction:   reaction database dataframe
-    tautomer:       boolean; whether or not to find tautomers of input
+    tautomer_legacy:       boolean; whether or not to find tautomers of input
                     compound (and it's neighbors)
     neighbor_level: to what level to search the chemical network
                     0: does not search the network
@@ -335,7 +337,7 @@ def connect_compound_to_reaction(inchikey, reference_compounds, c2r, net, cpd_gr
 
     # if tautomer flag, do it the legacy way (don't use precomputed c2r)
     # useful when precomputing a new chemical database and/or chemical network
-    if tautomer:
+    if tautomer_legacy:
         # find any direct matches
         direct_reaction_idx_list = find_reactions_of_compound(search_inchikey)
 
@@ -377,19 +379,19 @@ def connect_compound_to_reaction(inchikey, reference_compounds, c2r, net, cpd_gr
 
     # find neighbors
     if neighbor_level != 0:
-        neighbor_groups = neighbor_finder(inchikey, cpd_group_lookup, chemical_network=net, cpd_group=None, level=neighbor_level)
+        neighbor_groups = neighbor_finder(inchikey, cpd_group_lookup, chemical_network=chemical_network, cpd_group=None, level=neighbor_level)
 
         # next look for reaction matches to neighbors
         for level, neighbor_compound_list in neighbor_groups:
             for neighbor_inchikey in neighbor_compound_list:
-                if tautomer:
+                if tautomer_legacy:
                     # first get the direct matches
                     reaction_idx_list = find_reactions_of_compound(
                         neighbor_inchikey)
                     compound_results = enumerate_compound_results(
                         inchikey, compound_results, reaction_idx_list,
                         level=level, neighbor=neighbor_inchikey, note='direct')
-                    if tautomer:
+                    if tautomer_legacy:
                         # then the flat tautomer searches
                         neighbor_mol = mol_from_inchikey(neighbor_inchikey)
                         if neighbor_mol is not None:
@@ -412,7 +414,7 @@ def connect_compound_to_reaction(inchikey, reference_compounds, c2r, net, cpd_gr
                     tmp_compound_results['neighbor'] = tmp_compound_results['original_compound']
                     tmp_compound_results['original_compound'] = [inchikey]*len(tmp_compound_results['original_compound'])
                     compound_results_list.append(pd.DataFrame(tmp_compound_results))
-    if tautomer:
+    if tautomer_legacy:
         compound_reaction_result_df = pd.DataFrame(compound_results)
     else:
         compound_reaction_result_df = pd.concat(compound_results_list)
@@ -434,10 +436,10 @@ def load_objects():
         c2r = pickle.load(fid)
     # with additional metacyc reactions manually added
     # (those that had compounds with R-groups)
-    mrs_reaction_path = my_settings.mrs_reaction_path
-    
+    mrs_reaction_path = my_settings.mrs_reaction_path    
     print( '!!! MRS-Reaction: {}'.format(mrs_reaction_path))
     mrs_reaction = mg.load_dataframe(mrs_reaction_path)
+    
     print( '!!! loading compound table')
     reference_compounds = mg.load_dataframe(my_settings.compounds_df)
     # load the MST chemical network
@@ -446,30 +448,39 @@ def load_objects():
     #chemnet files
     print( '!!! loading chemnet files')
     with open(my_settings.chemnet_pickle, 'r') as fid:
-        cpd_group_data = pickle.load(fid)
-    cpd_group_lookup = cpd_group_data
-    return c2r, mrs_reaction, reference_compounds, cpd_group_lookup, net
+        cpd_group_lookup = pickle.load(fid)
 
-def workflow(legacy, level, compound_to_reaction, compounds_file, main_start, cpu_count, fasta_file, output_dir, intermediate_files_dir, pactolus):
-    compounds = load_compound_results(compounds_file, pactolus, output_dir)
-    """Perform compound to reaction search"""
-    c2r, mrs_reaction, reference_compounds, cpd_group_lookup, net = load_objects()
+    return c2r, mrs_reaction, reference_compounds, cpd_group_lookup, chemical_network
+
+def workflow(compounds_to_search, tautomer_legacy, neighbor_level, cpu_count, intermediate_files_dir):
+    """Perform compound to reaction search
+    Load to memory:
+    c2r is a compounds to reaction dictionary with the inchikey as key and 
+        a dictionary with note, original compound and reaction id as values.
+    mrs_reaction is a Pandas DataFrame with information on reactions
+    reference_compounds is a Pandas DataFrame with MAGI-compatible Inchi keys, 
+        inchis, mono-isotopic molecular weight and the compound group in which it belongs.
+    cpd_group_lookup is a list of all compound groups. 
+        The row number is the ID of the compound group in the chemical network.
+    chemical network is a graph with compound groups as nodes and similarities as edges.
+    """
+    c2r, mrs_reaction, reference_compounds, cpd_group_lookup, chemical_network = load_objects()
     
     def connect_compound_to_reaction_mp_helper(inchikey, 
-                                            tautomer=legacy, 
-                                            neighbor_level=level, 
-                                            reference_compounds = reference_compounds,
-                                            cpd_group_lookup =cpd_group_lookup,
-                                            c2r=c2r,
-                                            net=net):
+                                               tautomer_legacy=tautomer_legacy, 
+                                               neighbor_level=neighbor_level, 
+                                               reference_compounds = reference_compounds,
+                                               cpd_group_lookup =cpd_group_lookup,
+                                                c2r=c2r,
+                                                chemical_network=chemical_network):
         try:
             out = connect_compound_to_reaction(inchikey,
                                                reference_compounds=reference_compounds, 
                                                c2r=c2r, 
-                                               net=net, 
+                                               chemical_network=chemical_network, 
                                                cpd_group_lookup=cpd_group_lookup,
-                                            tautomer=tautomer, 
-                                            neighbor_level=neighbor_level)
+                                               tautomer_legacy=tautomer_legacy, 
+                                               neighbor_level=neighbor_level)
         except Exception as e:
             print( inchikey )
             sys.stdout.flush()
@@ -477,62 +488,70 @@ def workflow(legacy, level, compound_to_reaction, compounds_file, main_start, cp
                                 %(inchikey, e.args))
         return out
     
-    if compound_to_reaction is None:
-        print( '\n!@# Conducting compound to reaction search | TLOG %s' % (time.time()))
-        sys.stdout.flush()
-        start = time.time()
 
-        input_compounds = compounds['original_compound'].unique()
-        if cpu_count == 1: #Quick fix for multiprocessing problems
-            #To do: fix this
-            print("!!! No multiprocessing used for compound to reaction search")
-            out = map(connect_compound_to_reaction_mp_helper, input_compounds)
-        else:
-            p = mp.Pool(cpu_count)
-            out = p.map(connect_compound_to_reaction_mp_helper, input_compounds)
-            p.close()
-            p.terminate()
-        
-        compound_to_reaction = pd.concat(out)
-        del out
-        compound_to_reaction.reset_index(inplace=True, drop=True)
-    
-        # connect the compound score
-        compound_to_reaction = pd.merge(compounds, compound_to_reaction, 
-                                        on='original_compound', how='inner')
-        print( '!@# compound_to_reaction table done in %s minutes'\
-                    %((time.time()-start)/60))
-        # if no fasta file then just save these results and quit
-        if fasta_file is None:
-            compound_to_reaction.to_csv(os.path.join(output_dir, 
-                                                    'magi_compound_results.csv'))
-            print( '!!! compound_reaction table saved to %s'\
-                    % (os.path.join(output_dir, 'magi_compound_results.csv')))
-            print( '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60))
-            sys.exit()
-        else:
-            compound_to_reaction.to_pickle(os.path.join(intermediate_files_dir, 
-                                                    'compound_to_reaction.pkl'))
-    
-            print( '!!! compound_reaction table saved to %s'\
-                    % (os.path.join(intermediate_files_dir, 'compound_to_reaction.pkl')))
+    print( '\n!@# Conducting compound to reaction search | TLOG %s' % (time.time()))
+    sys.stdout.flush()
+    start = time.time()
+
+    input_compounds = compounds_to_search['original_compound'].unique()
+    if cpu_count == 1: #Quick fix for multiprocessing problems
+        #To do: fix this
+        print("!!! No multiprocessing used for compound to reaction search")
+        out = map(connect_compound_to_reaction_mp_helper, input_compounds)
     else:
-        compound_to_reaction = pd.read_pickle(compound_to_reaction)
-        print( '\n!@# compound_to_reaction successfully loaded')
-    return compounds, compound_to_reaction
+        p = mp.Pool(cpu_count)
+        out = p.map(connect_compound_to_reaction_mp_helper, input_compounds)
+        p.close()
+        p.terminate()
+    
+    compound_to_reaction = pd.concat(out)
+    del out
+    compound_to_reaction.reset_index(inplace=True, drop=True)
+
+    # connect the compound score
+    compound_to_reaction = pd.merge(compounds_to_search, compound_to_reaction, 
+                                    on='original_compound', how='inner')
+    print( '!@# compound_to_reaction table done in %s minutes'\
+                %((time.time()-start)/60))
+    
+    compound_to_reaction_path = os.path.join(intermediate_files_dir, 
+                                                'compound_to_reaction.pkl')
+    compound_to_reaction.to_pickle(compound_to_reaction_path)
+
+    print( '!!! compound_reaction table saved to %s'\
+            % (compound_to_reaction_path))
+
+    return compound_to_reaction_path
 
 
 #def parse_arguments():
 #    return "arguments are parsed"
 #
-#def format_output():
-#    return "output is formatted"
-#
-##def main():
-##    parse_stuff()
-##    workflow()
-##    format_output()
-#
-#if __name__ == "__main__":
-#    #main()
-#    print("Are you sure? This is not ready yet")
+def format_output(compound_to_reaction_path, output_dir, main_start):
+    compound_to_reaction = pd.read_pickle(compound_to_reaction_path)
+        # if no fasta file then just save these results and quit
+    compound_to_reaction.to_csv(os.path.join(output_dir, 
+                                            'magi_compound_results.csv'))
+    print( '!!! compound_reaction table saved to %s'\
+            % (os.path.join(output_dir, 'magi_compound_results.csv')))
+    print( '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60))
+
+    return "output is formatted"
+
+def main():
+    main_start = time.time() # overall program timer
+    # Parse arguments and prepare for compounds to reaction workflow
+    args = parse_arguments()
+    output_dir, intermediate_files_dir = mg.make_output_dirs(output_dir=args.output, compounds_file=args.compounds, intermediate_files = args.intermediate_files)
+    
+    
+    # Run compound to reaction workflow
+    compounds_to_search = mg.load_compound_results(args.compounds, args.pactolus, output_dir)
+    compound_to_reaction_path = workflow(compounds_to_search, args.legacy, args.level, args.cpu_count, intermediate_files_dir)    
+    
+    # Format output if this is the last step of the MAGI run
+    if args.compound_to_reaction_only:
+        format_output(compound_to_reaction_path, output_dir, main_start)
+
+if __name__ == "__main__":
+    main()
