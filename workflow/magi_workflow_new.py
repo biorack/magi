@@ -47,6 +47,7 @@ import time
 import pickle
 import datetime
 import workflow_helpers_new as mg
+import magi_workflow_gene_to_reaction
 
 def print_version_info():
     """Print versions of modules that may be troublesome for magi."""
@@ -505,9 +506,17 @@ def main():
         genome, genome_db_path = load_fasta_genome(fasta_file, intermediate_files_dir, annotations)
     if accurate_mass_search:
         compounds_file = perform_accurate_mass_search(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff)
+    # Gene to reaction search
     if fasta_file is not None:
         gene_to_reaction_top = gene_to_reaction_search(blast_filter, gene_to_reaction, intermediate_files_dir, cpu_count, compounds_file, output_dir, legacy, level, genome, main_start)
         del genome
+        if gene_to_reaction is None:
+            gene_to_reaction_path, genome_db_path = magi_workflow_gene_to_reaction.workflow(fasta_file, intermediate_files_dir, cpu_count, annotations, blast_filter)
+            gene_to_reaction_top = pd.read_pickle(gene_to_reaction_path)
+        else:
+            gene_to_reaction_top = pd.read_pickle(gene_to_reaction)
+            print( '\n!@# gene_to_reaction successfully loaded')
+            
     if compounds_file is not None:
         compounds, compound_to_reaction = compound_to_reaction_search(legacy, level, compound_to_reaction, compounds_file, main_start, cpu_count, fasta_file, output_dir, intermediate_files_dir, pactolus)
         reaction_to_gene_top = reaction_to_gene_search(compound_to_reaction, genome_db_path, blast_filter, reaction_to_gene, intermediate_files_dir, cpu_count)

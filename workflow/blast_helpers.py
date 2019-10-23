@@ -8,9 +8,7 @@ import workflow_helpers_new as mg
 
 ## Load data needed for BLASTing
 my_settings = mg.get_settings()
-mrs_reaction_path = my_settings.mrs_reaction_path
-print( '!!! MRS-Reaction: {}'.format(mrs_reaction_path))
-mrs_reaction = mg.load_dataframe(mrs_reaction_path)
+mrs_reaction = mg.load_mrs_reaction()
 
 refseq_dbpath = my_settings.refseq_db
 # set up joiner tables
