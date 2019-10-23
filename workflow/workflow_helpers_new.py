@@ -3,8 +3,37 @@ import pandas as pd
 import numpy as np
 import sys
 import subprocess
+import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
+
+def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, intermediate_files='intermediate_files'):
+    """set up where the results will be stored"""
+    if output_dir is None:
+        # autoname the directory based on fasta, or compound file
+        # this will change eventually
+        if fasta_file is not None:
+            experiment_name = os.path.splitext(os.path.basename(fasta_file))[0]
+            experiment_dir = os.path.abspath(os.path.dirname(fasta_file))
+        else:
+            experiment_name = os.path.splitext(os.path.basename(compounds_file))[0]
+            experiment_dir = os.path.abspath(os.path.dirname(compounds_file))
+        today = datetime.datetime.now()
+        experiment_name += today.strftime('_%Y%m%d')
+        experiment_path = os.path.join(experiment_dir, experiment_name)
+    else:
+        experiment_path = output_dir
+    
+    output_dir = os.path.abspath(experiment_path)
+    intermediate_files_dir = os.path.join(output_dir, intermediate_files)
+    
+    print( '!!! Saving all results here: {}'.format(output_dir))
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+    if not os.path.isdir(intermediate_files_dir):
+        os.makedirs(intermediate_files_dir)
+    
+    return output_dir, intermediate_files_dir
 
 def load_dataframe(fname, filetype=None, key=None):
     """
@@ -55,11 +84,70 @@ def load_dataframe(fname, filetype=None, key=None):
             df = pd.read_hdf(fname, key)
     else:
         raise IOError('could not infer what type of file %s is... please \
-            make it a csv, tab, or pickle file')
+            make it a csv, tab, or pickle file'%fname)
 
     # remove rows that are empty
     df = df[~pd.isnull(df).all(axis=1)]
     return df
+
+def load_compound_results(compounds_file, pactolus, output_dir): 
+    """ load compound results"""
+    print( '\n!!! LOADING COMPOUNDS')
+    compounds = load_dataframe(compounds_file)
+    # auto-rename pactolus columns
+    if pactolus:
+        compounds = reformat_pactolus(compounds)
+    # remove any missing compounds
+    compounds = compounds[~pd.isnull(compounds['original_compound'])]
+    compounds.fillna('', inplace=True)
+
+    if 'original_compound' not in compounds.columns:
+        raise RuntimeError('Could not find "original_compound" as a column, please\
+            rename the column corresponding to inchi keys for the compounds')
+    
+    # remove compounds not in the database or network
+    print( '!!! Scrubbing compounds')
+    compounds['adj'] = compounds['original_compound'].apply(
+        lambda x: '-'.join(x.split('-')[:2]))
+    
+    my_settings = get_settings()
+    reference_compounds = load_dataframe(my_settings.compounds_df)
+    reference_compounds['adj'] = reference_compounds['inchi_key'].apply(
+            lambda x: '-'.join(x.split('-')[:2]))
+
+    filt = compounds.merge(reference_compounds, on='adj', how='left', suffixes=('', '_db'))
+    # categorize their reason for not being searched
+    not_in_db = filt[pd.isnull(filt['cpd_group'])]
+    not_in_db['not_searched_reason'] = 'Not in metabolite database'
+    not_in_net = filt[filt['cpd_group'] < 0]
+    not_in_net['not_searched_reason'] = 'Not in similarity network yet'
+    # combine into one table
+    not_searched = pd.concat([not_in_db, not_in_net])
+    # make the columns same as user input
+    cols = compounds.columns[~compounds.columns.str.contains('adj')].tolist()
+    cols.append('not_searched_reason')
+    not_searched = not_searched[cols]
+    # inform the user and save file
+    if not_searched.shape[0] > 0:
+        print( 'WARNING: some input compounds were not found in the metabolite database or chemical network; please report these compounds! (see log_unsearched_compounds.csv)')
+        print( '!@# {} Compounds not being searched; see log_unsearched_compounds.csv'.format(not_searched['original_compound'].unique().shape[0]))
+        not_searched.to_csv(os.path.join(output_dir,
+            'log_unsearched_compounds.csv'), index=False)
+
+    to_search = filt[filt['cpd_group'] > 0]['original_compound'].unique()
+    compounds = compounds[compounds['original_compound'].isin(to_search)]
+
+    u_cpds = compounds['original_compound'].unique()
+    print( '!@# {} total input compounds to search\n'.format(len(u_cpds)))
+
+    if 'compound_score' not in compounds.columns:
+        print( 'WARNING: "compound_score" not found as a column; assuming that\
+            there is no score for compounds, and setting the compound scores \
+            to 1.0')
+        compounds['compound_score'] = 1.0
+    else:
+        compounds['compound_score'] = compounds['compound_score'].apply(float)
+    return compounds
 
 def get_settings():
     my_settings = getattr(
@@ -67,6 +155,14 @@ def get_settings():
         'local_settings',
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
     return my_settings
+
+def load_mrs_reaction():
+    my_settings = get_settings()
+    mrs_reaction_path = my_settings.mrs_reaction_path
+    print( '!!! MRS-Reaction: {}'.format(mrs_reaction_path))
+    mrs_reaction = load_dataframe(mrs_reaction_path)
+    return mrs_reaction
+
 
 def reformat_pactolus(df, original_compound=None, compound_score=None):
     """
@@ -159,125 +255,6 @@ def ec_parse(x):
         return out
     else:
         return out
-    
-def load_genome(fasta, intfile_path, annotation_file=None):
-    """
-    This function will take some standard fasta a input and convert it
-    to an appropriate genome dataframe.
-    This function will also construct a blast database for the genome.
-
-    Inputs
-    ------
-    fasta: path to standard fasta file of all the genes.
-           FASTA sequence header format should be:
-           >UNIQUE_GENE_IDENTIFIER OTHER_INFORMATION
-           Note the space between the unique identifier and other info
-
-    intfile_path: path to the temporary storage place of the database. If None, the
-               BLAST database is not made, and the gene table is not
-               stored.
-
-    annotation_file: path to an optional .TAB file that contains
-                     annotations for the genes in the fasta file. One
-                     column must be named "Gene_ID" and correspond to
-                     the UNIQUE_GENE_IDENTIFIER in the fasta headers.
-
-    Outputs
-    -------
-    genome: gene sequence table that is merged with the annotation table
-            if one is provided. This table is saved as a pickle file to
-            intfile_path/gene_fastas/filename.pkl
-    db_path: path to the genome's BLAST database
-    """
-    # TODO: find a way to handle windows text files (\n\r for new lines)
-    # TODO: find a way to handle additional '>' characters in the header
-
-    # process the fasta file
-    with open(fasta, 'r') as f:
-        genes = f.read()
-    if genes.strip()[0] != '>':
-        raise RuntimeError('%s does not appear to be a FASTA file' % (fasta))
-
-    data = []
-    for entry in genes.split('>')[1:]:
-        header = '>' + entry.splitlines()[0]
-        gene_id = header.split(' ')[0][1:]
-        sequence = ''.join(entry.splitlines()[1:])
-        data.append([gene_id, header, sequence])
-    genome = pd.DataFrame(data, columns=['Gene_ID', 'header', 'sequence'])
-    if genome['Gene_ID'].duplicated().any():
-        first_dup = genome[genome['Gene_ID'].duplicated()].head(1)
-        first_header = first_dup.iloc[0, 1]
-        first_identifier = first_dup.iloc[0, 0]
-        raise RuntimeError('There are duplicated Gene_ID fields! please check\
-            your unique gene identifiers in the fasta headers. For the first\
-            FASTA sequence of %s, I parsed the unique gene identifier to be \
-            %s' % (repr(first_header), repr(first_identifier)))
-
-    if annotation_file is not None:
-        # Make gene info table
-        annotation_table = load_dataframe(annotation_file)
-        # turn gene IDs into strings to keep things consistent
-        annotation_table['Gene_ID'] = annotation_table['Gene_ID'].apply(str)
-
-        # clean up the nans
-        annotation_table.fillna(value='', inplace=True)
-
-        # Really only if the annotation file was an IMG-derived table
-        try:
-            annotation_table['EC'] = annotation_table['Enzyme'].apply(ec_parse)
-
-            # move the new EC column to front for ease of visualization
-            cols = annotation_table.columns.tolist()
-            newcols = cols[-1:] + cols[:-1]
-            annotation_table = annotation_table[newcols]
-        except KeyError:
-            print( 'Could not find a column corresponding to EC annotations, \
-                    skipping EC parsing')
-
-        genome = pd.merge(genome, annotation_table, on='Gene_ID', how='left')
-
-    print( '!@# FASTA file loaded with {} genes'.format(len(genome)))
-
-    genome.set_index('Gene_ID', inplace=True, drop=True)
-    genome_name = os.path.splitext(os.path.basename(fasta))[0]
-    if intfile_path is not None:
-        gene_fasta_path = os.path.join(intfile_path, 'gene_fastas')
-        if not os.path.isdir(gene_fasta_path):
-            os.makedirs(gene_fasta_path)
-        gene_seq_path = os.path.join(gene_fasta_path,
-            '%s_sequences.pkl' % (genome_name))
-        # gene_seq_path = '%s/gene_fastas/%s_sequences.pkl' \
-        #                 % (intfile_path, genome_name)
-        genome.to_pickle(gene_seq_path)
-        print( '!!! saved gene_sequence table here: {}'.format(gene_seq_path))
-
-        # Make the blast database of the fasta
-        # this command makes the blast database for a given fasta file.
-        blastbin = get_settings(); blastbin = blastbin.blastbin
-        makeblastdb_path = os.path.join(blastbin, 'makeblastdb')
-        fasta_path = fasta
-        db_path = os.path.join(intfile_path, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
-        print( '!!! blast database stored here: {}'.format(db_path))
-        if os.name == 'nt': #Check if the operating system is windows or linux/mac
-            make_db_command = '%s -in %s -out %s -dbtype prot' \
-                % (makeblastdb_path+'.exe', fasta_path, db_path)
-        else:
-            make_db_command = '%s -in %s -out %s -dbtype prot' \
-                % (makeblastdb_path, fasta_path, db_path)
-        blastp = subprocess.Popen(
-            make_db_command,
-            shell=True, stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        if blastp.stdout is not None:
-            print( blastp.stdout.read())
-        if blastp.stderr is not None:
-            print( blastp.stderr.read())
-    else:
-        db_path = None
-    return genome, db_path
-
-
 
 def reciprocal_agreement(df, forward_name='reaction_id_r2g',
                          reverse_name='reaction_id_g2r',
