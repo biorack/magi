@@ -250,7 +250,8 @@ def compound_to_reaction_search(legacy, level, compound_to_reaction, compounds_f
     import magi_workflow_compound_to_reaction
     compounds = mg.load_compound_results(compounds_file, pactolus, output_dir)
     if compound_to_reaction is None:
-        compound_to_reaction_path = magi_workflow_compound_to_reaction.workflow(legacy, level, compounds, main_start, cpu_count, output_dir, intermediate_files_dir, pactolus)
+        compound_to_reaction_path = magi_workflow_compound_to_reaction.workflow(compounds_to_search = compounds, tautomer_legacy = legacy, 
+                                                                                neighbor_level = level, cpu_count = cpu_count, intermediate_files_dir = intermediate_files_dir)
         compound_to_reaction = pd.read_pickle(compound_to_reaction_path)
     else:
         compound_to_reaction = pd.read_pickle(compound_to_reaction)
@@ -259,7 +260,13 @@ def compound_to_reaction_search(legacy, level, compound_to_reaction, compounds_f
 
 def reaction_to_gene_search(compound_to_reaction, genome_db_path, blast_filter, reaction_to_gene, intermediate_files_dir, cpu_count):
     import magi_workflow_reaction_to_gene_search
-    reaction_to_gene_top = magi_workflow_reaction_to_gene_search.workflow(compound_to_reaction, genome_db_path, blast_filter, reaction_to_gene, intermediate_files_dir, cpu_count)
+    
+    if reaction_to_gene is None:
+        reaction_to_gene_top_path = magi_workflow_reaction_to_gene.workflow(compound_to_reaction, genome_db_path, blast_filter, intermediate_files_dir, cpu_count)
+        reaction_to_gene_top = pd.read_pickle(reaction_to_gene_top_path)
+    else: 
+        reaction_to_gene_top = pd.read_pickle(reaction_to_gene)
+        print( '\n!@# reaction_to_gene successfully loaded')
     return reaction_to_gene_top
 
 def merging_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene_top, gene_to_reaction_top, merged_before_score, intermediate_files_dir):
