@@ -546,7 +546,7 @@ def main():
     
     
     # Run compound to reaction workflow
-    compounds_to_search = mg.load_compound_results(args.compounds, args.pactolus, output_dir)
+    compounds_to_search = mg.load_compound_results(args.compounds, args.pactolus, output_dir, intermediate_files_dir)
     compound_to_reaction_path = workflow(compounds_to_search, args.legacy, args.level, args.cpu_count, intermediate_files_dir)    
     
     # Format output if this is the last step of the MAGI run

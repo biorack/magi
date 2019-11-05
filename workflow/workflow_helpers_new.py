@@ -90,7 +90,7 @@ def load_dataframe(fname, filetype=None, key=None):
     df = df[~pd.isnull(df).all(axis=1)]
     return df
 
-def load_compound_results(compounds_file, pactolus, output_dir): 
+def load_compound_results(compounds_file, pactolus, output_dir, intermediate_files_dir): 
     """ load compound results"""
     print( '\n!!! LOADING COMPOUNDS')
     compounds = load_dataframe(compounds_file)
@@ -147,6 +147,8 @@ def load_compound_results(compounds_file, pactolus, output_dir):
         compounds['compound_score'] = 1.0
     else:
         compounds['compound_score'] = compounds['compound_score'].apply(float)
+
+    compounds.to_pickle(os.path.join(intermediate_files_dir, 'scrubbed_compounds.pkl'))
     return compounds
 
 def get_settings():
@@ -255,128 +257,3 @@ def ec_parse(x):
         return out
     else:
         return out
-
-def reciprocal_agreement(df, forward_name='reaction_id_r2g',
-                         reverse_name='reaction_id_g2r',
-                         closeness_threshold=0.75):
-    """
-    Finds and scores reciprocal agreement converging on a reaction
-    between forward and reverse homology searches.
-    
-    Inputs
-    ------
-    df: dataframe containing forward and reverse homology searches
-    forward_name: column name in df corresponding to the reaction ID for
-                  the forward search
-    reverse_name: column name in df corresponding to the reaction ID for
-                  the reverse search
-    closeness_threshold: Determines cutoff to call a reciprocal search
-                         as "close" if the reaction IDs between forward
-                         and reverse searches do not agree.
-                         For example, if there is no agreement but the
-                         forward score is 100 and reverse score is 90,
-                         this would be scored as "close" if the
-                         closeness_threshold was less than or equal to
-                         0.9
-
-    Outputs
-    -------
-    df: input df but with a new column named "reciprocal_score"
-        corresponding to scored reciprocal agreement:
-        2.0: agreement between forward and reverse searches
-        1.0: forward and reverse searches disagree on reaction, but the
-             homology scores are close as judged by closeness_threshold
-        0.1: either a forward or reverse search does not exist (homology
-             score below threshold)
-        0.01: forward and reverse searches disagree on reaction and are
-              not close
-    """
-    # find agreement
-    agree_idx = df[df['reaction_id_r2g'] == df['reaction_id_g2r']].index
-    df.loc[agree_idx, 'reciprocal_score'] = 2.
-    # disagreement
-    disagree = df[df['reaction_id_r2g'] != df['reaction_id_g2r']].index
-    slc = df.loc[disagree]
-    # close disagreements get a medium score
-    close = (
-        slc[['e_score_r2g', 'e_score_g2r']].min(axis=1)
-        >= (slc[['e_score_r2g', 'e_score_g2r']].max(axis=1) * closeness_threshold))
-    close_idx = slc.loc[close].index
-    df.loc[close_idx, 'reciprocal_score'] = 1
-    # very different disagreements get a low score
-    wrong_idx = df[pd.isnull(df['reciprocal_score'])].index
-    df.loc[wrong_idx, 'reciprocal_score'] = 0.01
-    # if one direction did not get a blast score, 
-    # change reciprocal score to 0.1 - not wrong, but not close either.
-    incomparable_idx = df.loc[pd.isnull(df[['e_score_r2g',
-        'e_score_g2r']]).any(axis=1)].index
-    df.loc[incomparable_idx, 'reciprocal_score'] = 0.1
-
-    return df
-
-
-def homology_score(df, forward_name='e_score_r2g', reverse_name='e_score_g2r'):
-    """
-    Calculates homology score for a compound-gene association:
-    Takes the sum of forward and reverse scores, subtracts the difference
-    between them: (forward + reverse) - abs(forward-reverse)
-
-    deprecated:
-    average(forward_score, reverse_score) - abs(forward_score - reverse_score)
-
-    Inputs
-    ------
-    df: dataframe containing forward and reverse homology scores
-    forward_name: column name in df corresponding to the forward score
-    reverse_name: column name in df corresponding to the reverse score
-
-    Output
-    ------
-    array of combined homology scores
-    """
-
-    forward = df[forward_name].values.astype(float)
-    reverse = df[reverse_name].values.astype(float)
-
-    score = (forward + reverse) - abs(forward-reverse)
-
-    return score
-
-def magi_score(s, w=np.asarray([np.nan, np.nan])):
-    """
-    Calculates the geometric mean of an array of numbers.
-    Used to calculate one score even if sub-scores are scaled differently.
-
-    Inputs
-    ------
-    s: 1D array-like list of scores
-    weights: 1D array-like list of weights
-
-    Outputs
-    -------
-    The (weighted) geometric mean
-    """
-    
-    if not isinstance(s, np.ndarray):
-        s = np.asarray(s)
-    s = s.astype(float)
-
-    if not isinstance(w, np.ndarray):
-        w = np.asarray(w)
-    # if no weights provided, make them all ones
-    if np.isnan(w).all():
-        w = np.ones(s.shape)
-    w = w.astype(float)
-
-    # infer summing axis
-    a = len(s.shape) - 1
-    if a > 1:
-        raise RuntimeError(
-            'Scores array has too many dimensions (%s)' % (s.shape)
-            )
-    if w.shape != s.shape:
-        raise RuntimeError(
-            'Weights array does not have same dimensions as Scores array: %s vs %s' % (w.shape, s.shape)
-            )
-
-    return np.exp(np.sum(np.multiply(w, np.log(s)), axis=a) / np.sum(w, axis=a))
