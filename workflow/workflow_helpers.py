@@ -147,7 +147,7 @@ cpd_group_lookup = cpd_group_data
 
 # load the MST chemical network
 with open(my_settings.mst_path, 'r') as f:
-    net = pickle.load(f)
+    net = nx.read_graphml(f, node_type=int)
 
 # regex expression to test inchikey input
 # Character 9 of the second block must be "S" (standard inchi)
