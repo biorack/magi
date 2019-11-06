@@ -3,9 +3,171 @@ import pandas as pd
 import numpy as np
 import sys
 import subprocess
+import warnings
 import datetime
+import argparse
+from multiprocessing import cpu_count as counting_cpus
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
+
+def parse_arguments():
+    def is_existing_file(filepath):
+        """Checks if a file exists and return absolute path if it exists"""
+        if not os.path.exists(filepath):
+            msg = "{0} does not exist".format(filepath)
+            raise argparse.ArgumentTypeError(msg)
+        else:
+            return os.path.abspath(filepath)
+    def percentage_values_to_decimal(percentage):
+        """Turns the blast filter and reciprocal closeness percentages 
+        into decimal numbers"""
+        try:
+            percentage = int(percentage)
+        except:
+            msg = "Please enter an integer value"
+            raise argparse.ArgumentTypeError(msg)        
+        if percentage > 100:
+            msg = "Max value is 100"
+            raise argparse.ArgumentTypeError(msg)
+        elif percentage < 0:
+            msg = "Value cannot be negative"
+            raise argparse.ArgumentTypeError(msg)
+        else:
+            decimal = percentage/100.
+        return decimal
+    
+    def positive_number(number):
+        """Checks if none of the number/numbers are negative"""
+        try:
+            number = float(number)
+        except:
+            msg = "Please enter a numeric value"
+            raise argparse.ArgumentTypeError(msg)        
+        if number < 0:
+            msg = "Value cannot be negative"
+            raise argparse.ArgumentTypeError(msg)
+        else:
+            return number
+    
+    def set_cpu_count(cpu_count):
+        max_cpu = counting_cpus()  
+        if cpu_count == 0:
+            cpu_count = max_cpu    
+        if cpu_count > max_cpu:
+            msg = "ERROR: You have exceeded the cpus on this machine ({})".format(max_cpu)
+            raise argparse.ArgumentTypeError(msg)
+        return cpu_count
+    try:
+        """parse arguments"""
+        parser = argparse.ArgumentParser()
+        # required arguments
+        required_args = parser.add_argument_group('Required arguments')
+        required_args.add_argument('-f', '--fasta', type=is_existing_file,
+            help='path to fasta file of genes in sample')
+        required_args.add_argument('-c', '--compounds', type=is_existing_file,
+            help='path to observed compounds file')
+        
+        # jump-start the script after certain computations
+        start_halfway_args = parser.add_argument_group('Arguments to jump-start the script after certain computations')
+        start_halfway_args.add_argument('--gene_to_reaction', type=is_existing_file,
+            help='path to gene_to_reaction file, must be in pickle format')
+        start_halfway_args.add_argument('--compound_to_reaction', type=is_existing_file,
+            help='path to compound_to_reaction file, must be in pickle format')
+        start_halfway_args.add_argument('--reaction_to_gene', type=is_existing_file,
+            help='path to reaction_to_gene file, must be in pickle format')
+        start_halfway_args.add_argument('--merged_before_score', type=is_existing_file,
+            help='path to merged_before_score table, must be in hdf5 format,\
+            with the key "merged_before_score"')
+        # Use this if only a part of the workflow should be run
+        stop_halfway_args = parser.add_argument_group('Arguments to run a part of the script')
+        stop_halfway_args.add_argument('--gene_to_reaction_only',
+            help="Use this parameter if you are only interested in the gene to reaction search", 
+            action='store_true', default=False)
+        
+        
+        # optional runtime variables
+        optional_args = parser.add_argument_group("Optional runtime variables")
+        optional_args.add_argument('-a', '--annotations', type=is_existing_file,
+            help='path to annotation file for genes in sample', 
+            default=None)
+        optional_args.add_argument('-n', '--cpu_count', 
+            help='number of cpus to use for multiprocessing. Default is to use max!', 
+            type=int, default=0)
+        optional_args.add_argument('-o', '--output', 
+            help='path to a custom output', 
+            type=str)
+        optional_args.add_argument('-l', '--level', 
+            help='how many levels deep to search the chemical network', 
+            type=int, choices=[0,1,2,3], default=2)
+        optional_args.add_argument('--legacy', dest='legacy', action='store_true',
+            help='use legacy tautomer searching; default is no')
+        optional_args.add_argument('--no-legacy', dest='legacy', action='store_false',
+            help='use precomputed compound-to-reaction; default is yes')
+        optional_args.set_defaults(legacy=False)
+        optional_args.add_argument('--mute', 
+            help='mutes pandas warnings', 
+            action='store_true')
+        optional_args.add_argument('--pactolus', 
+            help='Flag to tell MAGI that the compounds input is a pactolus file', 
+            action='store_true')
+        optional_args.add_argument('--test', 
+            help='TBD: run MAGI only on the first # of pactolus compounds', 
+            type=int)
+        optional_args.add_argument('--debug', 
+            help='TBD: prints a lot of info', 
+            action='store_true')
+        optional_args.add_argument('--blast_filter', 
+            help='How stringent to filter the top BLAST results, as percent;\
+            default is 85 meaning that only BLAST results within 85%% of the top\
+            result will be taken.', 
+            type=percentage_values_to_decimal, default=0.85)
+        optional_args.add_argument('--reciprocal_closeness', 
+            help='Cutoff to call a reciprocal disagreement as "close", as percent;\
+            default is 75 meaning that a reciprocal disagreement will be classified\
+            as "close" if the lower blast score (e score) is within 75%% of the higher\
+            score', 
+            type=percentage_values_to_decimal, default=0.75)
+        optional_args.add_argument('--final_weights', 
+            help='Defined weights to weight the final scoring for the scores:\
+            compound_score reciprocal_score homology_score reaction_connection', 
+            type=positive_number, nargs=4, default=None)
+        optional_args.add_argument('--chemnet_penalty', 
+            help='Base factor in the chemical network search level penalty', 
+            type=positive_number, default=4)
+        optional_args.add_argument('--intermediate_files',
+            help='What directory within --output to store intermediate files',
+            type=str, default='intermediate_files')
+        
+        # Parameters for accurate mass search
+        mass_search_args = parser.add_argument_group("Arguments for the optional accurate mass search")
+        mass_search_args.add_argument('--accurate_mass_search',
+                            type=str, choices=['pos','neg','neut'], default=None,
+                            help = "Perform accurate mass search on m/z values in original_compound column in the input compounds file. \
+                            Specify if the masses are measured in negative mode, positive mode or if they have been transformed to neutral masses."
+                            )
+        mass_search_args.add_argument('--accurate_mass_search_only',
+                            action='store_true', default=False,
+                            help = "If this parameter is used, MAGI will stop after performing the accurate mass search."
+                            )
+        mass_search_args.add_argument('--adduct_file',
+                            type=str, default=None,
+                            help="optionally specify which adducts to investigate. If not specified, it will search for M+,M+H,M+NH4,M+Na in positive mode or M-H,M+Cl,M+FA-H,M+Hac-H in negative mode."
+                            )
+        mass_search_args.add_argument('--ppm_cutoff', 
+            help='The ppm cutoff for the accurate mass search. Default is 10 ppm.', 
+            type=int, default=10)
+        
+        args = parser.parse_args()
+        
+        # Check parameters and set number of required CPUs
+        if args.fasta is None and args.compounds is None:
+            raise argparse.ArgumentTypeError('ERROR: either FASTA or metabolites file is required')
+        args.cpu_count = set_cpu_count(args.cpu_count)
+    except argparse.ArgumentTypeError as ex:
+        print(ex.message)
+        sys.exit(1)
+    return args
 
 def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, intermediate_files='intermediate_files'):
     """set up where the results will be stored"""
@@ -35,6 +197,66 @@ def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, inte
     
     return output_dir, intermediate_files_dir
 
+def print_version_info():
+    """Print versions of modules that may be troublesome for magi."""
+    print('!!! Python version:'+ sys.version)
+    print('!!! numpy version: '+ np.__version__)
+    print('!!! pandas version:'+ pd.__version__)
+    #print('!!! pickle version:'+ pickle.__version__)
+    print('#'*80)
+
+def print_parameters(args):
+    print('~~~~~PARAMETERS~~~~~~')
+
+    # print your paths in stdout for logging
+    print('@@@ FASTA file input: %s' %(args.fasta))
+    print('@@@ Compound input: %s' %(args.compounds))
+    if args.annotations is not None:
+        print( '@@@ annotations input: %s' %(args.annotations))
+    # print parameters
+    if args.fasta is not None: 
+        print( '@@@ BLAST filter: %s' % (args.blast_filter))
+    if args.compounds is not None:
+        print( '@@@ Using precomputed compound results: %s' % (not args.legacy))
+        print( '@@@ Chemnet search to level %s' % (args.level))
+        print( '@@@ Reciprocal closeness: %s' % (args.reciprocal_closeness))
+        print( '@@@ Chemnet base penalty: %s' % (args.chemnet_penalty))
+    print( '@@@ MAGI score weights: %s' % (args.final_weights))
+    print( '@@@ Using %s CPUs' % (args.cpu_count))
+    
+    if args.gene_to_reaction is not None:
+        print( '@@@ gene_to_reaction input: %s' %(args.gene_to_reaction))
+    
+    if args.compound_to_reaction is not None:
+        print( '@@@ compound_to_reaction input: %s' %(args.compound_to_reaction))
+    
+    if args.reaction_to_gene is not None:
+        print( '@@@ reaction_to_gene input: %s' %(args.reaction_to_gene))
+    if args.mute:
+        print( '!!! Warnings are muted')
+        warnings.filterwarnings('ignore')
+        
+def general_magi_preparation():
+    """
+    This function prepares for a MAGI run. It:
+        - parses arguments
+        - makes an output file directory,
+        - prints versions of possibly troublesome modules 
+        - prints input parameters.
+    It returns a dictionary with parameters for the MAGI run.
+    """
+    args = parse_arguments()
+    print_version_info()
+    print_parameters(args)
+    output_dir, intermediate_files_dir = make_output_dirs(output_dir=args.output, 
+                                                          fasta_file=args.fasta, 
+                                                          compounds_file=args.compounds, 
+                                                          intermediate_files=args.intermediate_files)
+    magi_parameters = vars(args)
+    magi_parameters["output_dir"] = output_dir
+    magi_parameters["intermediate_files_dir"] = intermediate_files_dir
+    return magi_parameters
+    
 def load_dataframe(fname, filetype=None, key=None):
     """
     Uses the appropriate pandas function to load a file based on the
