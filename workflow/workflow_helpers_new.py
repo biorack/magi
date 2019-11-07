@@ -6,19 +6,33 @@ import subprocess
 import warnings
 import datetime
 import argparse
+import time
 from multiprocessing import cpu_count as counting_cpus
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 
-def parse_arguments():
-    def is_existing_file(filepath):
+def is_existing_file(filepath):
         """Checks if a file exists and return absolute path if it exists"""
         if not os.path.exists(filepath):
             msg = "{0} does not exist".format(filepath)
             raise argparse.ArgumentTypeError(msg)
         else:
             return os.path.abspath(filepath)
+    
+def is_database(db_path):
+    """
+    Checks if the genome database exists.
+    Three files should be present, a .phr file, a .pin file and a .psq file
+    """
+    for file_extension in [".phr", ".pin", ".psq"]:
+        db_file = db_path + file_extension
+        if not os.path.exists(db_file):
+            msg = "{0} does not exist".format(db_file)
+            raise argparse.ArgumentTypeError(msg)
+    return os.path.abspath(db_path)
+        
+def parse_arguments():
     def percentage_values_to_decimal(percentage):
         """Turns the blast filter and reciprocal closeness percentages 
         into decimal numbers"""
@@ -79,10 +93,15 @@ def parse_arguments():
         start_halfway_args.add_argument('--merged_before_score', type=is_existing_file,
             help='path to merged_before_score table, must be in hdf5 format,\
             with the key "merged_before_score"')
+        start_halfway_args.add_argument('--genome_db', help = "path to genome .db files", type=is_database)
+        
         # Use this if only a part of the workflow should be run
         stop_halfway_args = parser.add_argument_group('Arguments to run a part of the script')
         stop_halfway_args.add_argument('--gene_to_reaction_only',
             help="Use this parameter if you are only interested in the gene to reaction search", 
+            action='store_true', default=False)
+        stop_halfway_args.add_argument('--compound_to_reaction_only',
+            help="Use this parameter if you are only interested in the compound to reaction search", 
             action='store_true', default=False)
         
         
@@ -194,7 +213,9 @@ def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, inte
         os.makedirs(output_dir)
     if not os.path.isdir(intermediate_files_dir):
         os.makedirs(intermediate_files_dir)
-    
+    main_start = time.time() # overall program timer
+    with open(os.path.join(intermediate_files_dir, "timer.txt"),"w") as timerfile:
+        timerfile.write(str(main_start))
     return output_dir, intermediate_files_dir
 
 def print_version_info():
@@ -379,6 +400,42 @@ def get_settings():
         'local_settings',
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
     return my_settings
+
+def get_intermediate_file_path(intermediate_files_path, path_of_interest):
+    """
+    This function will return the path that matches a path name in the intermediate_files_paths.csv file.
+    This is used to find paths to intermediate files that were made in previous magi runs.
+    """
+    with open(os.path.join(intermediate_files_path, "intermediate_files_paths.csv"), "r") as file:
+        for line in file:
+            line = line.rstrip()
+            variable_name, variable_path = line.split(",")
+            if variable_name == path_of_interest:
+                if os.path.exists(variable_path) or is_database(variable_path):
+                    return variable_path
+                else:
+                    raise OSError("File not found: {}".format(variable_path))
+        raise RuntimeError("Could not find intermediate file object {}".format(path_of_interest))
+
+def write_intermediate_file_path(intermediate_files_path, object_of_interest, path_of_interest):
+    """
+    This function reads an intermediate file with paths stored as a csv file and adds the new file path.
+    """
+    # Read the csv dictionary with file path object names and paths if it exists
+    paths = {}
+    intfile = os.path.join(intermediate_files_path, "intermediate_files_paths.csv")
+    if os.path.exists(intfile):
+        with open(intfile, "r") as file:
+            for line in file:
+                line = line.rstrip()
+                variable_name, variable_path = line.split(",")
+                paths[variable_name] = variable_path
+    # Write the new path. This overwrites the old path.
+    paths[object_of_interest] = path_of_interest
+    with open(intfile, "w") as file:
+        for variable_name, variable_path in paths.items():
+            to_write = "{},{}\n".format(variable_name, variable_path)
+            file.write(to_write)
 
 def load_mrs_reaction():
     my_settings = get_settings()

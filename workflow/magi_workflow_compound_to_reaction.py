@@ -527,31 +527,41 @@ def workflow(compounds_to_search, tautomer_legacy, neighbor_level, cpu_count, in
 #def parse_arguments():
 #    return "arguments are parsed"
 #
-def format_output(compound_to_reaction_path, output_dir, main_start):
+def format_output(compound_to_reaction_path, output_dir, intermediate_files_dir):
     compound_to_reaction = pd.read_pickle(compound_to_reaction_path)
         # if no fasta file then just save these results and quit
     compound_to_reaction.to_csv(os.path.join(output_dir, 
                                             'magi_compound_results.csv'))
     print( '!!! compound_reaction table saved to %s'\
             % (os.path.join(output_dir, 'magi_compound_results.csv')))
+    with open(os.path.join(intermediate_files_dir, "timer.txt"),"r") as timerfile:
+            main_start = float(timerfile.read())
     print( '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60))
 
     return "output is formatted"
 
 def main():
-    main_start = time.time() # overall program timer
     # Parse arguments and prepare for compounds to reaction workflow
-    args = parse_arguments()
-    output_dir, intermediate_files_dir = mg.make_output_dirs(output_dir=args.output, compounds_file=args.compounds, intermediate_files = args.intermediate_files)
-    
+    magi_parameters = mg.general_magi_preparation()
     
     # Run compound to reaction workflow
-    compounds_to_search = mg.load_compound_results(args.compounds, args.pactolus, output_dir, intermediate_files_dir)
-    compound_to_reaction_path = workflow(compounds_to_search, args.legacy, args.level, args.cpu_count, intermediate_files_dir)    
-    
+    compounds_to_search = mg.load_compound_results(
+            compounds_file = magi_parameters["compounds"], 
+            pactolus = magi_parameters["pactolus"], 
+            output_dir = magi_parameters["output_dir"], 
+            intermediate_files_dir = magi_parameters["intermediate_files_dir"])
+    compound_to_reaction_path = workflow(
+            compounds_to_search = compounds_to_search, 
+            tautomer_legacy = magi_parameters["legacy"], 
+            neighbor_level = magi_parameters["level"], 
+            cpu_count = magi_parameters["cpu_count"], 
+            intermediate_files_dir = magi_parameters["intermediate_files_dir"])    
+    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "compound_to_reaction_path", compound_to_reaction_path)
     # Format output if this is the last step of the MAGI run
-    if args.compound_to_reaction_only:
-        format_output(compound_to_reaction_path, output_dir, main_start)
+    if magi_parameters["compound_to_reaction_only"]:
+        c2r_file = os.path.join(magi_parameters["intermediate_files_dir"], 
+                                            'compound_to_reaction.pkl')
+        format_output(c2r_file, magi_parameters["output_dir"], magi_parameters["intermediate_files_dir"])
 
 if __name__ == "__main__":
     main()

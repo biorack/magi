@@ -6,8 +6,8 @@ import argparse
 import pandas as pd
 from multiprocessing import cpu_count as counting_cpus
 import time
-import blast_helpers as mg
-import workflow_helpers_new as magi_settings
+import blast_helpers as blast
+import workflow_helpers_new as mg
 
 def parse_arguments():
     def is_existing_file(filepath):
@@ -93,10 +93,10 @@ def workflow(compound_to_reaction, genome_db_path, blast_filter, intermediate_fi
     # Read stuff
     print( '!!! loading refseq and reaction tables...')
     # this table is only refseqs that are found in mrs-reaction
-    my_settings = magi_settings.get_settings()
+    my_settings = mg.get_settings()
     refseq_path = my_settings.refseq_path
     print( '!!! Reference sequences in this file: {}'.format(refseq_path))
-    refseq = magi_settings.load_dataframe(refseq_path)
+    refseq = mg.load_dataframe(refseq_path)
     refseq.dropna(inplace=True)
     print( '!!! {} reference sequences'.format(len(refseq)))
     # reaction to gene search
@@ -106,7 +106,7 @@ def workflow(compound_to_reaction, genome_db_path, blast_filter, intermediate_fi
         x is the normal input
         param is the defined parameter
         """
-        return mg.keep_top_blast(x, filt=param)
+        return blast.keep_top_blast(x, filt=param)
     
     # Perform R2G
     print( '\n!@# Conducting reaction to gene search | TLOG %s' % (time.time()))
@@ -116,7 +116,7 @@ def workflow(compound_to_reaction, genome_db_path, blast_filter, intermediate_fi
     # set up a list of reference sequences to blast against the genome
     reactions = compound_to_reaction[compound_to_reaction\
                         ['reaction_id'] != '']['reaction_id'].tolist()
-    reactions_refseqs = mg.mrs_reaction.loc[reactions, 'refseq_id']
+    reactions_refseqs = blast.mrs_reaction.loc[reactions, 'refseq_id']
     del reactions
     reactions_refseqs = reactions_refseqs[reactions_refseqs != '']
     rseq_list = []
@@ -132,11 +132,11 @@ def workflow(compound_to_reaction, genome_db_path, blast_filter, intermediate_fi
     print( '!!! {} reference sequences to search'.format(len(rseq_list)))
     sys.stdout.flush()
 
-    reaction_to_gene_blast = mg.multi_blast(rseq_list, refseq, 
+    reaction_to_gene_blast = blast.multi_blast(rseq_list, refseq, 
         genome_db_path, intermediate_files_dir, cpu=cpu_count, 
         raise_blast_error=False)
 
-    reaction_to_gene = mg.refseq_to_reactions(reaction_to_gene_blast,
+    reaction_to_gene = blast.refseq_to_reactions(reaction_to_gene_blast,
         'query acc.')
     del reaction_to_gene_blast
 
@@ -161,26 +161,30 @@ def workflow(compound_to_reaction, genome_db_path, blast_filter, intermediate_fi
     
     return reaction_to_gene_top_path
 
-
-#def parse_arguments():
-#    return "arguments are parsed"
-
-#def parse_arguments():
-#    return "arguments are parsed"
-#
-#def format_output():
-#    return "output is formatted"
-#
 def main():
-    args = parse_arguments()
-    output_dir, intermediate_files_dir = magi_settings.make_output_dirs(output_dir=args.output, intermediate_files = args.intermediate_files)
-    print(args)
-    # Read compound to reaction file
-    print("opening {}".format(args.compound_to_reaction))
-    compound_to_reaction_path = args.compound_to_reaction
-    print(compound_to_reaction_path)
+    # Parse arguments and prepare for reaction to gene workflow
+    magi_parameters = mg.general_magi_preparation()
+
+    # Set compound to reaction file path
+    if magi_parameters["compound_to_reaction"] is not None:
+        compound_to_reaction_path = magi_parameters["compound_to_reaction"]
+    else:
+        compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "compound_to_reaction_path")
+    # Set genome database path
+    if magi_parameters["genome_db"] is not None:
+        genome_db_path = magi_parameters["genome_db"]
+    else:
+        genome_db_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "genome_db_path")
+    
+    print("opening {}".format(magi_parameters["compound_to_reaction"]))
     compound_to_reaction = pd.read_pickle(compound_to_reaction_path)
-    workflow(compound_to_reaction, args.genome_db, args.blast_filter, intermediate_files_dir, args.cpu_count)
+    # Start r2g workflow
+    reaction_to_gene_path = workflow(compound_to_reaction = compound_to_reaction, 
+        genome_db_path = genome_db_path, 
+        blast_filter = magi_parameters["blast_filter"], 
+        intermediate_files_dir = magi_parameters["intermediate_files_dir"], 
+        cpu_count = magi_parameters["cpu_count"])
+    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "reaction_to_gene_path", reaction_to_gene_path)
     print("Reaction to gene search successfully finished")
 
 if __name__ == "__main__":

@@ -89,34 +89,14 @@ def parse_arguments():
         sys.exit(1)
     return args
 
-def load_g2r(gene_to_reaction, intermediate_files_dir):
-    if gene_to_reaction is None:
-        gene_to_reaction = os.path.join(intermediate_files_dir, "gene_to_reaction.pkl")
-    gene_to_reaction_df = pd.read_pickle(gene_to_reaction)
-    return gene_to_reaction_df
-
-def load_c2r(compound_to_reaction, intermediate_files_dir):
-    if compound_to_reaction is None:
-        compound_to_reaction = os.path.join(intermediate_files_dir, "compound_to_reaction.pkl")
-    compound_to_reaction_df = pd.read_pickle(compound_to_reaction)
-    compound_to_reaction_df.reaction_id = pd.to_numeric(compound_to_reaction_df.reaction_id)
-    return compound_to_reaction_df
-
-def load_r2g(reaction_to_gene, intermediate_files_dir):
-    if reaction_to_gene is None:
-        reaction_to_gene = os.path.join(intermediate_files_dir, "reaction_to_gene.pkl")
-    reaction_to_gene_df = pd.read_pickle(reaction_to_gene)
-    reaction_to_gene_df.reaction_id = pd.to_numeric(reaction_to_gene_df.reaction_id)
-    return reaction_to_gene_df
-
 def merge_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene, gene_to_reaction, intermediate_files_dir):
     """
     This part of the workflow merges tables
     """
     # Load data frames
-    gene_to_reaction_df = load_g2r(gene_to_reaction, intermediate_files_dir)
-    compound_to_reaction_df = load_c2r(compound_to_reaction, intermediate_files_dir)
-    reaction_to_gene_df = load_r2g(reaction_to_gene, intermediate_files_dir)
+    gene_to_reaction_df = pd.read_pickle(gene_to_reaction)
+    compound_to_reaction_df = pd.read_pickle(compound_to_reaction)
+    reaction_to_gene_df = pd.read_pickle(reaction_to_gene)
     
     # Start merging
     print( '\n!@# Merging final table | TLOG %s' % (time.time()))
@@ -164,8 +144,9 @@ def merge_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene, gene_to_r
             if string_checked.any():
                 merged_dataframe[column].fillna('', inplace=True)
 
-    # Clean up neighbor column
+    # Clean up neighbor column and reaction to gene id column
     merged_dataframe['neighbor'] = merged_dataframe['neighbor'].astype(str)
+    merged_dataframe['reaction_id_r2g'] = merged_dataframe['reaction_id_r2g'].astype(str)
 
     # Write to file
     merged_dataframe.to_hdf(os.path.join(intermediate_files_dir, 'merged_before_score.h5'),
@@ -412,7 +393,7 @@ def format_table(df):
         'database_id_g2r']]
     return df, start
 
-def save_outputs(df, main_start, start, output_dir, intermediate_files_dir):
+def save_outputs(df, start, output_dir, intermediate_files_dir):
     # save the full dataframe
     df.to_csv(os.path.join(output_dir, 'magi_results.csv'), index=False)
     print( 'full results saved to {}'.format(os.path.join(output_dir, 'magi_results.csv')))
@@ -440,37 +421,51 @@ def save_outputs(df, main_start, start, output_dir, intermediate_files_dir):
         'magi_gene_results.csv'), index=False)
     
     print( '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60))
+    with open(os.path.join(intermediate_files_dir, "timer.txt"),"r") as timerfile:
+        main_start = float(timerfile.read())
     print( '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60))
     print( '!!! final results stored to %s' \
             %(os.path.join(output_dir, 'magi_results.csv')))
     
     
 def main():
-    # Parse arguments and make output directory if it does not exist yet
-    args = parse_arguments()
-    output_dir, intermediate_files_dir = mg.make_output_dirs(output_dir=args.output, intermediate_files = args.intermediate_files)
+    # Parse arguments and prepare for reaction to gene workflow
+    magi_parameters = mg.general_magi_preparation()
+
+    # Get paths to intermediate files and check if all files exist
+    if magi_parameters["gene_to_reaction"] is not None:
+        gene_to_reaction_path = mg.is_existing_file(magi_parameters["gene_to_reaction"])
+    else:
+        gene_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "gene_to_reaction_path")
+    if magi_parameters["compound_to_reaction"] is not None:
+        compound_to_reaction_path = mg.is_existing_file(magi_parameters["compound_to_reaction"])
+    else:
+        compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "compound_to_reaction_path")
+    if magi_parameters["reaction_to_gene"] is not None:
+        reaction_to_gene_path = mg.is_existing_file(magi_parameters["reaction_to_gene"])
+    else:
+        reaction_to_gene_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "reaction_to_gene_path")
 
     # Merge the gene to reaction and reaction to gene tables
-    if args.merged_before_score is None:
-        merged_dataframe = merge_g2r_and_r2g_searches(gene_to_reaction = args.gene_to_reaction,
-                                   compound_to_reaction = args.compound_to_reaction,
-                                   reaction_to_gene = args.reaction_to_gene,
-                                   intermediate_files_dir = intermediate_files_dir)
+    if magi_parameters["merged_before_score"] is None:
+        merged_dataframe = merge_g2r_and_r2g_searches(gene_to_reaction = gene_to_reaction_path,
+                                   compound_to_reaction = compound_to_reaction_path,
+                                   reaction_to_gene = reaction_to_gene_path,
+                                   intermediate_files_dir = magi_parameters["intermediate_files_dir"])
     else:
-        merged_dataframe = pd.read_hdf(args.merged_before_score, 'merged_before_score')
+        merged_dataframe = pd.read_hdf(magi_parameters["merged_before_score"])
         print( '\n!@# merged_before_score successfully loaded')
     
     # Calculate MAGI scores
     start_time = time.time()
     merged_dataframe = calculate_scores(merged_dataframe, 
-                                       args.reciprocal_closeness, 
-                                       args.final_weights, 
-                                       args.chemnet_penalty, start_time)
+                                       magi_parameters["reciprocal_closeness"], 
+                                       magi_parameters["final_weights"], 
+                                       magi_parameters["chemnet_penalty"], start_time)
     # Merge more info to data frame and shuffle column order
     merged_dataframe, time_start = format_table(merged_dataframe)
     # Save final output
-    save_outputs(merged_dataframe, main_start, start, output_dir, intermediate_files_dir)
+    save_outputs(merged_dataframe, time_start, magi_parameters["output_dir"], magi_parameters["intermediate_files_dir"])
 
 if __name__ == "__main__":
-    print("starting MAGI...")
-    #main()    
+    main()    

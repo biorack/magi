@@ -7,8 +7,8 @@ import pandas as pd
 from multiprocessing import cpu_count as counting_cpus
 import time
 import subprocess
-import workflow_helpers_new as magi
-import blast_helpers as mg
+import workflow_helpers_new as mg
+import blast_helpers as blast
 
 def parse_arguments():
     """
@@ -153,7 +153,7 @@ def load_genome(fasta, intfile_path, annotation_file=None):
 
     if annotation_file is not None:
         # Make gene info table
-        annotation_table = magi.load_dataframe(annotation_file)
+        annotation_table = mg.load_dataframe(annotation_file)
         # turn gene IDs into strings to keep things consistent
         annotation_table['Gene_ID'] = annotation_table['Gene_ID'].apply(str)
 
@@ -162,7 +162,7 @@ def load_genome(fasta, intfile_path, annotation_file=None):
 
         # Really only if the annotation file was an IMG-derived table
         try:
-            annotation_table['EC'] = annotation_table['Enzyme'].apply(magi.ec_parse)
+            annotation_table['EC'] = annotation_table['Enzyme'].apply(mg.ec_parse)
 
             # move the new EC column to front for ease of visualization
             cols = annotation_table.columns.tolist()
@@ -191,7 +191,7 @@ def load_genome(fasta, intfile_path, annotation_file=None):
 
         # Make the blast database of the fasta
         # this command makes the blast database for a given fasta file.
-        blastbin = magi.get_settings(); blastbin = blastbin.blastbin
+        blastbin = mg.get_settings(); blastbin = blastbin.blastbin
         makeblastdb_path = os.path.join(blastbin, 'makeblastdb')
         fasta_path = fasta
         db_path = os.path.join(intfile_path, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
@@ -242,7 +242,7 @@ def workflow(fasta_file, intermediate_files_dir, cpu_count,
         x is the normal input
         param is the defined parameter
         """
-        return mg.keep_top_blast(x, filt=param)
+        return blast.keep_top_blast(x, filt=param)
     
     print( '\n!!! LOADING GENOME')
     genome, genome_db_path = load_genome(fasta_file, intermediate_files_dir, 
@@ -250,7 +250,7 @@ def workflow(fasta_file, intermediate_files_dir, cpu_count,
     print("!!! Genome successfully loaded")
     print( '!@# Conducting gene to reaction search | TLOG %s' % (time.time()))
     start = time.time()
-    gene_blast = mg.multi_blast(genome.index, genome, mg.refseq_dbpath, 
+    gene_blast = blast.multi_blast(genome.index, genome, blast.refseq_dbpath, 
         intermediate_files_dir, raise_blast_error=False, cpu=cpu_count)
 
     print( '!@# Homology searching done in %s minutes' \
@@ -260,7 +260,7 @@ def workflow(fasta_file, intermediate_files_dir, cpu_count,
             %(os.path.join(intermediate_files_dir, 'g2r_blast.pkl')))
 
     start = time.time()
-    gene_to_reaction = mg.refseq_to_reactions(gene_blast, 'subject acc.')
+    gene_to_reaction = blast.refseq_to_reactions(gene_blast, 'subject acc.')
     del gene_blast
     gene_groups = gene_to_reaction.groupby('query acc.')
     multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
@@ -279,7 +279,7 @@ def workflow(fasta_file, intermediate_files_dir, cpu_count,
             %gene_to_reaction_top_path)
     return gene_to_reaction_top_path, genome_db_path
 
-def format_output(gene_to_reaction_top_path, output_dir, main_start):
+def format_output(gene_to_reaction_top_path, output_dir, intermediate_files_dir):
     """
     Add information on the genes to the 
     Inputs
@@ -290,32 +290,34 @@ def format_output(gene_to_reaction_top_path, output_dir, main_start):
     main_start:                Time when MAGI started
     """
     gene_to_reaction_top = pd.read_pickle(gene_to_reaction_top_path)
-    df = gene_to_reaction_top.merge(mg.mrs_reaction[['database_id']],
+    df = gene_to_reaction_top.merge(blast.mrs_reaction[['database_id']],
         left_on='reaction_id', right_index=True, how='left')
     df.to_csv(os.path.join(output_dir, 'magi_gene_results.csv'))
     print( '!!! gene to reaction results saved to %s' \
             %(os.path.join(output_dir, 'magi_gene_results.csv')))
+    with open(os.path.join(intermediate_files_dir, "timer.txt"),"r") as timerfile:
+        main_start = float(timerfile.read())
     print( '\n!@# MAGI analysis complete in %s minutes' %(
                                       (time.time() - main_start) / 60))
 
 def main():
-    main_start = time.time() # overall program timer
-    
     # Parse arguments and prepare for gene to reaction workflow
-    magi_parameters = magi.general_magi_preparation()
+    magi_parameters = mg.general_magi_preparation()
     
     #Run gene to reaction workflow
-    workflow(fasta_file=magi_parameters["fasta"], 
+    gene_to_reaction_path, genome_db_path = workflow(fasta_file=magi_parameters["fasta"], 
              intermediate_files_dir=magi_parameters["intermediate_files_dir"], 
              cpu_count=magi_parameters["cpu_count"],
              annotations=magi_parameters["annotations"], 
              blast_filter=magi_parameters["blast_filter"])
+    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "gene_to_reaction_path", gene_to_reaction_path)
+    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "genome_db_path", genome_db_path)
     
     #Format output if this is the last step of the workflow
     if magi_parameters["gene_to_reaction_only"]:
         g2r_file = os.path.join(magi_parameters["intermediate_files_dir"], 
                                             'gene_to_reaction.pkl')
-        format_output(g2r_file, magi_parameters["output_dir"], main_start)
+        format_output(g2r_file, magi_parameters["output_dir"], magi_parameters["intermediate_files_dir"])
 
 if __name__ == "__main__":
     main()
