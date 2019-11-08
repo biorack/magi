@@ -96,7 +96,9 @@ def merge_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene, gene_to_r
     # Load data frames
     gene_to_reaction_df = pd.read_pickle(gene_to_reaction)
     compound_to_reaction_df = pd.read_pickle(compound_to_reaction)
+    compound_to_reaction_df["reaction_id"] = compound_to_reaction_df["reaction_id"].astype(float)
     reaction_to_gene_df = pd.read_pickle(reaction_to_gene)
+    reaction_to_gene_df["reaction_id"] = reaction_to_gene_df["reaction_id"].astype(float)
     
     # Start merging
     print( '\n!@# Merging final table | TLOG %s' % (time.time()))
@@ -109,6 +111,7 @@ def merge_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene, gene_to_r
                                 'note']]
     reaction_to_gene_df = reaction_to_gene_df[['subject acc.', 'reaction_id',
                                 'e_score']]
+    
     merged_dataframe = pd.merge(compound_to_reaction_df, reaction_to_gene_df, 
                                 on='reaction_id', how='left')
     del reaction_to_gene_df
@@ -146,7 +149,6 @@ def merge_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene, gene_to_r
 
     # Clean up neighbor column and reaction to gene id column
     merged_dataframe['neighbor'] = merged_dataframe['neighbor'].astype(str)
-    merged_dataframe['reaction_id_r2g'] = merged_dataframe['reaction_id_r2g'].astype(str)
 
     # Write to file
     merged_dataframe.to_hdf(os.path.join(intermediate_files_dir, 'merged_before_score.h5'),

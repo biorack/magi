@@ -94,7 +94,7 @@ def parse_arguments():
             help='path to merged_before_score table, must be in hdf5 format,\
             with the key "merged_before_score"')
         start_halfway_args.add_argument('--genome_db', help = "path to genome .db files", type=is_database)
-        
+
         # Use this if only a part of the workflow should be run
         stop_halfway_args = parser.add_argument_group('Arguments to run a part of the script')
         stop_halfway_args.add_argument('--gene_to_reaction_only',
@@ -104,6 +104,10 @@ def parse_arguments():
             help="Use this parameter if you are only interested in the compound to reaction search", 
             action='store_true', default=False)
         
+        # Arguments to run multiple parts of the workflow sequentially
+        pipeline_args = parser.add_argument_group('Arguments to control running MAGI scripts sequentially')
+        pipeline_args.add_argument('--not_first_script', default = False, action='store_true', help="set this to true if this is not the first script in a sequential magi run.")
+        pipeline_args.add_argument('--intermediate_files_dir', help="path to intermediate files directory")
         
         # optional runtime variables
         optional_args = parser.add_argument_group("Optional runtime variables")
@@ -180,7 +184,7 @@ def parse_arguments():
         args = parser.parse_args()
         
         # Check parameters and set number of required CPUs
-        if args.fasta is None and args.compounds is None:
+        if args.fasta is None and args.compounds is None and args.not_first_script is False:
             raise argparse.ArgumentTypeError('ERROR: either FASTA or metabolites file is required')
         args.cpu_count = set_cpu_count(args.cpu_count)
     except argparse.ArgumentTypeError as ex:
@@ -267,15 +271,21 @@ def general_magi_preparation():
     It returns a dictionary with parameters for the MAGI run.
     """
     args = parse_arguments()
-    print_version_info()
-    print_parameters(args)
-    output_dir, intermediate_files_dir = make_output_dirs(output_dir=args.output, 
-                                                          fasta_file=args.fasta, 
-                                                          compounds_file=args.compounds, 
-                                                          intermediate_files=args.intermediate_files)
     magi_parameters = vars(args)
-    magi_parameters["output_dir"] = output_dir
-    magi_parameters["intermediate_files_dir"] = intermediate_files_dir
+    if magi_parameters["not_first_script"]:
+        if magi_parameters["output"] is None or magi_parameters["intermediate_files_dir"] is None:
+            raise RuntimeError("Enter output file directory and intermediate files directory")
+        else:
+            magi_parameters["output_dir"] = magi_parameters["output"]            
+    else:
+        print_version_info()
+        print_parameters(args)
+        output_dir, intermediate_files_dir = make_output_dirs(output_dir=magi_parameters["output"], 
+                                                          fasta_file=magi_parameters["fasta"], 
+                                                          compounds_file=magi_parameters["compounds"], 
+                                                          intermediate_files=magi_parameters["intermediate_files"])
+        magi_parameters["output_dir"] = output_dir
+        magi_parameters["intermediate_files_dir"] = intermediate_files_dir
     return magi_parameters
     
 def load_dataframe(fname, filetype=None, key=None):

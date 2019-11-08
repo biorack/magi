@@ -21,7 +21,7 @@ logfile_name=log_magi_run.txt
 source activate magi #if this does not work, use conda activate magi
 
 # Run MAGI
-python $magi_path/workflow/magi_workflow_gene_to_reaction.py --fasta $fasta_file --compounds $compounds_file --output $output_directory --cpu_count $cpu_count --mute > $logfile_name
-python $magi_path/workflow/magi_workflow_compound_to_reaction.py --fasta $fasta_file --compounds $compounds_file --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
-python $magi_path/workflow/magi_workflow_reaction_to_gene.py --fasta $fasta_file --compounds $compounds_file --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
-python $magi_path/workflow/magi_workflow_scoring.py --fasta $fasta_file --compounds $compounds_file --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
+python $magi_path/workflow/magi_workflow_gene_to_reaction.py --fasta $fasta_file --output $output_directory --cpu_count $cpu_count --mute > $logfile_name
+python $magi_path/workflow/magi_workflow_compound_to_reaction.py --not_first_script --intermediate_files_dir $output_directory/intermediate_files --compounds $compounds_file --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
+python $magi_path/workflow/magi_workflow_reaction_to_gene.py --not_first_script --intermediate_files_dir $output_directory/intermediate_files --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
+python $magi_path/workflow/magi_workflow_scoring.py --not_first_script --intermediate_files_dir $output_directory/intermediate_files --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
