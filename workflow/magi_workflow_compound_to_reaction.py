@@ -1,5 +1,26 @@
-"Run compound to reaction search in separate script"
+"""
+Metabolites Annotations and Genes Integrated (MAGI)
 
+MAGI 1.1 compound to reaction workflow script
+
+Lines beginning with "@@@" are input job parameters
+Lines beginning with "!!!" are verbose log info
+Lines beginning with "!@#" are checkpoints/announcements
+
+Required inputs is a Compounds file.
+The Compounds file should be in some standard table format (CSV, tab-
+delimited, etc.), and is required to have a column named 
+"original_compound" (case-sensitive). In this column should be standard
+InChI Keys representing a compound structure.
+
+If you have only m/z values, run the accurate mass search workflow before 
+running this script.
+
+The Compounds table may also have a column named "compound_score" 
+(case-sensitive), where the user can provide a score for each 
+compound-row. If this column name does not exist, one will be created
+and populated with 1.0
+"""
 import sys
 import os
 import argparse

@@ -1,4 +1,33 @@
-"Run gene to reaction search in separate script"
+"""
+Metabolites Annotations and Genes Integrated (MAGI)
+
+MAGI 1.1 gene to reaction workflow script
+
+Lines beginning with "@@@" are input job parameters
+Lines beginning with "!!!" are verbose log info
+Lines beginning with "!@#" are checkpoints/announcements
+
+The gene-to-reaction search queries one user input protein sequence against a database of all reactions' reference sequences. 
+This can be interpreted as "the reactions that an input protein can probably catalyze".
+
+Required input is a FASTA file.
+The FASTA file should be in standard FASTA format, E.g.:
+'''fasta
+>UNIQUE_GENE_ID OTHER_INFORMATION
+AMINO_ACID_SEQUENCE
+
+>UNIQUE_GENE_ID OTHER_INFORMATION
+AMINO_ACID_SEQUENCE
+'''
+*Please note the space in between UNIQUE_GENE_ID and OTHER_INFORMATION*
+
+The FASTA file will be used to make a BLAST database, and to make a
+gene table with these columns:
+Gene_ID        | header                           | sequence
+-----------------------------------------------------------------------
+UNIQUE_GENE_ID | UNIQUE_GENE_ID OTHER_INFORMATION | AMINO_ACID_SEQUENCE
+
+"""
 
 import sys
 import os

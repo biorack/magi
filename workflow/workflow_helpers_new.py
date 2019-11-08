@@ -13,18 +13,37 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 
 def is_existing_file(filepath):
-        """Checks if a file exists and return absolute path if it exists"""
-        if not os.path.exists(filepath):
-            msg = "{0} does not exist".format(filepath)
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            return os.path.abspath(filepath)
+    """
+    Checks if a file exists and return absolute path if it exists
+
+    Inputs
+    ------
+    filepath: a relative or absolute path to a file.
+
+    Outputs
+    -------
+    An error is raised if the path does not exist and the absolute path is returned if the file exists.
+    """
+    if not os.path.exists(filepath):
+        msg = "{0} does not exist".format(filepath)
+        raise argparse.ArgumentTypeError(msg)
+    else:
+        return os.path.abspath(filepath)
     
 def is_database(db_path):
     """
-    Checks if the genome database exists.
-    Three files should be present, a .phr file, a .pin file and a .psq file
+    Checks if the BLAST genome database exists.
+
+    Inputs
+    ------
+    db_path: a relative or absolute path to a BLASTP database. The path should end with .db
+            In this folder, a .db.phr file, a .db.pin file and a .db.psq file should be present.
+
+    Outputs
+    -------
+    An error is raised if the database does not exist and the absolute path is returned if the database exists.
     """
+
     for file_extension in [".phr", ".pin", ".psq"]:
         db_file = db_path + file_extension
         if not os.path.exists(db_file):
@@ -33,6 +52,14 @@ def is_database(db_path):
     return os.path.abspath(db_path)
         
 def parse_arguments():
+    """
+    This is the MAGI argument parser that is used in all workflows. 
+    It checks if all required arguments are passed, if numbers fall within MAGI-approved ranges and if files exist.
+
+    Outputs
+    -------
+    An argparse.args object containing all arguments. 
+    """
     def percentage_values_to_decimal(percentage):
         """Turns the blast filter and reciprocal closeness percentages 
         into decimal numbers"""
@@ -154,7 +181,7 @@ def parse_arguments():
         optional_args.add_argument('--final_weights', 
             help='Defined weights to weight the final scoring for the scores:\
             compound_score reciprocal_score homology_score reaction_connection', 
-            type=positive_number, nargs=4, default=None)
+            type=positive_number, nargs=4, default=[1.0, 1.0, 1.0, 1.0])
         optional_args.add_argument('--chemnet_penalty', 
             help='Base factor in the chemical network search level penalty', 
             type=positive_number, default=4)
@@ -193,7 +220,25 @@ def parse_arguments():
     return args
 
 def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, intermediate_files='intermediate_files'):
-    """set up where the results will be stored"""
+    """
+    Set up where MAGI results will be stored. This creates an output directory, intermediate files directory and starts
+    the overall MAGI program timer.
+
+    Inputs
+    ------
+    output_dir:     a relative or absolute path to the output directory. 
+                    This directory will be created if it does not yet exist.
+    fasta_file:     if no output directory is specified, the output will be stored at the location of the fasta file, 
+                    in a folder with the date and the fasta file name as its name.
+    compounds_file: if no fasta file and output directory are specified, the output will be stored at the location of the fasta file, 
+                    in a folder with the date and the compounds file name as its name.
+    intermediate_files: What directory within the output directory to store intermediate files.
+
+    Outputs
+    -------
+    output_dir:     absolute path to the output directory
+    intermediate_files_dir: absolute path to the intermediate files directory
+    """
     if output_dir is None:
         # autoname the directory based on fasta, or compound file
         # this will change eventually
@@ -223,7 +268,9 @@ def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, inte
     return output_dir, intermediate_files_dir
 
 def print_version_info():
-    """Print versions of modules that may be troublesome for magi."""
+    """
+    Print versions of modules that may be troublesome for magi.
+    """
     print('!!! Python version:'+ sys.version)
     print('!!! numpy version: '+ np.__version__)
     print('!!! pandas version:'+ pd.__version__)
@@ -231,6 +278,9 @@ def print_version_info():
     print('#'*80)
 
 def print_parameters(args):
+    """
+    Print parameters used in the MAGI run.
+    """    
     print('~~~~~PARAMETERS~~~~~~')
 
     # print your paths in stdout for logging
@@ -265,10 +315,13 @@ def general_magi_preparation():
     """
     This function prepares for a MAGI run. It:
         - parses arguments
-        - makes an output file directory,
-        - prints versions of possibly troublesome modules 
-        - prints input parameters.
-    It returns a dictionary with parameters for the MAGI run.
+        - makes an output file directory if the argument --not_first_script is not used.
+        - prints versions of possibly troublesome modules if the argument --not_first_script is not used.
+        - prints input parameters if the argument --not_first_script is not used.
+
+    Outputs
+    -------
+    magi_parameters: A dictionary with parameters for the MAGI run.
     """
     args = parse_arguments()
     magi_parameters = vars(args)
@@ -405,35 +458,57 @@ def load_compound_results(compounds_file, pactolus, output_dir, intermediate_fil
     return compounds
 
 def get_settings():
+    """
+    Function to get local settings.
+
+    Outputs
+    -------
+    my_settings: a module object with local settings.
+    """
     my_settings = getattr(
     __import__(
         'local_settings',
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
     return my_settings
 
-def get_intermediate_file_path(intermediate_files_path, path_of_interest):
+def get_intermediate_file_path(intermediate_files_dir, variable_of_interest):
     """
     This function will return the path that matches a path name in the intermediate_files_paths.csv file.
     This is used to find paths to intermediate files that were made in previous magi runs.
+
+    Inputs
+    ------
+    intermediate_files_dir: The path to the intermediate files directory
+    variable_of_interest: The name of the variable for which the path needs to be found.
+
+    Outputs
+    -------
+    variable_path:  The path stored in the intermediate_files_paths.csv file within the intermediate_files_dir.
     """
-    with open(os.path.join(intermediate_files_path, "intermediate_files_paths.csv"), "r") as file:
+    with open(os.path.join(intermediate_files_dir, "intermediate_files_paths.csv"), "r") as file:
         for line in file:
             line = line.rstrip()
             variable_name, variable_path = line.split(",")
-            if variable_name == path_of_interest:
+            if variable_name == variable_of_interest:
                 if os.path.exists(variable_path) or is_database(variable_path):
                     return variable_path
                 else:
                     raise OSError("File not found: {}".format(variable_path))
-        raise RuntimeError("Could not find intermediate file object {}".format(path_of_interest))
+        raise RuntimeError("Could not find intermediate file object {}".format(variable_of_interest))
 
-def write_intermediate_file_path(intermediate_files_path, object_of_interest, path_of_interest):
+def write_intermediate_file_path(intermediate_files_dir, variable_of_interest, variable_path):
     """
-    This function reads an intermediate file with paths stored as a csv file and adds the new file path.
+    This function reads an intermediate file with paths stored as a csv file and adds the new variable and its file path.
+
+    Inputs
+    ------
+    intermediate_files_dir: The path to the intermediate files directory
+    variable_of_interest: The name of the variable for which the path needs to be stored.
+    path_of_interest: The file path that contains the variable_of_interest file.
     """
     # Read the csv dictionary with file path object names and paths if it exists
     paths = {}
-    intfile = os.path.join(intermediate_files_path, "intermediate_files_paths.csv")
+    intfile = os.path.join(intermediate_files_dir, "intermediate_files_paths.csv")
     if os.path.exists(intfile):
         with open(intfile, "r") as file:
             for line in file:
@@ -441,13 +516,20 @@ def write_intermediate_file_path(intermediate_files_path, object_of_interest, pa
                 variable_name, variable_path = line.split(",")
                 paths[variable_name] = variable_path
     # Write the new path. This overwrites the old path.
-    paths[object_of_interest] = path_of_interest
+    paths[variable_of_interest] = variable_path
     with open(intfile, "w") as file:
         for variable_name, variable_path in paths.items():
             to_write = "{},{}\n".format(variable_name, variable_path)
             file.write(to_write)
 
 def load_mrs_reaction():
+    """
+    This function loads the mrs reaction database. 
+
+    Outputs
+    ------
+    mrs_reaction: a pandas dataframe with information on reactions. Each row represents a reaction.
+    """
     my_settings = get_settings()
     mrs_reaction_path = my_settings.mrs_reaction_path
     print( '!!! MRS-Reaction: {}'.format(mrs_reaction_path))

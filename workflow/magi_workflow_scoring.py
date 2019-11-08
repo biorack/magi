@@ -1,3 +1,21 @@
+"""
+Metabolites Annotations and Genes Integrated (MAGI)
+
+MAGI 1.1 scoring workflow script
+
+Lines beginning with "@@@" are input job parameters
+Lines beginning with "!!!" are verbose log info
+Lines beginning with "!@#" are checkpoints/announcements
+
+This workflow merges information from various magi sub-workflows and scores
+compounds-reaction-gene combinations. The MAGI score is the geometric mean of 
+the homology score, reciprocal score, reaction connection score and compound score. 
+
+Required inputs are gene_to_reaction, compound_to_reaction
+and reaction_to_gene intermediate files, or a merged_before_score file
+or a directory in which all intermediate files are stored.
+"""
+
 import os
 import sys
 import argparse

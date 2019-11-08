@@ -1,4 +1,21 @@
-"Run gene to reaction search in separate script"
+"""
+Metabolites Annotations and Genes Integrated (MAGI)
+
+MAGI 1.1 reaction to gene workflow script
+
+Lines beginning with "@@@" are input job parameters
+Lines beginning with "!!!" are verbose log info
+Lines beginning with "!@#" are checkpoints/announcements
+
+The reaction-to-gene search is conducted by querying a reaction's reference sequence 
+against a BLAST database created by using the user's input protein FASTA file. 
+The results of this search can be interpreted as "the input proteins that can probably catalyze this reaction", 
+with the probability being represented by the E-score.
+
+Required input is either a compound_to_reaction pickle file or
+the directory in which intermediate files are stored. The input of this
+script should have been created in the compound to reaction workflow.
+"""
 
 import sys
 import os
