@@ -534,7 +534,8 @@ def workflow(compounds_to_search, tautomer_legacy, neighbor_level, cpu_count, in
                                     on='original_compound', how='inner')
     print( '!@# compound_to_reaction table done in %s minutes'\
                 %((time.time()-start)/60))
-    
+    # fill NA with empty strings
+    compound_to_reaction.fillna("")
     compound_to_reaction_path = os.path.join(intermediate_files_dir, 
                                                 'compound_to_reaction.pkl')
     compound_to_reaction.to_pickle(compound_to_reaction_path)

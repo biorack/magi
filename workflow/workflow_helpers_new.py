@@ -326,10 +326,14 @@ def general_magi_preparation():
     args = parse_arguments()
     magi_parameters = vars(args)
     if magi_parameters["not_first_script"]:
-        if magi_parameters["output"] is None or magi_parameters["intermediate_files_dir"] is None:
-            raise RuntimeError("Enter output file directory and intermediate files directory")
+        if magi_parameters["output"] is None:
+            raise RuntimeError("Enter output file directory")
         else:
-            magi_parameters["output_dir"] = magi_parameters["output"]            
+            magi_parameters["output_dir"] = os.path.abspath(magi_parameters["output"])
+            if magi_parameters["intermediate_files_dir"] is None:
+                magi_parameters["intermediate_files_dir"] = os.path.join(magi_parameters["output_dir"], magi_parameters["intermediate_files"])
+            else:
+                magi_parameters["intermediate_files_dir"] = os.path.abspath(magi_parameters["intermediate_files_dir"])
     else:
         print_version_info()
         print_parameters(args)
@@ -496,7 +500,7 @@ def get_intermediate_file_path(intermediate_files_dir, variable_of_interest):
                     raise OSError("File not found: {}".format(variable_path))
         raise RuntimeError("Could not find intermediate file object {}".format(variable_of_interest))
 
-def write_intermediate_file_path(intermediate_files_dir, variable_of_interest, variable_path):
+def write_intermediate_file_path(intermediate_files_dir, variable_of_interest, variable_path_of_interest):
     """
     This function reads an intermediate file with paths stored as a csv file and adds the new variable and its file path.
 
@@ -516,7 +520,7 @@ def write_intermediate_file_path(intermediate_files_dir, variable_of_interest, v
                 variable_name, variable_path = line.split(",")
                 paths[variable_name] = variable_path
     # Write the new path. This overwrites the old path.
-    paths[variable_of_interest] = variable_path
+    paths[variable_of_interest] = variable_path_of_interest
     with open(intfile, "w") as file:
         for variable_name, variable_path in paths.items():
             to_write = "{},{}\n".format(variable_name, variable_path)
