@@ -53,6 +53,8 @@ def main():
                 cmd,
                 cwd = os.path.join(repo_path, 'workflow/database')
                 )
+            subprocess.call(["cp", os.path.join(repo_path, "workflow/magi_cpd_similarity.graphml"), 
+            os.path.join(repo_path, "workflow/database/magi_cpd_similarity.graphml")])
         print 'Done'
 
     if args.f:
