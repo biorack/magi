@@ -401,30 +401,44 @@ def load_dataframe(fname, filetype=None, key=None):
     return df
 
 def load_compound_results(compounds_file, pactolus, output_dir, intermediate_files_dir): 
-    """ load compound results"""
+    """ 
+    load compound results, auto-rename pactolus columns and remove compounds that are
+    not found in the MAGI database or chemical network.
+
+    Inputs
+    ------
+    compounds_file: path to the file with compounds.
+    pactolus:       bool. True if the file is a pactolus file
+    output_dir:     path to store the log_unsearched_compounds.csv file.
+    intermediate_files_dir: path to store intermediate files.
+    """
     print( '\n!!! LOADING COMPOUNDS')
     compounds = load_dataframe(compounds_file)
     # auto-rename pactolus columns
     if pactolus:
         compounds = reformat_pactolus(compounds)
-    # remove any missing compounds
-    compounds = compounds[~pd.isnull(compounds['original_compound'])]
-    compounds.fillna('', inplace=True)
 
     if 'original_compound' not in compounds.columns:
         raise RuntimeError('Could not find "original_compound" as a column, please\
             rename the column corresponding to inchi keys for the compounds')
-    
+
+    # remove any missing compounds
+    compounds = compounds[~pd.isnull(compounds['original_compound'])]
+    compounds.fillna('', inplace=True)
+
     # remove compounds not in the database or network
     print( '!!! Scrubbing compounds')
     compounds['adj'] = compounds['original_compound'].apply(
         lambda x: '-'.join(x.split('-')[:2]))
     
+    # Open reference compounds database (unique_compounds_groups_magi.pkl)
+    # And create column with without the third part (protonation state)
     my_settings = get_settings()
     reference_compounds = load_dataframe(my_settings.compounds_df)
     reference_compounds['adj'] = reference_compounds['inchi_key'].apply(
             lambda x: '-'.join(x.split('-')[:2]))
-
+    
+    # Merge information to compounds file
     filt = compounds.merge(reference_compounds, on='adj', how='left', suffixes=('', '_db'))
     # categorize their reason for not being searched
     not_in_db = filt[pd.isnull(filt['cpd_group'])]
@@ -447,8 +461,8 @@ def load_compound_results(compounds_file, pactolus, output_dir, intermediate_fil
     to_search = filt[filt['cpd_group'] > 0]['original_compound'].unique()
     compounds = compounds[compounds['original_compound'].isin(to_search)]
 
-    u_cpds = compounds['original_compound'].unique()
-    print( '!@# {} total input compounds to search\n'.format(len(u_cpds)))
+    used_cpds = compounds['original_compound'].nunique()
+    print( '!@# {} total input compounds to search\n'.format(used_cpds))
 
     if 'compound_score' not in compounds.columns:
         print( 'WARNING: "compound_score" not found as a column; assuming that\
