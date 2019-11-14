@@ -24,89 +24,6 @@ import pandas as pd
 import numpy as np
 import workflow_helpers_new as mg
 
-def parse_arguments():
-    def is_existing_file(filepath):
-        """Checks if a file exists and return absolute path if it exists"""
-        if not os.path.exists(filepath):
-            msg = "{0} does not exist".format(filepath)
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            return os.path.abspath(filepath)
-    
-    def positive_number(number):
-        """Checks if none of the number/numbers are negative"""
-        try:
-            number = float(number)
-        except:
-            msg = "Please enter a numeric value"
-            raise argparse.ArgumentTypeError(msg)        
-        if number < 0:
-            msg = "Value cannot be negative"
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            return number
-    
-    def percentage_values_to_decimal(percentage):
-        """Turns the blast filter and reciprocal closeness percentages 
-        into decimal numbers"""
-        try:
-            percentage = int(percentage)
-        except:
-            msg = "Please enter an integer value"
-            raise argparse.ArgumentTypeError(msg)        
-        if percentage > 100:
-            msg = "Max value is 100"
-            raise argparse.ArgumentTypeError(msg)
-        elif percentage < 0:
-            msg = "Value cannot be negative"
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            decimal = percentage/100.
-        return decimal
-
-    try:
-        """parse arguments"""
-        parser = argparse.ArgumentParser()
-        # required arguments
-        parser.add_argument('--gene_to_reaction', type=is_existing_file, 
-            help='path to gene_to_reaction file, must be in pickle format')
-        parser.add_argument('--compound_to_reaction', type=is_existing_file,
-            help='path to compound_to_reaction file, must be in pickle format')
-        parser.add_argument('--reaction_to_gene', type=is_existing_file, 
-            help='path to reaction_to_gene file, must be in pickle format')
-        
-        parser.add_argument('--merged_before_score', type=is_existing_file,
-            help='path to merged_before_score table, must be in hdf5 format,\
-            with the key "merged_before_score"')
-        
-        # optional runtime variables
-        parser.add_argument('-o', '--output', 
-            help='path to a custom output', required = False,
-            type=str)
-
-        parser.add_argument('--final_weights', 
-            help='Defined weights to weight the final scoring for the scores:\
-            compound_score reciprocal_score homology_score reaction_connection', 
-            type=positive_number, nargs=4, default=None)
-        parser.add_argument('--chemnet_penalty', 
-            help='Base factor in the chemical network search level penalty', 
-            type=positive_number, default=4)
-        parser.add_argument('--reciprocal_closeness', 
-            help='Cutoff to call a reciprocal disagreement as "close", as percent;\
-            default is 75 meaning that a reciprocal disagreement will be classified\
-            as "close" if the lower blast score (e score) is within 75%% of the higher\
-            score', 
-            type=percentage_values_to_decimal, default=0.75)
-        
-        parser.add_argument('--intermediate_files',
-            help='What directory within --output to store intermediate files',
-            type=str, default='intermediate_files')
-        args = parser.parse_args()
-    except argparse.ArgumentTypeError as ex:
-        print(ex.message)
-        sys.exit(1)
-    return args
-
 def merge_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene, gene_to_reaction, intermediate_files_dir):
     """
     This part of the workflow merges tables
@@ -363,10 +280,7 @@ def calculate_scores(df, reciprocal_closeness, final_weights, chemnet_penalty, s
     df['MAGI_score'] = scores / (chemnet_penalty ** df['level'].values)
     print( '!@# Scoring done in %s minutes' %((time.time() - start_time) / 60))
     return df
-    
-    
-    
-    
+
 def format_table(df):
     """
     This function will:
@@ -446,8 +360,7 @@ def save_outputs(df, start, output_dir, intermediate_files_dir):
     print( '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60))
     print( '!!! final results stored to %s' \
             %(os.path.join(output_dir, 'magi_results.csv')))
-    
-    
+
 def main():
     # Parse arguments and prepare for reaction to gene workflow
     magi_parameters = mg.general_magi_preparation()

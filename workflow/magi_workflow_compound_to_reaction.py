@@ -312,7 +312,9 @@ def find_direct_reactions(search_inchikey, inchikey, reference_compounds, c2r, m
     return compound_results_list, compound_results
 
 def find_neighbor_reactions(compound_results_list, compound_results, inchikey, reference_compounds, c2r, mrs_reaction, chemical_network, cpd_group_lookup, tautomer_legacy, neighbor_level):
-    
+    """
+    This function finds reactions in which neighbors of inchi keys are involved.
+    """    
     neighbor_groups = neighbor_finder(inchikey, cpd_group_lookup, chemical_network=chemical_network, cpd_group=None, level=neighbor_level)
 
     # next look for reaction matches to neighbors
@@ -412,12 +414,7 @@ def connect_compound_to_reaction(inchikey, reference_compounds, c2r, mrs_reactio
     # only the direct hits
     compound_reaction_result_df.drop_duplicates(
         ['original_compound', 'reaction_id'], inplace=True)
-    # Clean up reaction ID column 
-    compound_reaction_result_df.reaction_id = compound_reaction_result_df.reaction_id.fillna(-1)
-    compound_reaction_result_df.reaction_id = compound_reaction_result_df.reaction_id.replace('',-1)
-    compound_reaction_result_df.reaction_id = compound_reaction_result_df.reaction_id.astype(int)
-    compound_reaction_result_df.reaction_id = compound_reaction_result_df.reaction_id.replace(-1,'')
-    compound_reaction_result_df.fillna('', inplace=True)
+
     return compound_reaction_result_df
 
 def load_objects(use_tautomer_legacy = False):
@@ -528,8 +525,7 @@ def workflow(compounds_to_search, tautomer_legacy, neighbor_level, cpu_count, in
                                     on='original_compound', how='inner')
     print( '!@# compound_to_reaction table done in %s minutes'\
                 %((time.time()-start)/60))
-    # fill NA with empty strings
-    compound_to_reaction.fillna("", inplace = True)
+
     compound_to_reaction_path = os.path.join(intermediate_files_dir, 
                                                 'compound_to_reaction.pkl')
     compound_to_reaction.to_pickle(compound_to_reaction_path)
@@ -552,6 +548,13 @@ def format_output(compound_to_reaction_path, output_dir, intermediate_files_dir)
     output_dir: path to the location where the magi_compound_results.csv file needs to be saved.
     """
     compound_to_reaction = pd.read_pickle(compound_to_reaction_path)
+    # fill NA with empty strings and clean up reaction ID column 
+    compound_to_reaction.reaction_id = compound_to_reaction.reaction_id.fillna(-1)
+    compound_to_reaction.reaction_id = compound_to_reaction.reaction_id.replace('',-1)
+    compound_to_reaction.reaction_id = compound_to_reaction.reaction_id.astype(int)
+    compound_to_reaction.reaction_id = compound_to_reaction.reaction_id.replace(-1,'')
+    compound_to_reaction.fillna('', inplace = True)
+    
     #TODO: Merge some useful information to the data frame.
     compound_to_reaction.to_csv(os.path.join(output_dir, 
                                             'magi_compound_results.csv'))

@@ -39,93 +39,6 @@ import subprocess
 import workflow_helpers_new as mg
 import blast_helpers as blast
 
-def parse_arguments():
-    """
-    This function parses the arguments that MAGI needs to perform a gene to reaction search.
-    """
-    def is_existing_file(filepath):
-        """Checks if a file exists and return absolute path if it exists"""
-        if not os.path.exists(filepath):
-            msg = "{0} does not exist".format(filepath)
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            return os.path.abspath(filepath)
-    def percentage_values_to_decimal(percentage):
-        """Turns the blast filter and reciprocal closeness percentages 
-        into decimal numbers"""
-        try:
-            percentage = int(percentage)
-        except:
-            msg = "Please enter an integer value"
-            raise argparse.ArgumentTypeError(msg)        
-        if percentage > 100:
-            msg = "Max value is 100"
-            raise argparse.ArgumentTypeError(msg)
-        elif percentage < 0:
-            msg = "Value cannot be negative"
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            decimal = percentage/100.
-        return decimal
-    
-    def positive_number(number):
-        """Checks if none of the number/numbers are negative"""
-        try:
-            number = float(number)
-        except:
-            msg = "Please enter a numeric value"
-            raise argparse.ArgumentTypeError(msg)        
-        if number < 0:
-            msg = "Value cannot be negative"
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            return number
-    
-    def set_cpu_count(cpu_count):
-        max_cpu = counting_cpus()  
-        if cpu_count == 0:
-            cpu_count = max_cpu    
-        if cpu_count > max_cpu:
-            msg = "ERROR: You have exceeded the cpus on this machine ({})".format(max_cpu)
-            raise argparse.ArgumentTypeError(msg)
-        return cpu_count
-    try:
-        """parse arguments"""
-        parser = argparse.ArgumentParser()
-        # required arguments
-        parser.add_argument('-f', '--fasta', type=is_existing_file,required=True,
-            help='path to fasta file of genes in sample')
-
-        parser.add_argument('-a', '--annotations', type=is_existing_file,
-            help='path to annotation file for genes in sample', 
-            default=None)
-        parser.add_argument('-n', '--cpu_count', 
-            help='number of cpus to use for multiprocessing. Default is to use max!', 
-            type=int, default=0)
-        parser.add_argument('-o', '--output', 
-            help='path to a custom output', 
-            type=str)
-        parser.add_argument('--blast_filter', 
-            help='How stringent to filter the top BLAST results, as percent;\
-            default is 85 meaning that only BLAST results within 85%% of the top\
-            result will be taken.', 
-            type=percentage_values_to_decimal, default=0.85)
-        parser.add_argument('--intermediate_files',
-            help='What directory within --output to store intermediate files',
-            type=str, default='intermediate_files')
-        parser.add_argument('--gene_to_reaction_only',
-            help="Use this parameter if you are only interested in the gene to reaction search", 
-            action='store_true', default=False)
-        
-        args = parser.parse_args()
-        
-        # Set number of required CPUs
-        args.cpu_count = set_cpu_count(args.cpu_count)
-    except argparse.ArgumentTypeError as ex:
-        print(ex.message)
-        sys.exit(1)
-    return args
-
 def load_genome(fasta, intfile_path, annotation_file=None):
     """
     This function will take some standard fasta a input and convert it
@@ -321,6 +234,7 @@ def format_output(gene_to_reaction_top_path, output_dir, intermediate_files_dir)
     gene_to_reaction_top = pd.read_pickle(gene_to_reaction_top_path)
     df = gene_to_reaction_top.merge(blast.mrs_reaction[['database_id']],
         left_on='reaction_id', right_index=True, how='left')
+    gene_to_reaction_top.fillna('', inplace = True)
     df.to_csv(os.path.join(output_dir, 'magi_gene_results.csv'))
     print( '!!! gene to reaction results saved to %s' \
             %(os.path.join(output_dir, 'magi_gene_results.csv')))
