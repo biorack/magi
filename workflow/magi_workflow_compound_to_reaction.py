@@ -33,6 +33,7 @@ from rdkit import Chem
 from molvs.standardize import enumerate_tautomers_smiles
 import networkx as nx
 import workflow_helpers_new as mg
+from functools import partial
 
 def find_reactions_of_compound(inchikey, rxn_db, 
                                compound_col='allcpd_ikeys'):
@@ -486,45 +487,37 @@ def workflow(compounds_to_search, tautomer_legacy, neighbor_level, cpu_count, in
     """
     c2r, mrs_reaction, reference_compounds, cpd_group_lookup, chemical_network = load_objects(use_tautomer_legacy = tautomer_legacy)
 
-    def connect_compound_to_reaction_mp_helper(inchikey, 
-                                                tautomer_legacy=tautomer_legacy, 
-                                                neighbor_level=neighbor_level, 
-                                                reference_compounds = reference_compounds,
-                                                cpd_group_lookup =cpd_group_lookup,
-                                                c2r=c2r,
-                                                mrs_reaction = mrs_reaction,
-                                                chemical_network=chemical_network):
-        try:
-            out = connect_compound_to_reaction(inchikey,
-                                               reference_compounds=reference_compounds, 
-                                               c2r=c2r, 
-                                               mrs_reaction = mrs_reaction,
-                                               chemical_network=chemical_network, 
-                                               cpd_group_lookup=cpd_group_lookup,
-                                               tautomer_legacy=tautomer_legacy, 
-                                               neighbor_level=neighbor_level)
-        except Exception as e:
-            print( inchikey )
-            sys.stdout.flush()
-            raise RuntimeError('offending inchikey: %s; error message: %s' \
-                                %(inchikey, e.args))
-        return out
-    
-
     print( '\n!@# Conducting compound to reaction search | TLOG %s' % (time.time()))
     sys.stdout.flush()
     start = time.time()
 
     input_compounds = compounds_to_search['original_compound'].unique()
-    if cpu_count == 1: #Quick fix for multiprocessing problems
-        #To do: fix this
+    if cpu_count == 1: #Don't set up multiprocessing if only one CPU is used.
+        # Get a DataFrame with reaction info for each input_compound
         print("!!! No multiprocessing used for compound to reaction search")
-        out = map(connect_compound_to_reaction_mp_helper, input_compounds)
+        out = map(partial(connect_compound_to_reaction, 
+                            reference_compounds=reference_compounds, 
+                            c2r=c2r, 
+                            mrs_reaction = mrs_reaction,
+                            chemical_network=chemical_network, 
+                            cpd_group_lookup=cpd_group_lookup,
+                            tautomer_legacy=tautomer_legacy, 
+                            neighbor_level=neighbor_level), input_compounds)
     else:
-        p = mp.Pool(cpu_count)
-        out = p.map(connect_compound_to_reaction_mp_helper, input_compounds)
-        p.close()
-        p.terminate()
+        try:
+            p = mp.Pool(cpu_count)
+            out = p.map(partial(connect_compound_to_reaction, 
+                                reference_compounds=reference_compounds, 
+                                c2r=c2r, 
+                                mrs_reaction = mrs_reaction,
+                                chemical_network=chemical_network, 
+                                cpd_group_lookup=cpd_group_lookup,
+                                tautomer_legacy=tautomer_legacy, 
+                                neighbor_level=neighbor_level), input_compounds) 
+        finally:
+            # This should also close the multiprocessing pool in case of an exception
+            p.close()
+            p.terminate()
     
     compound_to_reaction = pd.concat(out)
     del out
