@@ -3,14 +3,7 @@
 import sys
 import os
 import pandas as pd
-import workflow_helpers_new as magi
-sys.path.insert(0, os.path.abspath(".."))
-from local_settings import local_settings as settings_loc
-
-my_settings = getattr(
-    __import__(
-        'local_settings',
-        fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
+import workflow_helpers_new as mg
 
 def ppm_window(mass, ppm=5, result='bounds'):
     """
@@ -202,13 +195,13 @@ def mz_neutral_transform(val, adduct, transform='neutralize'):
            x = (val / 3) + three_charge[adduct]
     return x
 
-def accurate_mass_search(mz_filename, polarity, adducts, ppm_cutoff, reference_compounds):
+def accurate_mass_search(features_to_search, polarity, adducts, ppm_cutoff, reference_compounds):
     """
     Given an input filename, finds all compounds in the reference_compounds database matching within the given ppm error.
     
     Inputs
     ------
-    mz_filename: absolute path with filename to the file that needs to be searched. m/z values need to be in a column called 'original_compound'
+    features_to_search: Dataframe with m/z values. m/z values need to be in a column called 'original_compound'
     polarity: either pos, neg or neut
     adducts: list of adducts to search.
     ppm_cutoff: ppm error cuttof for accurate mass search
@@ -221,12 +214,8 @@ def accurate_mass_search(mz_filename, polarity, adducts, ppm_cutoff, reference_c
         masses, found masses, ppm difference, inchikeys for those
         compounds, and a function of the ppm error as a compound score
 
-    compound_score = ppm_cutoff + 1 - ppm_difference
+    compound_score = 1
     """
-    # load compound table (should be masses in original_compounds)
-    features_to_search = pd.read_csv(mz_filename)
-    # Load reference compounds
-
     # rename original_compounds column
     columns = features_to_search.columns.values
     if 'original_compound' not in columns:
@@ -257,63 +246,102 @@ def accurate_mass_search(mz_filename, polarity, adducts, ppm_cutoff, reference_c
                 for cpd in found_compounds:
                     data['original_compound'].append(cpd[0])
                     data['ppm_error'].append(cpd[1])
-                    data['compound_score'].append(ppm_cutoff + 1 - cpd[1])
+                    data['compound_score'].append(1)
                     data['searched_adduct'].append(adduct)
                     data['original_mz'].append(mz)
 
-    # merge with user input and save
+    # merge with user input 
     df = pd.DataFrame(data)
-    features_to_search = features_to_search.merge(df, on='original_mz', how='left')
+    features_to_search = features_to_search.merge(df, on='original_mz', how='left')    
+    return features_to_search
+
+def prepare_adducts(polarity, adduct_file = None):
+    """
+    Make list of adducts to search for
+
+    Inputs:
+    ------
+    adducts_file:   file to read adducts from. 
+    polarity:       pos, neg or neut
     
-    # save the new table
-    mass_searched_filename = os.path.splitext(mz_filename)[0] + '_mass_searched_{}.csv'.format(polarity)
-    features_to_search.to_csv(mass_searched_filename, index = False)
-    return mass_searched_filename
-
-def workflow(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff):
-    reference_compounds = magi.load_dataframe(my_settings.compounds_df)
-    if compounds_file is None:
-        raise RuntimeError("No compounds file specified. Exiting...")
+    Outputs:
+    ------
+    adducts:        list of adducts to use. Empty list if the polarity is neutral.
+    """
+    if adduct_file is not None:
+        adduct_file = os.path.abspath(adduct_file)
+        print('@@@ Adduct file input: %s' %(adduct_file))
+        with open(adduct_file) as adduct_file:
+            adducts = []
+            try:
+                for line in adduct_file:
+                    adducts.append(line.rstrip())
+            except:
+                print("File cannot be converted to adducts list. Please specify one adduct per line.")
+                raise
+    elif polarity == 'pos':
+        adducts = ['M+', 'M+H', 'M+NH4', 'M+Na']
+    elif polarity == 'neg':
+        adducts = ['M-H', 'M+Cl', 'M+FA-H', 'M+Hac-H']
+    elif polarity == 'neut':
+        adducts = ['']
     else:
-        # Perform accurate mass search and set compounds file to mass-searched file.
-        print("\n!!! Performing accurate mass search for {}".format(compounds_file))
-        #Make list of adducts to search for
-        if adduct_file is not None:
-            adduct_file = os.path.abspath(adduct_file)
-            print('@@@ Adduct file input: %s' %(adduct_file))
-            with open(adduct_file) as adduct_file:
-                adducts = []
-                try:
-                    for line in adduct_file:
-                        adducts.append(line.rstrip())
-                except:
-                    print("File cannot be converted to adducts list. Please specify one adduct per line.")
-                    raise
-        elif polarity == 'pos':
-            adducts = ['M+', 'M+H', 'M+NH4', 'M+Na']
-        elif polarity == 'neg':
-            adducts = ['M-H', 'M+Cl', 'M+FA-H', 'M+Hac-H']
-        elif polarity == 'neut':
-            adducts = ['']
-        else:
-            raise RuntimeError('Could not understand polarity')
-        mass_searched_compounds_filename = accurate_mass_search(compounds_file, polarity, adducts, ppm_cutoff, reference_compounds)
-        print("\n!!! Accurate mass search done. Mass-searched file stored in {}".format(compounds_file))    
-        if accurate_mass_search_only:
-            sys.exit() # done with mass search. Exiting
-    return mass_searched_compounds_filename
+        raise RuntimeError('Could not understand polarity')
+    return adducts
 
-#def parse_arguments():
-#    return "arguments are parsed"
-#
-#def format_output():
-#    return "output is formatted"
-#
-##def main():
-##    parse_stuff()
-##    workflow(compounds_file, adduct_file, polarity, accurate_mass_search_only, ppm_cutoff)
-##    format_output()
-#
-#if __name__ == "__main__":
-#    #main()
-#    print("Are you sure? This is not ready yet")
+def workflow(compounds_file, adduct_file, polarity, ppm_cutoff, reference_compounds):
+    """
+    Run an accurate mass search on m/z values and return candidate compounds
+
+    Inputs
+    ------
+    compounds_file: absolute path to the file with m/z values that need to be searched
+    adduct_file:    list of adducts to use.
+    polarity:       polarity of the search. Either positive, negative or neutral
+    ppm_cutoff:     ppm cutoff to use for the mass search
+    """
+
+    print("\n!!! Performing accurate mass search for {}".format(compounds_file))
+    adducts = prepare_adducts(adduct_file = adduct_file, polarity = polarity)
+
+    # Read compounds file
+    features_to_search = pd.read_csv(compounds_file)
+    mass_searched_compounds = accurate_mass_search(features_to_search, polarity, adducts, ppm_cutoff, reference_compounds)
+    return mass_searched_compounds
+
+def format_output(mz_filename, output_dir, mass_searched_compounds, polarity):
+    """
+    Write mass_searched_compounds dataframe to file
+    """
+    # save the new table
+    mass_searched_filename = os.path.basename(os.path.splitext(mz_filename)[0]) + '_mass_searched_{}.csv'.format(polarity)
+    mass_searched_filename = os.path.join(output_dir, mass_searched_filename)
+    mass_searched_compounds.to_csv(mass_searched_filename, index = False)
+    print("\n!!! Accurate mass search done. Mass-searched file stored in {}".format(mass_searched_filename))    
+
+def main():
+    # Parse arguments and prepare for compounds to reaction workflow
+    magi_parameters = mg.general_magi_preparation()
+
+    # Check mass-search-specific parameter
+    if magi_parameters["polarity"] is None:
+        raise RuntimeError("Please specify polarity")
+
+    # Load reference compounds list with reference masses
+    my_settings = mg.get_settings()
+    reference_compounds = mg.load_dataframe(my_settings.compounds_df)
+
+    # Run workflow
+    mass_searched_compounds = workflow(compounds_file = magi_parameters["compounds"], 
+                adduct_file = magi_parameters["adduct_file"], 
+                polarity = magi_parameters["polarity"], 
+                ppm_cutoff = magi_parameters["ppm_cutoff"], 
+                reference_compounds = reference_compounds)
+    # Write to file
+    format_output(mz_filename = magi_parameters["compounds"], 
+                output_dir = magi_parameters["output_dir"],
+                mass_searched_compounds = mass_searched_compounds,
+                polarity = magi_parameters["polarity"])
+
+if __name__ == "__main__":
+    main()

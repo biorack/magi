@@ -191,14 +191,9 @@ def parse_arguments():
         
         # Parameters for accurate mass search
         mass_search_args = parser.add_argument_group("Arguments for the optional accurate mass search")
-        mass_search_args.add_argument('--accurate_mass_search',
+        mass_search_args.add_argument('--polarity',
                             type=str, choices=['pos','neg','neut'], default=None,
-                            help = "Perform accurate mass search on m/z values in original_compound column in the input compounds file. \
-                            Specify if the masses are measured in negative mode, positive mode or if they have been transformed to neutral masses."
-                            )
-        mass_search_args.add_argument('--accurate_mass_search_only',
-                            action='store_true', default=False,
-                            help = "If this parameter is used, MAGI will stop after performing the accurate mass search."
+                            help = "Specify if the masses were measured in negative mode, positive mode or if they have been transformed to neutral masses."
                             )
         mass_search_args.add_argument('--adduct_file',
                             type=str, default=None,
