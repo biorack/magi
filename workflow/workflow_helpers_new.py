@@ -7,6 +7,7 @@ import warnings
 import datetime
 import argparse
 import time
+import json
 from multiprocessing import cpu_count as counting_cpus
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -108,6 +109,8 @@ def parse_arguments():
             help='path to fasta file of genes in sample')
         required_args.add_argument('-c', '--compounds', type=is_existing_file,
             help='path to observed compounds file')
+        required_args.add_argument('--jsonfile', type=is_existing_file,
+            help='path to .json file with magi input parameters. Use instead of any arguments here. MAGI is extremely sensitive to the keys and values in this file.')
         
         # jump-start the script after certain computations
         start_halfway_args = parser.add_argument_group('Arguments to jump-start the script after certain computations')
@@ -206,8 +209,8 @@ def parse_arguments():
         args = parser.parse_args()
         
         # Check parameters and set number of required CPUs
-        if args.fasta is None and args.compounds is None and args.not_first_script is False:
-            raise argparse.ArgumentTypeError('ERROR: either FASTA or metabolites file is required')
+        if args.fasta is None and args.compounds is None and args.jsonfile is None and args.not_first_script is False:
+            raise argparse.ArgumentTypeError('ERROR: either FASTA or metabolites file is required, or a json file with input parameters.')
         args.cpu_count = set_cpu_count(args.cpu_count)
     except argparse.ArgumentTypeError as ex:
         print(ex.message)
@@ -261,6 +264,34 @@ def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, inte
     with open(os.path.join(intermediate_files_dir, "timer.txt"),"w") as timerfile:
         timerfile.write(str(main_start))
     return output_dir, intermediate_files_dir
+
+def use_json_as_magi_input(jsonfilename, magi_parameters):
+    """
+    Set parameters from a MAGI job file to the current MAGI run.
+    
+    Inputs
+    ------
+    jsonfilename:       path to json file
+    magi_parameters:    dictionary with magi parameters
+
+    Outputs
+    ------
+    magi_parameters:    dictionary with updated parameters from the json file. No parameter checking is performed here.
+    """
+    with open(jsonfilename, 'r') as jsonfile:
+        json_input = json.load(jsonfile)
+    magi_parameters["blast_filter"] = json_input["blast_cutoff"]/100.
+    magi_parameters["chemnet_penalty"] = json_input["chemnet_penalty"]
+    magi_parameters["compounds"] = is_existing_file(json_input["metabolite_file"])
+    magi_parameters["fasta"] = is_existing_file(json_input["fasta_file"])
+    magi_parameters["final_weights"] = [json_input["score_weight_compound"], json_input["score_weight_reciprocal"], json_input["score_weight_homology"], json_input["score_weight_rxnconnect"]]
+    magi_parameters["level"] = json_input["network_level"]
+    if "output_directory" in json_input.keys():
+        magi_parameters["output"] = json_input["output_directory"]
+    magi_parameters["polarity"] = json_input["polarity"]
+    magi_parameters["ppm_cutoff"] = json_input["ppm"]
+    magi_parameters["reciprocal_closeness"] = json_input["reciprocal_cutoff"]/100.
+    return magi_parameters
 
 def print_version_info():
     """
@@ -320,6 +351,9 @@ def general_magi_preparation():
     """
     args = parse_arguments()
     magi_parameters = vars(args)
+    # Read parameters from json file if needed
+    if magi_parameters["jsonfile"] is not None:
+        magi_parameters = use_json_as_magi_input(magi_parameters["jsonfile"], magi_parameters)
     if magi_parameters["not_first_script"]:
         if magi_parameters["output"] is None:
             raise RuntimeError("Enter output file directory")
