@@ -253,8 +253,8 @@ def main():
              cpu_count=magi_parameters["cpu_count"],
              annotations=magi_parameters["annotations"], 
              blast_filter=magi_parameters["blast_filter"])
-    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "gene_to_reaction_path", gene_to_reaction_path)
-    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "genome_db_path", genome_db_path)
+    mg.write_intermediate_file_path(magi_parameters["output_dir"], "gene_to_reaction_path", gene_to_reaction_path)
+    mg.write_intermediate_file_path(magi_parameters["output_dir"], "genome_db_path", genome_db_path)
     
     #Format output if this is the last step of the workflow
     if magi_parameters["gene_to_reaction_only"]:

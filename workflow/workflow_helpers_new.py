@@ -51,7 +51,38 @@ def is_database(db_path):
             msg = "{0} does not exist".format(db_file)
             raise argparse.ArgumentTypeError(msg)
     return os.path.abspath(db_path)
-        
+
+def percentage_values_to_decimal(percentage):
+    """Turns the blast filter and reciprocal closeness percentages 
+    into decimal numbers"""
+    try:
+        percentage = int(percentage)
+    except:
+        msg = "Please enter an integer value"
+        raise argparse.ArgumentTypeError(msg)        
+    if percentage > 100:
+        msg = "Max value is 100"
+        raise argparse.ArgumentTypeError(msg)
+    elif percentage < 0:
+        msg = "Value cannot be negative"
+        raise argparse.ArgumentTypeError(msg)
+    else:
+        decimal = percentage/100.
+    return decimal
+
+def positive_number(number):
+    """Checks if a number is positive"""
+    try:
+        number = float(number)
+    except:
+        msg = "Please enter a numeric value"
+        raise argparse.ArgumentTypeError(msg)        
+    if number < 0:
+        msg = "Value cannot be negative"
+        raise argparse.ArgumentTypeError(msg)
+    else:
+        return number
+
 def parse_arguments():
     """
     This is the MAGI argument parser that is used in all workflows. 
@@ -61,37 +92,6 @@ def parse_arguments():
     -------
     An argparse.args object containing all arguments. 
     """
-    def percentage_values_to_decimal(percentage):
-        """Turns the blast filter and reciprocal closeness percentages 
-        into decimal numbers"""
-        try:
-            percentage = int(percentage)
-        except:
-            msg = "Please enter an integer value"
-            raise argparse.ArgumentTypeError(msg)        
-        if percentage > 100:
-            msg = "Max value is 100"
-            raise argparse.ArgumentTypeError(msg)
-        elif percentage < 0:
-            msg = "Value cannot be negative"
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            decimal = percentage/100.
-        return decimal
-    
-    def positive_number(number):
-        """Checks if none of the number/numbers are negative"""
-        try:
-            number = float(number)
-        except:
-            msg = "Please enter a numeric value"
-            raise argparse.ArgumentTypeError(msg)        
-        if number < 0:
-            msg = "Value cannot be negative"
-            raise argparse.ArgumentTypeError(msg)
-        else:
-            return number
-    
     def set_cpu_count(cpu_count):
         max_cpu = counting_cpus()  
         if cpu_count == 0:
@@ -280,17 +280,31 @@ def use_json_as_magi_input(jsonfilename, magi_parameters):
     """
     with open(jsonfilename, 'r') as jsonfile:
         json_input = json.load(jsonfile)
-    magi_parameters["blast_filter"] = json_input["blast_cutoff"]/100.
-    magi_parameters["chemnet_penalty"] = json_input["chemnet_penalty"]
-    magi_parameters["compounds"] = is_existing_file(json_input["metabolite_file"])
-    magi_parameters["fasta"] = is_existing_file(json_input["fasta_file"])
-    magi_parameters["final_weights"] = [json_input["score_weight_compound"], json_input["score_weight_reciprocal"], json_input["score_weight_homology"], json_input["score_weight_rxnconnect"]]
-    magi_parameters["level"] = json_input["network_level"]
-    if "output_directory" in json_input.keys():
-        magi_parameters["output"] = json_input["output_directory"]
-    magi_parameters["polarity"] = json_input["polarity"]
-    magi_parameters["ppm_cutoff"] = json_input["ppm"]
-    magi_parameters["reciprocal_closeness"] = json_input["reciprocal_cutoff"]/100.
+    for key, value in json_input.items():
+        if key == "blast_cutoff":
+            magi_parameters["blast_filter"] = percentage_values_to_decimal(value)
+        elif key == "reciprocal_cutoff":
+            magi_parameters["reciprocal_closeness"] = percentage_values_to_decimal(value)
+        elif key == "metabolite_file":
+            magi_parameters["compounds"] = is_existing_file(value)
+        elif key == "fasta_file":
+            magi_parameters["fasta"] = is_existing_file(value)
+        elif key == "score_weight_compound":
+            magi_parameters["final_weights"][0] = positive_number(value)
+        elif key == "score_weight_reciprocal":
+            magi_parameters["final_weights"][1] = positive_number(value)
+        elif key == "score_weight_homology":
+            magi_parameters["final_weights"][2] = positive_number(value)
+        elif key == "score_weight_rxnconnect":
+            magi_parameters["final_weights"][3] = positive_number(value)
+        elif key == "network_level":
+            magi_parameters["level"] = value
+        elif key == "output_directory":
+            magi_parameters["output"] = value
+        elif key == "ppm":
+            magi_parameters["ppm_cutoff"] = value
+        else:
+            magi_parameters[key] = value
     return magi_parameters
 
 def print_version_info():
@@ -359,10 +373,8 @@ def general_magi_preparation():
             raise RuntimeError("Enter output file directory")
         else:
             magi_parameters["output_dir"] = os.path.abspath(magi_parameters["output"])
-            if magi_parameters["intermediate_files_dir"] is None:
-                magi_parameters["intermediate_files_dir"] = os.path.join(magi_parameters["output_dir"], magi_parameters["intermediate_files"])
-            else:
-                magi_parameters["intermediate_files_dir"] = os.path.abspath(magi_parameters["intermediate_files_dir"])
+            # Read used parameters from previous run
+            magi_parameters = use_json_as_magi_input(os.path.join(magi_parameters["output_dir"], "used_parameters.json"), magi_parameters)
     else:
         print_version_info()
         print_parameters(args)
@@ -372,6 +384,9 @@ def general_magi_preparation():
                                                           intermediate_files=magi_parameters["intermediate_files"])
         magi_parameters["output_dir"] = output_dir
         magi_parameters["intermediate_files_dir"] = intermediate_files_dir
+    # Write used parameters to file
+    with open(os.path.join(magi_parameters["output_dir"], "used_parameters.json"), "w") as jsonfile:
+        json.dump(magi_parameters, jsonfile)
     return magi_parameters
     
 def load_dataframe(fname, filetype=None, key=None):
@@ -518,56 +533,51 @@ def get_settings():
         fromlist=[settings_loc.SETTINGS_FILE]), settings_loc.SETTINGS_FILE)
     return my_settings
 
-def get_intermediate_file_path(intermediate_files_dir, variable_of_interest):
+def get_intermediate_file_path(output_dir, variable_of_interest):
     """
-    This function will return the path that matches a path name in the intermediate_files_paths.csv file.
+    This function will return the path that matches a path name in the used_parameters.json file.
     This is used to find paths to intermediate files that were made in previous magi runs.
 
     Inputs
     ------
-    intermediate_files_dir: The path to the intermediate files directory
+    output_dir: The path to the output directory with a used_parameters.json file.
     variable_of_interest: The name of the variable for which the path needs to be found.
 
     Outputs
     -------
-    variable_path:  The path stored in the intermediate_files_paths.csv file within the intermediate_files_dir.
+    variable_path:  The path stored in the used_parameters.json file.
     """
-    with open(os.path.join(intermediate_files_dir, "intermediate_files_paths.csv"), "r") as file:
-        for line in file:
-            line = line.rstrip()
-            variable_name, variable_path = line.split(",")
-            if variable_name == variable_of_interest:
-                if os.path.exists(variable_path) or is_database(variable_path):
-                    return variable_path
-                else:
-                    raise OSError("File not found: {}".format(variable_path))
-        raise RuntimeError("Could not find intermediate file object {}".format(variable_of_interest))
+    with open(os.path.join(output_dir, "used_parameters.json"), "r") as jsonfile:
+        used_parameters = json.load(jsonfile)
+    # Try to find variable of interest
+    try:
+        variable_path = used_parameters[variable_of_interest]
+    except:
+        raise RuntimeError("Could not find object {} in used_parameters.json".format(variable_of_interest))
+    # Return path if the file exists.
+    if os.path.exists(variable_path) or is_database(variable_path):
+        return variable_path
+    else:
+        raise OSError("File not found: {}".format(variable_path))
 
-def write_intermediate_file_path(intermediate_files_dir, variable_of_interest, variable_path_of_interest):
+def write_intermediate_file_path(output_dir, variable_of_interest, variable_path_of_interest):
     """
-    This function reads an intermediate file with paths stored as a csv file and adds the new variable and its file path.
+    This function reads a file called used_parameters.json with paths stored and adds the new variable and its file path.
 
     Inputs
     ------
-    intermediate_files_dir: The path to the intermediate files directory
+    output_dir: The path to the output files directory
     variable_of_interest: The name of the variable for which the path needs to be stored.
     path_of_interest: The file path that contains the variable_of_interest file.
     """
-    # Read the csv dictionary with file path object names and paths if it exists
-    paths = {}
-    intfile = os.path.join(intermediate_files_dir, "intermediate_files_paths.csv")
-    if os.path.exists(intfile):
-        with open(intfile, "r") as file:
-            for line in file:
-                line = line.rstrip()
-                variable_name, variable_path = line.split(",")
-                paths[variable_name] = variable_path
+    # Read the json dictionary with file path object names and paths if it exists
+    with open(os.path.join(output_dir, "used_parameters.json"), "r") as jsonfile:
+        used_parameters = json.load(jsonfile)
+
     # Write the new path. This overwrites the old path.
-    paths[variable_of_interest] = variable_path_of_interest
-    with open(intfile, "w") as file:
-        for variable_name, variable_path in paths.items():
-            to_write = "{},{}\n".format(variable_name, variable_path)
-            file.write(to_write)
+    used_parameters[variable_of_interest] = variable_path_of_interest
+    with open(os.path.join(output_dir, "used_parameters.json"), "w") as jsonfile:
+         json.dump(used_parameters, jsonfile)
 
 def load_mrs_reaction():
     """

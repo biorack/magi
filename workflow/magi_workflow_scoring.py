@@ -369,15 +369,15 @@ def main():
     if magi_parameters["gene_to_reaction"] is not None:
         gene_to_reaction_path = mg.is_existing_file(magi_parameters["gene_to_reaction"])
     else:
-        gene_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "gene_to_reaction_path")
+        gene_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "gene_to_reaction_path")
     if magi_parameters["compound_to_reaction"] is not None:
         compound_to_reaction_path = mg.is_existing_file(magi_parameters["compound_to_reaction"])
     else:
-        compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "compound_to_reaction_path")
+        compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path")
     if magi_parameters["reaction_to_gene"] is not None:
         reaction_to_gene_path = mg.is_existing_file(magi_parameters["reaction_to_gene"])
     else:
-        reaction_to_gene_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "reaction_to_gene_path")
+        reaction_to_gene_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "reaction_to_gene_path")
 
     # Merge the gene to reaction and reaction to gene tables
     if magi_parameters["merged_before_score"] is None:

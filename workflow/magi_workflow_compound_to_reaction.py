@@ -582,7 +582,7 @@ def main():
             neighbor_level = magi_parameters["level"], 
             cpu_count = magi_parameters["cpu_count"], 
             intermediate_files_dir = magi_parameters["intermediate_files_dir"])    
-    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "compound_to_reaction_path", compound_to_reaction_path)
+    mg.write_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path", compound_to_reaction_path)
 
     # Format output if this is the last step of the MAGI run
     if magi_parameters["compound_to_reaction_only"]:

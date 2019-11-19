@@ -105,12 +105,12 @@ def main():
     if magi_parameters["compound_to_reaction"] is not None:
         compound_to_reaction_path = magi_parameters["compound_to_reaction"]
     else:
-        compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "compound_to_reaction_path")
+        compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path")
     # Set genome database path
     if magi_parameters["genome_db"] is not None:
         genome_db_path = magi_parameters["genome_db"]
     else:
-        genome_db_path = mg.get_intermediate_file_path(magi_parameters["intermediate_files_dir"], "genome_db_path")
+        genome_db_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "genome_db_path")
     
     print("opening {}".format(magi_parameters["compound_to_reaction"]))
     compound_to_reaction = pd.read_pickle(compound_to_reaction_path)
@@ -120,7 +120,7 @@ def main():
         blast_filter = magi_parameters["blast_filter"], 
         intermediate_files_dir = magi_parameters["intermediate_files_dir"], 
         cpu_count = magi_parameters["cpu_count"])
-    mg.write_intermediate_file_path(magi_parameters["intermediate_files_dir"], "reaction_to_gene_path", reaction_to_gene_path)
+    mg.write_intermediate_file_path(magi_parameters["output_dir"], "reaction_to_gene_path", reaction_to_gene_path)
     print("Reaction to gene search successfully finished")
 
 if __name__ == "__main__":
