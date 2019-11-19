@@ -23,7 +23,7 @@
 //                "--output", "/Users/northenlab/Desktop/h_leegwater/magi_runs/debug/output", 
 //                "--cpu_count", "2", "--compound_to_reaction_only"]
             "args": ["--not_first_script", 
-                "--output", "/Users/northenlab/Desktop/h_leegwater/magi_runs/20191115_variovorax_run/output_full2/", "--cpu_count", "1"]
+                "--output", "/Users/northenlab/Desktop/h_leegwater/magi_runs/20191119_runs/output_test3/", "--cpu_count", "1"]
             //"args": ["--not_first_script", "--jsonfile", "/Users/northenlab/Desktop/h_leegwater/magi_runs/debug/temp_magi_input.json", "--cpu_count", "1" ]
         }
     ]

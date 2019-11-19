@@ -384,6 +384,12 @@ def general_magi_preparation():
                                                           intermediate_files=magi_parameters["intermediate_files"])
         magi_parameters["output_dir"] = output_dir
         magi_parameters["intermediate_files_dir"] = intermediate_files_dir
+    
+    # Check if only metabolite or fasta file is given
+    if magi_parameters["fasta"] is None and magi_parameters["compounds"] is not None:
+        magi_parameters["compound_to_reaction_only"] = True
+    if magi_parameters["compounds"] is None and magi_parameters["fasta"] is not None:
+        magi_parameters["gene_to_reaction_only"] = True
     # Write used parameters to file
     with open(os.path.join(magi_parameters["output_dir"], "used_parameters.json"), "w") as jsonfile:
         json.dump(magi_parameters, jsonfile)
@@ -485,9 +491,9 @@ def load_compound_results(compounds_file, pactolus, output_dir, intermediate_fil
     # Merge information to compounds file
     filt = compounds.merge(reference_compounds, on='adj', how='left', suffixes=('', '_db'))
     # categorize their reason for not being searched
-    not_in_db = filt[pd.isnull(filt['cpd_group'])]
+    not_in_db = filt[pd.isnull(filt['cpd_group'])].copy()
     not_in_db['not_searched_reason'] = 'Not in metabolite database'
-    not_in_net = filt[filt['cpd_group'] < 0]
+    not_in_net = filt[filt['cpd_group'] < 0].copy()
     not_in_net['not_searched_reason'] = 'Not in similarity network yet'
     # combine into one table
     not_searched = pd.concat([not_in_db, not_in_net])

@@ -567,29 +567,32 @@ def format_output(compound_to_reaction_path, output_dir, intermediate_files_dir)
 def main():
     # Parse arguments and prepare for compounds to reaction workflow
     magi_parameters = mg.general_magi_preparation()
-    
-    # Open file with compounds that need to be searched and prepare the data frame
-    compounds_to_search = mg.load_compound_results(
-            compounds_file = magi_parameters["compounds"], 
-            pactolus = magi_parameters["pactolus"], 
-            output_dir = magi_parameters["output_dir"], 
-            intermediate_files_dir = magi_parameters["intermediate_files_dir"])
 
-    # Run compound to reaction workflow 
-    compound_to_reaction_path = workflow(
-            compounds_to_search = compounds_to_search, 
-            tautomer_legacy = magi_parameters["legacy"], 
-            neighbor_level = magi_parameters["level"], 
-            cpu_count = magi_parameters["cpu_count"], 
-            intermediate_files_dir = magi_parameters["intermediate_files_dir"])    
-    mg.write_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path", compound_to_reaction_path)
+    if magi_parameters["gene_to_reaction_only"]:
+        print("Not performing MAGI compound to reaction workflow")
+    else:
+        # Open file with compounds that need to be searched and prepare the data frame
+        compounds_to_search = mg.load_compound_results(
+                compounds_file = magi_parameters["compounds"], 
+                pactolus = magi_parameters["pactolus"], 
+                output_dir = magi_parameters["output_dir"], 
+                intermediate_files_dir = magi_parameters["intermediate_files_dir"])
 
-    # Format output if this is the last step of the MAGI run
-    if magi_parameters["compound_to_reaction_only"]:
-        format_output(
-            compound_to_reaction_path = compound_to_reaction_path, 
-            output_dir = magi_parameters["output_dir"], 
-            intermediate_files_dir = magi_parameters["intermediate_files_dir"])
+        # Run compound to reaction workflow 
+        compound_to_reaction_path = workflow(
+                compounds_to_search = compounds_to_search, 
+                tautomer_legacy = magi_parameters["legacy"], 
+                neighbor_level = magi_parameters["level"], 
+                cpu_count = magi_parameters["cpu_count"], 
+                intermediate_files_dir = magi_parameters["intermediate_files_dir"])    
+        mg.write_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path", compound_to_reaction_path)
+
+        # Format output if this is the last step of the MAGI run
+        if magi_parameters["compound_to_reaction_only"]:
+            format_output(
+                compound_to_reaction_path = compound_to_reaction_path, 
+                output_dir = magi_parameters["output_dir"], 
+                intermediate_files_dir = magi_parameters["intermediate_files_dir"])
 
 if __name__ == "__main__":
     main()

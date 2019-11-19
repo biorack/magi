@@ -247,20 +247,23 @@ def main():
     # Parse arguments and prepare for gene to reaction workflow
     magi_parameters = mg.general_magi_preparation()
     
-    #Run gene to reaction workflow
-    gene_to_reaction_path, genome_db_path = workflow(fasta_file=magi_parameters["fasta"], 
-             intermediate_files_dir=magi_parameters["intermediate_files_dir"], 
-             cpu_count=magi_parameters["cpu_count"],
-             annotations=magi_parameters["annotations"], 
-             blast_filter=magi_parameters["blast_filter"])
-    mg.write_intermediate_file_path(magi_parameters["output_dir"], "gene_to_reaction_path", gene_to_reaction_path)
-    mg.write_intermediate_file_path(magi_parameters["output_dir"], "genome_db_path", genome_db_path)
-    
-    #Format output if this is the last step of the workflow
-    if magi_parameters["gene_to_reaction_only"]:
-        g2r_file = os.path.join(magi_parameters["intermediate_files_dir"], 
-                                            'gene_to_reaction.pkl')
-        format_output(g2r_file, magi_parameters["output_dir"], magi_parameters["intermediate_files_dir"])
+    if magi_parameters["compound_to_reaction_only"]:
+        print("Not performing MAGI gene to reaction workflow")
+    else:
+        #Run gene to reaction workflow
+        gene_to_reaction_path, genome_db_path = workflow(fasta_file=magi_parameters["fasta"], 
+                intermediate_files_dir=magi_parameters["intermediate_files_dir"], 
+                cpu_count=magi_parameters["cpu_count"],
+                annotations=magi_parameters["annotations"], 
+                blast_filter=magi_parameters["blast_filter"])
+        mg.write_intermediate_file_path(magi_parameters["output_dir"], "gene_to_reaction_path", gene_to_reaction_path)
+        mg.write_intermediate_file_path(magi_parameters["output_dir"], "genome_db_path", genome_db_path)
+        
+        #Format output if this is the last step of the workflow
+        if magi_parameters["gene_to_reaction_only"]:
+            g2r_file = os.path.join(magi_parameters["intermediate_files_dir"], 
+                                                'gene_to_reaction.pkl')
+            format_output(g2r_file, magi_parameters["output_dir"], magi_parameters["intermediate_files_dir"])
 
 if __name__ == "__main__":
     main()
