@@ -213,8 +213,7 @@ def parse_arguments():
             raise argparse.ArgumentTypeError('ERROR: either FASTA or metabolites file is required, or a json file with input parameters.')
         args.cpu_count = set_cpu_count(args.cpu_count)
     except argparse.ArgumentTypeError as ex:
-        print(ex.message)
-        sys.exit(1)
+        sys.exit(ex.message)
     return args
 
 def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, intermediate_files='intermediate_files'):
@@ -428,23 +427,28 @@ def load_dataframe(fname, filetype=None, key=None):
         file_ext = os.path.splitext(fname)[1][1:]
     else:
         file_ext = filetype
-    if file_ext in ['pkl', 'pickle']:
-        df = pd.read_pickle(fname)
-    elif file_ext in ['xls', 'xlsx']:
-        df = pd.read_excel(fname)
-    elif file_ext in ['csv']:
-        df = pd.read_csv(fname)
-    elif file_ext in ['txt', 'tab', 'tsv']:
-        df = pd.read_csv(fname, sep='\t')
-    elif file_ext in ['h5', 'hdf5']:
-        if key is None:
-            raise IOError('"key" argument must be used when loading\
-                an HDF5 file')
+    try:
+        if file_ext in ['pkl', 'pickle']:
+            df = pd.read_pickle(fname)
+        elif file_ext in ['xls', 'xlsx']:
+            df = pd.read_excel(fname)
+        elif file_ext in ['csv']:
+            df = pd.read_csv(fname)
+        elif file_ext in ['txt', 'tab', 'tsv']:
+            df = pd.read_csv(fname, sep='\t')
+        elif file_ext in ['h5', 'hdf5']:
+            if key is None:
+                raise IOError('"key" argument must be used when loading\
+                    an HDF5 file')
+            else:
+                df = pd.read_hdf(fname, key)
         else:
-            df = pd.read_hdf(fname, key)
-    else:
-        raise IOError('could not infer what type of file %s is... please \
-            make it a csv, tab, or pickle file'%fname)
+            raise IOError('could not infer what type of file %s is... please \
+                make it a csv, tab, or pickle file'%fname)
+    except pd.errors.EmptyDataError:
+        # Exit when file is empty
+        msg = "The file {} seems to be empty. Specify no compounds file if you do not want to run the compound to reaction search.".format(fname)
+        sys.exit(msg)
 
     # remove rows that are empty
     df = df[~pd.isnull(df).all(axis=1)]
