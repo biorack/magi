@@ -32,6 +32,7 @@ UNIQUE_GENE_ID | UNIQUE_GENE_ID OTHER_INFORMATION | AMINO_ACID_SEQUENCE
 import sys
 import os
 import argparse
+import numpy as np
 import pandas as pd
 from multiprocessing import cpu_count as counting_cpus
 import time
@@ -84,14 +85,24 @@ def load_genome(fasta, intfile_path, annotation_file=None):
         sequence = ''.join(entry.splitlines()[1:])
         data.append([gene_id, header, sequence])
     genome = pd.DataFrame(data, columns=['Gene_ID', 'header', 'sequence'])
+    # Check if IDs are unique and if any of the sequences or IDs are empty strings
+    genome = genome.replace('', np.nan)
     if genome['Gene_ID'].duplicated().any():
         first_dup = genome[genome['Gene_ID'].duplicated()].head(1)
         first_header = first_dup.iloc[0, 1]
         first_identifier = first_dup.iloc[0, 0]
-        raise RuntimeError('There are duplicated Gene_ID fields! please check\
+        # Raise error
+        msg = 'There are duplicated Gene_ID fields! please check\
             your unique gene identifiers in the fasta headers. For the first\
             FASTA sequence of %s, I parsed the unique gene identifier to be \
-            %s' % (repr(first_header), repr(first_identifier)))
+            %s' % (repr(first_header), repr(first_identifier))
+        sys.exit(msg)
+    elif genome["sequence"].isnull().any():
+        msg = "ERROR: At least one gene seems to have no sequence: {}".format(genome.header[genome.sequence.isnull()].iloc[0])
+        sys.exit(msg)
+    elif genome["Gene_ID"].isnull().any():
+        msg = "ERROR: At least one empty gene ID detected."
+        sys.exit(msg)
 
     if annotation_file is not None:
         # Make gene info table
@@ -197,16 +208,25 @@ def workflow(fasta_file, intermediate_files_dir, cpu_count,
 
     print( '!@# Homology searching done in %s minutes' \
             %((time.time() - start) / 60))
+    # Exit MAGI if no proteins are found
+    if gene_blast.shape[0] == 0:
+        msg = "WARNING: No homologous proteins found in MAGI protein-reaction database."
+        sys.exit(msg)
+
     gene_blast.to_pickle(os.path.join(intermediate_files_dir, 'gene_blast.pkl'))
     print( '!!! g2r blast results saved to %s' \
-            %(os.path.join(intermediate_files_dir, 'g2r_blast.pkl')))
+            %(os.path.join(intermediate_files_dir, 'gene_blast.pkl')))
 
     start = time.time()
     gene_to_reaction = blast.refseq_to_reactions(gene_blast, 'subject acc.')
     del gene_blast
+    # Select only the gene-to-reaction with the best e_scores for each input gene. Filtered by blast_score parameter.
     gene_groups = gene_to_reaction.groupby('query acc.')
-    multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
-    idx = multidx.levels[1]
+    if len(gene_groups.groups) > 1:
+        multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
+        idx = multidx.levels[1]
+    else:
+        idx = gene_groups['e_score'].apply(keep_top_blast_helper).index
     gene_to_reaction_top = gene_to_reaction.loc[idx]
     del gene_to_reaction
     print( '!@# gene_to_reaction table completed in %s minutes' \
