@@ -16,12 +16,21 @@ compounds_file=../input_files/example_compounds_name.csv
 cpu_count=1
 output_directory=./output
 logfile_name=log_magi_run.txt
+error_log_name=error_log_magi_run.txt
 
 #####################################################################################
 source activate magi #if this does not work, use conda activate magi
 
 # Run MAGI
-python $magi_path/workflow/magi_workflow_gene_to_reaction.py --fasta $fasta_file --output $output_directory --cpu_count $cpu_count --mute > $logfile_name
-python $magi_path/workflow/magi_workflow_compound_to_reaction.py --not_first_script --intermediate_files_dir $output_directory/intermediate_files --compounds $compounds_file --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
-python $magi_path/workflow/magi_workflow_reaction_to_gene.py --not_first_script --intermediate_files_dir $output_directory/intermediate_files --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
-python $magi_path/workflow/magi_workflow_scoring.py --not_first_script --intermediate_files_dir $output_directory/intermediate_files --output $output_directory --cpu_count $cpu_count --mute >> $logfile_name
+echo "Starting MAGI at $(date)"
+python $magi_path/workflow/magi_workflow_gene_to_reaction.py --fasta $fasta_file --compounds $compounds_file --output $output_directory --cpu_count $cpu_count > $logfile_name 2> $error_log_name
+if [ $? -eq 0 ]; then # Check if previous MAGI run did not fail
+python $magi_path/workflow/magi_workflow_compound_to_reaction.py --not_first_script --output $output_directory >> $logfile_name 2>> $error_log_name
+else exit 1; fi
+if [ $? -eq 0 ]; then
+python $magi_path/workflow/magi_workflow_reaction_to_gene.py --not_first_script --output $output_directory >> $logfile_name 2>> $error_log_name
+else exit 1; fi
+if [ $? -eq 0 ]; then
+python $magi_path/workflow/magi_workflow_scoring.py --not_first_script --output $output_directory >> $logfile_name 2>> $error_log_name
+else exit 1; fi
+echo "Done"
