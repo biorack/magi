@@ -571,6 +571,9 @@ def main():
     if magi_parameters["gene_to_reaction_only"]:
         print("Not performing MAGI compound to reaction workflow")
     else:
+        if magi_parameters["is_mass_search"]:
+            magi_parameters["compounds"] = os.path.splitext(magi_parameters["compounds"])[0] + '_mass_searched.csv'
+
         # Open file with compounds that need to be searched and prepare the data frame
         compounds_to_search = mg.load_compound_results(
                 compounds_file = magi_parameters["compounds"], 

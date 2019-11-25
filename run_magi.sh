@@ -25,6 +25,9 @@ source activate magi #if this does not work, use conda activate magi
 echo "Starting MAGI at $(date)"
 python $magi_path/workflow/magi_workflow_gene_to_reaction.py --fasta $fasta_file --compounds $compounds_file --output $output_directory --cpu_count $cpu_count > $logfile_name 2> $error_log_name
 if [ $? -eq 0 ]; then # Check if previous MAGI run did not fail
+python $magi_path/workflow/magi_workflow_accurate_mass_search.py --not_first_script --output $output_directory >> $logfile_name 2>> $error_log_name
+else exit 1; fi
+if [ $? -eq 0 ]; then
 python $magi_path/workflow/magi_workflow_compound_to_reaction.py --not_first_script --output $output_directory >> $logfile_name 2>> $error_log_name
 else exit 1; fi
 if [ $? -eq 0 ]; then

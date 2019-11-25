@@ -194,15 +194,23 @@ def parse_arguments():
         
         # Parameters for accurate mass search
         mass_search_args = parser.add_argument_group("Arguments for the optional accurate mass search")
+        mass_search_args.add_argument('--is_mass_search',
+                            action='store_true', default=False,
+                            help = "Set this parameter if m/z values need to be transformed into candidate compounds."
+                            )
         mass_search_args.add_argument('--polarity',
                             type=str, choices=['pos','neg','neut'], default=None,
                             help = "Specify if the masses were measured in negative mode, positive mode or if they have been transformed to neutral masses."
                             )
-        mass_search_args.add_argument('--adduct_file',
+        mass_search_args.add_argument('--adducts_pos',
                             type=str, default=None,
-                            help="optionally specify which adducts to investigate. If not specified, it will search for M+,M+H,M+NH4,M+Na in positive mode or M-H,M+Cl,M+FA-H,M+Hac-H in negative mode."
+                            help="Specify which positive adducts to investigate if the polarity is positive."
                             )
-        mass_search_args.add_argument('--ppm_cutoff', 
+        mass_search_args.add_argument('--adducts_neg',
+                            type=str, default=None,
+                            help="Specify which positive adducts to investigate if the polarity is negative."
+                            )
+        mass_search_args.add_argument('--ppm', 
             help='The ppm cutoff for the accurate mass search. Default is 10 ppm.', 
             type=int, default=10)
         
