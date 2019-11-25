@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    
+
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+//            "args": ["--not_first_script", "--intermediate_files_dir", "/Users/northenlab/Desktop/h_leegwater/magi_runs/Run_networkx2/output_7/intermediate_files", 
+//                "--output", "/Users/northenlab/Desktop/h_leegwater/magi_runs/Run_networkx2/output_7/", "--cpu_count", "1"]
+//
+//            "args": ["--compounds", "/Users/northenlab/Desktop/h_leegwater/magi_runs/input_files/s_coelicolor_pactolus_data_smallset.csv", 
+//                "--fasta", "/Users/northenlab/Desktop/h_leegwater/magi_runs/input_files/s_coelicolor_genes_fasta_tinyset.faa",
+//                "--output", "/Users/northenlab/Desktop/h_leegwater/magi_runs/debug/output_new_graph", 
+//                "--cpu_count", "1"]
+//            "args": ["--compounds", "/Users/northenlab/Desktop/h_leegwater/magi_runs/debug/test_input/compounds_1_inchikey.csv",
+//                "--output", "/Users/northenlab/Desktop/h_leegwater/magi_runs/debug/output", 
+//                "--cpu_count", "2", "--compound_to_reaction_only"]
+            "args": ["--not_first_script", 
+                "--output", "/Users/northenlab/Desktop/h_leegwater/magi_runs/20191119_runs/output_test3/", "--cpu_count", "1"]
+            //"args": ["--not_first_script", "--jsonfile", "/Users/northenlab/Desktop/h_leegwater/magi_runs/debug/temp_magi_input.json", "--cpu_count", "1" ]
+        }
+    ]
+}
