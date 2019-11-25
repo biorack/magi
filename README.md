@@ -82,6 +82,10 @@ $ ./run_full_workflow_test.sh
 $ python time python ../../workflow/magi_workflow.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
 ```
 
+### 4. Run MAGI locally
+
+The easiest way to run MAGI locally is to copy the script run_magi.sh to a directory and to add your path to the MAGI directory, the path to your fasta and compounds file. Run the script from the command line. Note that some parts of this workflow are still under construction. For further details, you could use the --help function from the command line or read the README in the Workflow folder.
+
 ### 4. MAGI website interface (optional)
 
 If you are interfacing with the magi_web repository, you need to manually change a few things in `magi_job/`; otherwise, ignore this section.
