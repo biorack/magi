@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 # Full path to location where magi is installed
 magi_path=/path_to_magi/magi

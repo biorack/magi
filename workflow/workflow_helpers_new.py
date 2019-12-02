@@ -481,8 +481,8 @@ def load_compound_results(compounds_file, pactolus, output_dir, intermediate_fil
         compounds = reformat_pactolus(compounds)
 
     if 'original_compound' not in compounds.columns:
-        raise RuntimeError('Could not find "original_compound" as a column, please\
-            rename the column corresponding to inchi keys for the compounds')
+        msg = 'Could not find "original_compound" as a column, please rename the column corresponding to inchi keys for the compounds'
+        sys.exit(msg)
 
     # remove any missing compounds
     compounds = compounds[~pd.isnull(compounds['original_compound'])]
