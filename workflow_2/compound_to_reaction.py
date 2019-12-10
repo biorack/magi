@@ -1,12 +1,14 @@
 ### Test for new compound to reaction search
-import pandas as pd
-import argparse
 import os
+import sys
+import argparse
+import datetime
+import pandas as pd
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.Chem import Draw
-import datetime
-import sys
+from rdkit import DataStructs
+
 import workflow_helpers as mg
 
 def parse_arguments():
@@ -46,6 +48,7 @@ def read_retro_rules(Retro_rules_db_path, diameter):
         sys.exit("retro rules path is wrong")
     retro_rules = pd.read_csv(Retro_rules_db_path,sep='\t')
     retro_rules = retro_rules[retro_rules["Diameter"] == diameter]
+    retro_rules["Reaction"] = retro_rules["Rule_SMARTS"].apply(AllChem.ReactionFromSmarts)
     retro_rules.reset_index(inplace=True,drop=True)
     return retro_rules
 
@@ -55,20 +58,52 @@ def read_compounds_data(compounds_path):
     compounds_data = pd.read_csv(compounds_path)
     return compounds_data
 
+def mol_from_smiles(smiles):
+    """
+    Create Rdkit.Chem.Mol object from SMILES
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        # TODO: exit or move mol to log unsearched compounds?
+        sys.exit("{} cannot be converted to rdkit.Mol object".format(smiles))
+    return mol
+
+def calculate_fingerprint_similarity(mol1, mol2, fingerprint_radius = 3):
+    """
+    This function calculates the Morgan molecular fingerprint similarity for two molecules
+    For full documentation, see https://www.rdkit.org/docs/GettingStartedInPython.html#morgan-fingerprints-circular-fingerprints
+    
+    Inputs
+    -------
+    mol1:   A rdkit.Chem.Mol object
+    mol2:   A rdkit.Chem.Mol object
+    fingerprint_radius: Fingerprint radius for generating Morgan fingerprints
+
+    Outputs
+    -------
+    dice_similarity: The similarity between the two molecular fingerprints.
+    TODO: check if useFeatures=True) needs to be added to getting the fingerprints.
+    """
+
+    fingerprint1 = AllChem.GetMorganFingerprint(mol1, fingerprint_radius)
+    fingerprint2 = AllChem.GetMorganFingerprint(mol2, fingerprint_radius)
+    dice_similarity = DataStructs.DiceSimilarity(fingerprint1, fingerprint2)
+    return dice_similarity
+
 ### Run C2R
 def compound_to_reaction(molecule_smiles, rules_to_use, c2r_output_file):
-    molecule = Chem.MolFromSmiles(molecule_smiles)
+    molecule = mol_from_smiles(molecule_smiles)
     compound_to_reaction = []
-    for rule_nr in range(rules_to_use.shape[0]):
-        reaction = AllChem.ReactionFromSmarts(rules_to_use["Rule_SMARTS"][rule_nr])
+    for index, (reaction, substrate_smiles, reaction_id) in rules_to_use[["Reaction", "Substrate_SMILES", "Reaction_ID"]].iterrows():
         results = [Chem.MolToSmiles(x[0]) for x in reaction.RunReactants((molecule,))]
         if len(results) > 0:
-            compound_to_reaction.append([molecule_smiles, rules_to_use["Substrate_SMILES"][rule_nr], rules_to_use["Reaction_ID"][rule_nr]])
+            compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id])
     if len(compound_to_reaction) > 0:
         compound_to_reaction = pd.DataFrame(compound_to_reaction)
         compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID"]
         # Store data
-        compound_to_reaction.to_csv(c2r_output_file, mode = 'a')
+        # TODO: find way to also store header
+        compound_to_reaction.to_csv(c2r_output_file, mode = 'a', header=False)
         return compound_to_reaction
     else:
         print("No reactions found for {}".format(molecule_smiles))
@@ -76,6 +111,7 @@ def compound_to_reaction(molecule_smiles, rules_to_use, c2r_output_file):
 
 def main():
     # Parse arguments and read input
+    print("Starting compound to reaction search at {}".format(str(datetime.datetime.now())))
     args = parse_arguments()
     print("loading retro rules database")
     sys.stdout.flush()
@@ -101,6 +137,7 @@ def main():
     # Store data
     print("storing final data")
     compound_to_reaction_total.to_csv(os.path.join(args.output, "compound_to_reaction_total.csv"))
+    print("Done with compound to reaction search at {}".format(str(datetime.datetime.now())))
 
 if __name__ == "__main__":
     main()
