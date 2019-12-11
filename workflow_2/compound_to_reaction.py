@@ -33,7 +33,11 @@ def parse_arguments():
             help='path to retro rules database', # TODO: read this path from local settings file 
             type=str)
         parser.add_argument('--diameter', 
-            help="diameter to use for retro rules reactions", type = int) # TODO: add check to be in range and even
+            help="diameter to use for retro rules reactions", type = int, default = 10) # TODO: add check to be in range and even
+        parser.add_argument('--fingerprint', 
+            help="fingerprint radius for Morgan molecular fingerprint", type = int, default = 3)
+        parser.add_argument('--similarity_cutoff', 
+            help="Minimum similarity cutoff", type = float, default = 0.6)
         parser.add_argument('--intermediate_files',
             help='What directory within --output to store intermediate files',
             type=str, default='intermediate_files')
@@ -54,8 +58,10 @@ def read_retro_rules(Retro_rules_db_path, diameter):
 
 def read_compounds_data(compounds_path):
     if not os.path.exists(compounds_path):
-        sys.exit("EMA_adjusted_path is wrong")
+        sys.exit("Compounds_path is wrong")
     compounds_data = pd.read_csv(compounds_path)
+    # TODO: desalt and canonicalize the SMILES. 
+    # TODO: allow other input?
     return compounds_data
 
 def mol_from_smiles(smiles):
@@ -90,20 +96,36 @@ def calculate_fingerprint_similarity(mol1, mol2, fingerprint_radius = 3):
     dice_similarity = DataStructs.DiceSimilarity(fingerprint1, fingerprint2)
     return dice_similarity
 
+def find_matching_reactions(molecule, reaction):
+    """
+    Return true if the molecule can be used in the reaction.
+    molecule: Rdkit.Chem.Mol object
+    reaction: Rdkit.Chem.Reaction object
+    """
+    results = [Chem.MolToSmiles(x[0]) for x in reaction.RunReactants((molecule,))]
+    if len(results) > 0:
+        return True
+    else:
+        return False
+
 ### Run C2R
-def compound_to_reaction(molecule_smiles, rules_to_use, c2r_output_file):
+def compound_to_reaction(molecule_smiles, rules_to_use, c2r_output_file, fingerprint_radius, similarity_cutoff):
     molecule = mol_from_smiles(molecule_smiles)
     compound_to_reaction = []
     for index, (reaction, substrate_smiles, reaction_id) in rules_to_use[["Reaction", "Substrate_SMILES", "Reaction_ID"]].iterrows():
-        results = [Chem.MolToSmiles(x[0]) for x in reaction.RunReactants((molecule,))]
-        if len(results) > 0:
-            compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id])
+        # TODO: test if reaction or similarity is faster and perform the fastest one first.
+        reaction_matched = find_matching_reactions(molecule, reaction)
+        if reaction_matched:
+            substrate = mol_from_smiles(substrate_smiles)
+            similarity = calculate_fingerprint_similarity(substrate, molecule, fingerprint_radius)
+            if similarity >= similarity_cutoff:
+                compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id])
     if len(compound_to_reaction) > 0:
         compound_to_reaction = pd.DataFrame(compound_to_reaction)
         compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID"]
         # Store data
         # TODO: find way to also store header
-        compound_to_reaction.to_csv(c2r_output_file, mode = 'a', header=False)
+        compound_to_reaction.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
         return compound_to_reaction
     else:
         print("No reactions found for {}".format(molecule_smiles))
@@ -111,7 +133,8 @@ def compound_to_reaction(molecule_smiles, rules_to_use, c2r_output_file):
 
 def main():
     # Parse arguments and read input
-    print("Starting compound to reaction search at {}".format(str(datetime.datetime.now())))
+    start_time = datetime.datetime.now()
+    print("Starting compound to reaction search at {}".format(str(start_time)))
     args = parse_arguments()
     print("loading retro rules database")
     sys.stdout.flush()
@@ -131,12 +154,15 @@ def main():
     for molecule_smiles in compounds_data["SMILES"]:
         print("Starting with {} at {}".format(molecule_smiles, str(datetime.datetime.now())))
         sys.stdout.flush()
-        c2r = compound_to_reaction(molecule_smiles, retro_rules, os.path.join(args.output, "compound_to_reaction.csv"))
+        c2r = compound_to_reaction(molecule_smiles, retro_rules, 
+                                    os.path.join(args.output, "compound_to_reaction.csv"), 
+                                    args.fingerprint, args.similarity_cutoff)
         compound_to_reaction_total.append(c2r)
     compound_to_reaction_total = pd.concat(compound_to_reaction_total)
     # Store data
     print("storing final data")
-    compound_to_reaction_total.to_csv(os.path.join(args.output, "compound_to_reaction_total.csv"))
+    compound_to_reaction_total.to_csv(os.path.join(args.output, "compound_to_reaction_total.csv"), index=False)
+    print("Finished in {}".format(str(datetime.datetime.now() - start_time)))
     print("Done with compound to reaction search at {}".format(str(datetime.datetime.now())))
 
 if __name__ == "__main__":
