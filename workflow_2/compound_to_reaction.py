@@ -8,6 +8,8 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
+from rdkit.Chem import SaltRemover
+from molvs import tautomer
 
 import workflow_helpers as mg
 
@@ -56,6 +58,61 @@ def read_retro_rules(Retro_rules_db_path, diameter):
     retro_rules.reset_index(inplace=True,drop=True)
     return retro_rules
 
+""" contribution from Hans de Winter on https://www.rdkit.org/docs/Cookbook.html"""
+def _InitialiseNeutralisationReactions():
+    patts= (
+        # Imidazoles
+        ('[n+;H]','n'),
+        # Amines
+        ('[N+;!H0]','N'),
+        # Carboxylic acids and alcohols
+        ('[$([O-]);!$([O-][#7])]','O'),
+        # Thiols
+        ('[S-;X1]','S'),
+        # Sulfonamides
+        ('[$([N-;X2]S(=O)=O)]','N'),
+        # Enamines
+        ('[$([N-;X2][C,N]=C)]','N'),
+        # Tetrazoles
+        ('[n-]','[nH]'),
+        # Sulfoxides
+        ('[$([S-]=O)]','S'),
+        # Amides
+        ('[$([N-]C=O)]','N'),
+        )
+    return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y)) for x,y in patts]
+
+_reactions=None
+def NeutraliseCharges(mol, reactions=None):
+    global _reactions
+    if reactions is None:
+        if _reactions is None:
+            _reactions=_InitialiseNeutralisationReactions()
+        reactions=_reactions
+    for i,(reactant, product) in enumerate(reactions):
+        while mol.HasSubstructMatch(reactant):
+            replaced = True
+            rms = AllChem.ReplaceSubstructs(mol, reactant, product)
+            mol = rms[0]
+    return mol
+
+def canonicalize_tautomer(mol):
+    """Returns the canonicalized form of a tautomer"""
+    canon = tautomer.TautomerCanonicalizer()
+    mol = canon.canonicalize(mol)
+    return mol
+
+def desalt_canonicalize_and_neutralize_smiles(smiles):
+    """
+    Removes salts from molecule
+    Turns tautomers in canonical form
+    Neutralizes charged molecules
+    """
+    remover = SaltRemover.SaltRemover()
+    mol = remover.StripMol(Chem.MolFromSmiles(smiles), dontRemoveEverything=True)
+    mol = canonicalize_tautomer(mol)
+    smiles = Chem.MolToSmiles(NeutraliseCharges(mol))
+    return smiles
 def read_compounds_data(compounds_path):
     if not os.path.exists(compounds_path):
         sys.exit("Compounds_path is wrong")
@@ -120,6 +177,8 @@ def compound_to_reaction(molecule_smiles, rules_to_use, c2r_output_file, fingerp
             similarity = calculate_fingerprint_similarity(substrate, molecule, fingerprint_radius)
             if similarity >= similarity_cutoff:
                 compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id])
+            if reaction_matched:          
+                compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id, similarity,diameter_to_store])
     if len(compound_to_reaction) > 0:
         compound_to_reaction = pd.DataFrame(compound_to_reaction)
         compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID"]
