@@ -35,7 +35,7 @@ def parse_arguments():
             help='path to retro rules database', # TODO: read this path from local settings file 
             type=str)
         parser.add_argument('--diameter', 
-            help="diameter to use for retro rules reactions", type = int, default = 10) # TODO: add check to be in range and even
+            help="Minimum diameter to use for retro rules reactions", type = int, default = 10) # TODO: add check to be in range and even
         parser.add_argument('--fingerprint', 
             help="fingerprint radius for Morgan molecular fingerprint", type = int, default = 3)
         parser.add_argument('--similarity_cutoff', 
@@ -49,13 +49,23 @@ def parse_arguments():
     return args
 
 ### Read and prepare data
-def read_retro_rules(Retro_rules_db_path, diameter):
+def read_retro_rules(Retro_rules_db_path, min_diameter):
+    """
+    Read retro rules database and:
+    - pre-convert reactions and substrates to rdkit objects
+    - remove all entries below the minimum diameter
+    - group by reaction ID
+    """
     if not os.path.exists(Retro_rules_db_path):
+        #TODO: move to argparse?
         sys.exit("retro rules path is wrong")
     retro_rules = pd.read_csv(Retro_rules_db_path,sep='\t')
-    retro_rules = retro_rules[retro_rules["Diameter"] == diameter]
+    retro_rules = retro_rules[retro_rules["Diameter"] >= min_diameter]
     retro_rules["Reaction"] = retro_rules["Rule_SMARTS"].apply(AllChem.ReactionFromSmarts)
-    retro_rules.reset_index(inplace=True,drop=True)
+    #TODO: Do this only once and never again
+    #retro_rules["Substrate_SMILES"] = retro_rules["Substrate_SMILES"].apply(desalt_canonicalize_and_neutralize_smiles)
+    retro_rules["Substrate"] = retro_rules["Substrate_SMILES"].apply(mol_from_smiles)
+    retro_rules = retro_rules.groupby(by=["Reaction_ID", "Substrate_SMILES"])
     return retro_rules
 
 """ contribution from Hans de Winter on https://www.rdkit.org/docs/Cookbook.html"""
@@ -113,11 +123,12 @@ def desalt_canonicalize_and_neutralize_smiles(smiles):
     mol = canonicalize_tautomer(mol)
     smiles = Chem.MolToSmiles(NeutraliseCharges(mol))
     return smiles
+
 def read_compounds_data(compounds_path):
     if not os.path.exists(compounds_path):
         sys.exit("Compounds_path is wrong")
     compounds_data = pd.read_csv(compounds_path)
-    # TODO: desalt and canonicalize the SMILES. 
+    compounds_data["SMILES"] = compounds_data["original_compound"].apply(desalt_canonicalize_and_neutralize_smiles)
     # TODO: allow other input?
     return compounds_data
 
@@ -153,7 +164,7 @@ def calculate_fingerprint_similarity(mol1, mol2, fingerprint_radius = 3):
     dice_similarity = DataStructs.DiceSimilarity(fingerprint1, fingerprint2)
     return dice_similarity
 
-def find_matching_reactions(molecule, reaction):
+def mol_matches_reaction(molecule, reaction):
     """
     Return true if the molecule can be used in the reaction.
     molecule: Rdkit.Chem.Mol object
@@ -166,22 +177,51 @@ def find_matching_reactions(molecule, reaction):
         return False
 
 ### Run C2R
-def compound_to_reaction(molecule_smiles, rules_to_use, c2r_output_file, fingerprint_radius, similarity_cutoff):
+def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output_file, fingerprint_radius=3, similarity_cutoff=0.6):
+    """
+    Find reactions in which a molecule can be used as a substrate
+    - For the lowest retro rules diameters, find all reactions in which the compound can be used.
+    - For those reactions, check if the reaction also uses the molecule with a higher diameter.
+    - Write compound to reaction to intermediate file
+    - Return compound to reactions
+    """
     molecule = mol_from_smiles(molecule_smiles)
     compound_to_reaction = []
-    for index, (reaction, substrate_smiles, reaction_id) in rules_to_use[["Reaction", "Substrate_SMILES", "Reaction_ID"]].iterrows():
-        # TODO: test if reaction or similarity is faster and perform the fastest one first.
-        reaction_matched = find_matching_reactions(molecule, reaction)
-        if reaction_matched:
-            substrate = mol_from_smiles(substrate_smiles)
-            similarity = calculate_fingerprint_similarity(substrate, molecule, fingerprint_radius)
-            if similarity >= similarity_cutoff:
-                compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id])
+    
+    # Find reactions per group of reaction-substrates
+    for (reaction_id, substrate_smiles), rules_df in rules_to_use:
+        #calculate fingerprint similarity for the substrate of the reaction and the molecule of interest
+        substrate = rules_df.iloc[0]["Substrate"]
+        similarity = calculate_fingerprint_similarity(substrate, molecule, fingerprint_radius)
+        
+        if similarity >= similarity_cutoff:
+            diameters_to_check = sorted(rules_df["Diameter"].unique())
+            # Assume that > 0.99 similarity is the same molecule, so substrate matches molecule
+            if similarity > 0.99:
+                reaction_matched = True
+                diameter_to_store = diameters_to_check[-1]
+            # else, check if compound matches lowest reaction
+            else:
+                reaction = rules_df[rules_df["Diameter"] == diameters_to_check[0]]["Reaction"].values[0]
+                reaction_matched = mol_matches_reaction(molecule, reaction)
+                # if yes, check consecutive reactions
+                if reaction_matched:
+                    diameter_to_store = diameters_to_check[0]
+                    for diameter in diameters_to_check[-1:0:-1]:
+                        if diameter > diameter_to_store:
+                            reaction = rules_df[rules_df["Diameter"] == diameter]["Reaction"].values[0]
+                            reaction_matched = mol_matches_reaction(molecule, reaction)
+                            if reaction_matched:
+                                diameter_to_store = diameter
+            # store reaction with highest matching diameter
             if reaction_matched:          
                 compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id, similarity,diameter_to_store])
+
+    # Store results and return data as dataframe
     if len(compound_to_reaction) > 0:
+        # TODO: filter for highest diameter per reaction
         compound_to_reaction = pd.DataFrame(compound_to_reaction)
-        compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID"]
+        compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]
         # Store data
         # TODO: find way to also store header
         compound_to_reaction.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
@@ -213,9 +253,12 @@ def main():
     for molecule_smiles in compounds_data["SMILES"]:
         print("Starting with {} at {}".format(molecule_smiles, str(datetime.datetime.now())))
         sys.stdout.flush()
-        c2r = compound_to_reaction(molecule_smiles, retro_rules, 
-                                    os.path.join(args.output, "compound_to_reaction.csv"), 
-                                    args.fingerprint, args.similarity_cutoff)
+        c2r = compound_to_reaction(molecule_smiles = molecule_smiles, 
+                                    rules_to_use = retro_rules, 
+                                    min_diameter = args.diameter, 
+                                    c2r_output_file = os.path.join(args.output, args.intermediate_files, "compound_to_reaction.csv"), 
+                                    fingerprint_radius = args.fingerprint, 
+                                    similarity_cutoff = args.similarity_cutoff)
         compound_to_reaction_total.append(c2r)
     compound_to_reaction_total = pd.concat(compound_to_reaction_total)
     # Store data
