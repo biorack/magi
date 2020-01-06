@@ -11,6 +11,7 @@ from rdkit import DataStructs
 from rdkit.Chem import SaltRemover
 from molvs import tautomer
 
+sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 import workflow_helpers as mg
 
 def parse_arguments():
@@ -62,8 +63,8 @@ def read_retro_rules(Retro_rules_db_path, min_diameter):
     retro_rules = pd.read_csv(Retro_rules_db_path,sep='\t')
     retro_rules = retro_rules[retro_rules["Diameter"] >= min_diameter]
     retro_rules["Reaction"] = retro_rules["Rule_SMARTS"].apply(AllChem.ReactionFromSmarts)
-    #TODO: Do this only once and never again
-    #retro_rules["Substrate_SMILES"] = retro_rules["Substrate_SMILES"].apply(desalt_canonicalize_and_neutralize_smiles)
+    #TODO: Do this only once and never again. It is SUPER slow
+    #retro_rules["Substrate_SMILES"] = retro_rules["Substrate_SMILES"].apply(prepare_smiles)
     retro_rules["Substrate"] = retro_rules["Substrate_SMILES"].apply(mol_from_smiles)
     retro_rules = retro_rules.groupby(by=["Reaction_ID", "Substrate_SMILES"])
     return retro_rules
@@ -112,23 +113,26 @@ def canonicalize_tautomer(mol):
     mol = canon.canonicalize(mol)
     return mol
 
-def desalt_canonicalize_and_neutralize_smiles(smiles):
+def prepare_smiles(smiles):
     """
     Removes salts from molecule
     Turns tautomers in canonical form
     Neutralizes charged molecules
+    Add hydrogens
     """
-    remover = SaltRemover.SaltRemover()
-    mol = remover.StripMol(Chem.MolFromSmiles(smiles), dontRemoveEverything=True)
+    saltremover = SaltRemover.SaltRemover()
+    mol = saltremover.StripMol(Chem.MolFromSmiles(smiles), dontRemoveEverything=True)
     mol = canonicalize_tautomer(mol)
-    smiles = Chem.MolToSmiles(NeutraliseCharges(mol))
+    mol = NeutraliseCharges(mol)
+    mol = Chem.AddHs(Chem.RemoveHs(mol))
+    smiles = Chem.MolToSmiles(mol)
     return smiles
 
 def read_compounds_data(compounds_path):
     if not os.path.exists(compounds_path):
         sys.exit("Compounds_path is wrong")
     compounds_data = pd.read_csv(compounds_path)
-    compounds_data["SMILES"] = compounds_data["original_compound"].apply(desalt_canonicalize_and_neutralize_smiles)
+    compounds_data["SMILES"] = compounds_data["original_compound"].apply(prepare_smiles)
     # TODO: allow other input?
     return compounds_data
 
@@ -137,6 +141,7 @@ def mol_from_smiles(smiles):
     Create Rdkit.Chem.Mol object from SMILES
     """
     mol = Chem.MolFromSmiles(smiles)
+    mol = Chem.AddHs(Chem.RemoveHs(mol))
     if mol is None:
         # TODO: exit or move mol to log unsearched compounds?
         sys.exit("{} cannot be converted to rdkit.Mol object".format(smiles))
@@ -158,7 +163,6 @@ def calculate_fingerprint_similarity(mol1, mol2, fingerprint_radius = 3):
     dice_similarity: The similarity between the two molecular fingerprints.
     TODO: check if useFeatures=True) needs to be added to getting the fingerprints.
     """
-
     fingerprint1 = AllChem.GetMorganFingerprint(mol1, fingerprint_radius)
     fingerprint2 = AllChem.GetMorganFingerprint(mol2, fingerprint_radius)
     dice_similarity = DataStructs.DiceSimilarity(fingerprint1, fingerprint2)
@@ -170,7 +174,7 @@ def mol_matches_reaction(molecule, reaction):
     molecule: Rdkit.Chem.Mol object
     reaction: Rdkit.Chem.Reaction object
     """
-    results = [Chem.MolToSmiles(x[0]) for x in reaction.RunReactants((molecule,))]
+    results = reaction.RunReactants((molecule,))
     if len(results) > 0:
         return True
     else:
@@ -249,6 +253,8 @@ def main():
     # Run compound to reaction search
     compound_to_reaction_total = []
     print("starting c2r searches")
+    c2r_output_file = os.path.join(args.output, args.intermediate_files, "compound_to_reaction.csv")
+    pd.DataFrame(data = None, columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]).to_csv(c2r_output_file, index = False)  
     sys.stdout.flush()
     for molecule_smiles in compounds_data["SMILES"]:
         print("Starting with {} at {}".format(molecule_smiles, str(datetime.datetime.now())))
@@ -256,7 +262,7 @@ def main():
         c2r = compound_to_reaction(molecule_smiles = molecule_smiles, 
                                     rules_to_use = retro_rules, 
                                     min_diameter = args.diameter, 
-                                    c2r_output_file = os.path.join(args.output, args.intermediate_files, "compound_to_reaction.csv"), 
+                                    c2r_output_file = c2r_output_file, 
                                     fingerprint_radius = args.fingerprint, 
                                     similarity_cutoff = args.similarity_cutoff)
         compound_to_reaction_total.append(c2r)
