@@ -10,10 +10,14 @@ from rdkit.Chem import AllChem
 from rdkit import DataStructs
 from rdkit.Chem import SaltRemover
 from molvs import tautomer
+import json
 
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 import workflow_helpers as mg
 
+## Global parameters. None if not needed
+precomputed_reactions = {}
+retro_rules = None #TODO: think if I want this to be global
 def parse_arguments():
     """
     This is the MAGI argument parser that is used in all workflows. 
@@ -50,24 +54,51 @@ def parse_arguments():
     return args
 
 ### Read and prepare data
-def read_retro_rules(Retro_rules_db_path, min_diameter):
+def read_retro_rules(min_diameter=0):
     """
     Read retro rules database and:
     - pre-convert reactions and substrates to rdkit objects
     - remove all entries below the minimum diameter
     - group by reaction ID
     """
+    # TODO: get this from local settings file
+    Retro_rules_db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "database/compound_to_reaction.csv")
     if not os.path.exists(Retro_rules_db_path):
         #TODO: move to argparse?
         sys.exit("retro rules path is wrong")
-    retro_rules = pd.read_csv(Retro_rules_db_path,sep='\t')
+    retro_rules = pd.read_csv(Retro_rules_db_path)
     retro_rules = retro_rules[retro_rules["Diameter"] >= min_diameter]
-    retro_rules["Reaction"] = retro_rules["Rule_SMARTS"].apply(AllChem.ReactionFromSmarts)
-    #TODO: Do this only once and never again. It is SUPER slow
-    #retro_rules["Substrate_SMILES"] = retro_rules["Substrate_SMILES"].apply(prepare_smiles)
-    retro_rules["Substrate"] = retro_rules["Substrate_SMILES"].apply(mol_from_smiles)
+    ## Get all reaction objects
+    rule_smarts_all = list(set(retro_rules["Rule_SMARTS"]))
+    rule_smarts_dict = {}
+    for smarts in rule_smarts_all:
+        reaction = AllChem.ReactionFromSmarts(smarts)
+        rule_smarts_dict[smarts] = reaction
+    def reaction_lookup(smarts):
+        return rule_smarts_dict[smarts]
+    retro_rules["Reaction"] = retro_rules["Rule_SMARTS"].apply(reaction_lookup)
+
+    # Get all substrate objects
+    substrate_smiles_all = list(set(retro_rules["Substrate_SMILES"]))
+    substrate_smiles_dict = {}
+    for smiles in substrate_smiles_all:
+        mol = mol_from_smiles(smiles)
+        substrate_smiles_dict[smiles] = mol
+    def substrate_lookup(smiles):
+        return substrate_smiles_dict[smiles]
+    retro_rules["Substrate"] = retro_rules["Substrate_SMILES"].apply(substrate_lookup)
     retro_rules = retro_rules.groupby(by=["Reaction_ID", "Substrate_SMILES"])
     return retro_rules
+
+def load_precomputed_reactions(precomputed_reaction_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"database/precomputed_compound_to_reactions.txt")):
+    """Load the precomputed compound to reaction dictionary
+    Input is the path to the precomputed reactions file
+    Object is stored in global variable precomputed_reactions"""
+    if not os.path.exists(precomputed_reaction_path):
+        sys.exit("precomputed reaction path is wrong")
+    with open(precomputed_reaction_path, "r") as json_file:
+        global precomputed_reactions 
+        precomputed_reactions = json.load(json_file)
 
 """ contribution from Hans de Winter on https://www.rdkit.org/docs/Cookbook.html"""
 def _InitialiseNeutralisationReactions():
@@ -180,8 +211,28 @@ def mol_matches_reaction(molecule, reaction):
     else:
         return False
 
+def lookup_precomputed_reactions(molecule_smiles, min_diameter, similarity_cutoff=0.6):
+    """This function returns precomputed reactions for a compound SMILES.
+    Compounds were precomputed with a minimum similarity cutoff of 0.6 and no minimum diameter.
+    The fingerprint radius was 3. 
+
+    Input is a MAGI-prepared SMILES, the minimum diameter for a reaction and a minimum similarity cutoff.
+    Results with a lower cutoff than 0.6 cannot be obtained, because they were not precomputed.
+    Output is a dataframe with five columns:
+    ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]
+    """
+    if molecule_smiles in precomputed_reactions.keys():
+        c2r_data = precomputed_reactions[molecule_smiles]
+        c2r_data = pd.DataFrame(c2r_data, columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"])
+        # Filter on min diameter and similarity cutoff
+        c2r_data = c2r_data[c2r_data["Diameter"] >= min_diameter]
+        c2r_data = c2r_data[c2r_data["Similarity"] >= similarity_cutoff]
+        return c2r_data
+    else:
+        return None
+
 ### Run C2R
-def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output_file, fingerprint_radius=3, similarity_cutoff=0.6):
+def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
     """
     Find reactions in which a molecule can be used as a substrate
     - For the lowest retro rules diameters, find all reactions in which the compound can be used.
@@ -189,6 +240,15 @@ def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output
     - Write compound to reaction to intermediate file
     - Return compound to reactions
     """
+    # Lookup molecule in precomputed compounds
+    if use_precomputed:
+        compound_to_reaction = lookup_precomputed_reactions(molecule_smiles = molecule_smiles, 
+                                                            min_diameter = min_diameter, 
+                                                            similarity_cutoff=similarity_cutoff)
+        if compound_to_reaction is not None:
+            #TODO: store this in intermediate file too?
+            return compound_to_reaction
+    # If molecule is not known, perform compound to reaction search. 
     molecule = mol_from_smiles(molecule_smiles)
     compound_to_reaction = []
     
@@ -241,15 +301,19 @@ def main():
     args = parse_arguments()
     print("loading retro rules database")
     sys.stdout.flush()
-    retro_rules = read_retro_rules(args.retro_rules, args.diameter)
+    retro_rules = read_retro_rules(args.diameter)
     print("loading compounds")
     compounds_data = read_compounds_data(args.compounds)
+    sys.stdout.flush()
+    print("loading precomputed reactions")
+    load_precomputed_reactions()
     sys.stdout.flush()
     # Make output dir
     if not os.path.exists(args.output):
         os.mkdir(args.output)
     if not os.path.exists(os.path.join(args.output, args.intermediate_files)):
         os.mkdir(os.path.join(args.output, args.intermediate_files))
+    print("Storing data at {}".format(args.output))
     # Run compound to reaction search
     compound_to_reaction_total = []
     print("starting c2r searches")
