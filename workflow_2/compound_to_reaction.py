@@ -17,41 +17,6 @@ import workflow_helpers as mg
 
 ## Global parameters. None if not needed
 precomputed_reactions = {}
-retro_rules = None #TODO: think if I want this to be global
-def parse_arguments():
-    """
-    This is the MAGI argument parser that is used in all workflows. 
-    It checks if all required arguments are passed, if numbers fall within MAGI-approved ranges and if files exist.
-
-    Outputs
-    -------
-    An argparse.args object containing all arguments. 
-    """
-    try:
-        """parse arguments"""
-        parser = argparse.ArgumentParser()
-        # required arguments
-        parser.add_argument('-c', '--compounds', type=mg.is_existing_file,
-            help='path to observed compounds file')
-        parser.add_argument('-o', '--output', 
-            help='path to a custom output', 
-            type=str)
-        parser.add_argument('--retro_rules', 
-            help='path to retro rules database', # TODO: read this path from local settings file 
-            type=str)
-        parser.add_argument('--diameter', 
-            help="Minimum diameter to use for retro rules reactions", type = int, default = 10) # TODO: add check to be in range and even
-        parser.add_argument('--fingerprint', 
-            help="fingerprint radius for Morgan molecular fingerprint", type = int, default = 3)
-        parser.add_argument('--similarity_cutoff', 
-            help="Minimum similarity cutoff", type = float, default = 0.6)
-        parser.add_argument('--intermediate_files',
-            help='What directory within --output to store intermediate files',
-            type=str, default='intermediate_files')
-        args = parser.parse_args()
-    except argparse.ArgumentTypeError as ex:
-        sys.exit(ex.message)
-    return args
 
 ### Read and prepare data
 def read_retro_rules(min_diameter=0):
@@ -295,45 +260,49 @@ def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output
         return None
 
 def main():
-    # Parse arguments and read input
+    # Parse arguments and prepare MAGI run
     start_time = datetime.datetime.now()
     print("Starting compound to reaction search at {}".format(str(start_time)))
-    args = parse_arguments()
-    print("loading retro rules database")
-    sys.stdout.flush()
-    retro_rules = read_retro_rules(args.diameter)
+    magi_parameters = mg.general_magi_preparation()
+
+    # Read data
+    unknown_compounds_present = True
+    if unknown_compounds_present:
+        print("loading retro rules database")
+        sys.stdout.flush()
+        retro_rules = read_retro_rules(magi_parameters["diameter"])
     print("loading compounds")
-    compounds_data = read_compounds_data(args.compounds)
+    compounds_data = read_compounds_data(magi_parameters["compounds"])
     sys.stdout.flush()
     print("loading precomputed reactions")
     load_precomputed_reactions()
     sys.stdout.flush()
-    # Make output dir
-    if not os.path.exists(args.output):
-        os.mkdir(args.output)
-    if not os.path.exists(os.path.join(args.output, args.intermediate_files)):
-        os.mkdir(os.path.join(args.output, args.intermediate_files))
-    print("Storing data at {}".format(args.output))
+
     # Run compound to reaction search
     compound_to_reaction_total = []
     print("starting c2r searches")
-    c2r_output_file = os.path.join(args.output, args.intermediate_files, "compound_to_reaction.csv")
+    c2r_output_file = os.path.join(magi_parameters["intermediate_files_dir"], "compound_to_reaction.csv")
     pd.DataFrame(data = None, columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]).to_csv(c2r_output_file, index = False)  
     sys.stdout.flush()
-    for molecule_smiles in compounds_data["SMILES"]:
-        print("Starting with {} at {}".format(molecule_smiles, str(datetime.datetime.now())))
+    for index, row in compounds_data[["SMILES", "original_compound"]].iterrows():
+        molecule_smiles = row["SMILES"]
+        original_compound = row["original_compound"]
+        print("Starting with {} at {}".format(original_compound, str(datetime.datetime.now())))
         sys.stdout.flush()
         c2r = compound_to_reaction(molecule_smiles = molecule_smiles, 
+                                    original_compound = original_compound,
                                     rules_to_use = retro_rules, 
-                                    min_diameter = args.diameter, 
+                                    min_diameter = magi_parameters["diameter"], 
                                     c2r_output_file = c2r_output_file, 
-                                    fingerprint_radius = args.fingerprint, 
-                                    similarity_cutoff = args.similarity_cutoff)
+                                    fingerprint_radius = magi_parameters["fingerprint"], 
+                                    similarity_cutoff = magi_parameters["similarity_cutoff"], 
+                                    use_precomputed=magi_parameters["use_precomputed_reactions"])
         compound_to_reaction_total.append(c2r)
     compound_to_reaction_total = pd.concat(compound_to_reaction_total)
     # Store data
     print("storing final data")
-    compound_to_reaction_total.to_csv(os.path.join(args.output, "compound_to_reaction_total.csv"), index=False)
+    #TODO: also store compound scores?
+    compound_to_reaction_total.to_csv(os.path.join(magi_parameters["output"], "compound_to_reaction_total.csv"), index=False)
     print("Finished in {}".format(str(datetime.datetime.now() - start_time)))
     print("Done with compound to reaction search at {}".format(str(datetime.datetime.now())))
 

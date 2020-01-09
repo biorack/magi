@@ -213,7 +213,17 @@ def parse_arguments():
         mass_search_args.add_argument('--ppm', 
             help='The ppm cutoff for the accurate mass search. Default is 10 ppm.', 
             type=int, default=10)
-        
+
+        # MAGI c2r 2.0 parameters
+        c2r_args = parser.add_argument_group("Arguments for the optional accurate mass search")
+        c2r_args.add_argument('--diameter', 
+            help="Minimum diameter to use for retro rules reactions", type = int, default = 12) # TODO: add check to be in range and even
+        c2r_args.add_argument('--fingerprint', 
+            help="fingerprint radius for Morgan molecular fingerprint", type = int, default = 3)
+        c2r_args.add_argument('--similarity_cutoff', 
+            help="Minimum similarity cutoff", type = float, default = 0.6)
+        c2r_args.add_argument('--use_precomputed_reactions', 
+            help="Use of previously computed reactions. Very slow if set to False", type = bool, default = True)
         args = parser.parse_args()
         
         # Check parameters and set number of required CPUs
@@ -462,14 +472,13 @@ def load_dataframe(fname, filetype=None, key=None):
     df = df[~pd.isnull(df).all(axis=1)]
     return df
 
-def load_compound_results(compounds_file, intermediate_files_dir): 
+def load_compound_results(compounds_file): 
     """ 
     load compound results.
 
     Inputs
     ------
     compounds_file: path to the file with compounds.
-    intermediate_files_dir: path to store intermediate files. In this case the scrubbed_compounds pickle.
     """
     print( '\n!!! LOADING COMPOUNDS')
     compounds = load_dataframe(compounds_file)
@@ -494,8 +503,6 @@ def load_compound_results(compounds_file, intermediate_files_dir):
         compounds['compound_score'] = 1.0
     else:
         compounds['compound_score'] = compounds['compound_score'].apply(float)
-
-    compounds.to_pickle(os.path.join(intermediate_files_dir, 'scrubbed_compounds.pkl'))
     return compounds
 
 def get_settings():
