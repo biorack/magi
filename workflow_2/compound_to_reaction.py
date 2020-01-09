@@ -8,6 +8,7 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
+from rdkit.Chem import inchi
 from rdkit.Chem import SaltRemover
 from molvs import tautomer
 import json
@@ -17,6 +18,8 @@ import workflow_helpers as mg
 
 ## Global parameters. None if not needed
 precomputed_reactions = {}
+unknown_compounds_present = False # Find a way to only open the retro rules database if there are unknown compounds present
+retro_rules = 3 #TODO: think if I want this to be global
 
 ### Read and prepare data
 def read_retro_rules(min_diameter=0):
@@ -27,7 +30,7 @@ def read_retro_rules(min_diameter=0):
     - group by reaction ID
     """
     # TODO: get this from local settings file
-    Retro_rules_db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "database/compound_to_reaction.csv")
+    Retro_rules_db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "database/retro_rules_with_canonical_and_inchi.csv")
     if not os.path.exists(Retro_rules_db_path):
         #TODO: move to argparse?
         sys.exit("retro rules path is wrong")
@@ -44,18 +47,18 @@ def read_retro_rules(min_diameter=0):
     retro_rules["Reaction"] = retro_rules["Rule_SMARTS"].apply(reaction_lookup)
 
     # Get all substrate objects
-    substrate_smiles_all = list(set(retro_rules["Substrate_SMILES"]))
+    substrate_smiles_all = list(set(retro_rules["Canonical_SMILES"]))
     substrate_smiles_dict = {}
     for smiles in substrate_smiles_all:
         mol = mol_from_smiles(smiles)
         substrate_smiles_dict[smiles] = mol
     def substrate_lookup(smiles):
         return substrate_smiles_dict[smiles]
-    retro_rules["Substrate"] = retro_rules["Substrate_SMILES"].apply(substrate_lookup)
-    retro_rules = retro_rules.groupby(by=["Reaction_ID", "Substrate_SMILES"])
+    retro_rules["Substrate"] = retro_rules["Canonical_SMILES"].apply(substrate_lookup)
+    retro_rules = retro_rules.groupby(by=["Reaction_ID", "Canonical_SMILES"])
     return retro_rules
 
-def load_precomputed_reactions(precomputed_reaction_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"database/precomputed_compound_to_reactions.txt")):
+def load_precomputed_reactions(precomputed_reaction_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"database/precomputed_c2r_new.txt")):
     """Load the precomputed compound to reaction dictionary
     Input is the path to the precomputed reactions file
     Object is stored in global variable precomputed_reactions"""
@@ -125,16 +128,19 @@ def prepare_smiles(smiles):
     return smiles
 
 def read_compounds_data(compounds_path):
+    """
+    This function will read an input file with candidate compounds
+    Output is a pandas DataFrame with a column MAGI-prepared SMILES and a compound score
+    """
     if not os.path.exists(compounds_path):
         sys.exit("Compounds_path is wrong")
-    compounds_data = pd.read_csv(compounds_path)
+    compounds_data = mg.load_compound_results(compounds_path)
     compounds_data["SMILES"] = compounds_data["original_compound"].apply(prepare_smiles)
-    # TODO: allow other input?
     return compounds_data
 
 def mol_from_smiles(smiles):
     """
-    Create Rdkit.Chem.Mol object from SMILES
+    Create Rdkit.Chem.Mol object from SMILES and add hydrogens
     """
     mol = Chem.MolFromSmiles(smiles)
     mol = Chem.AddHs(Chem.RemoveHs(mol))
@@ -176,7 +182,7 @@ def mol_matches_reaction(molecule, reaction):
     else:
         return False
 
-def lookup_precomputed_reactions(molecule_smiles, min_diameter, similarity_cutoff=0.6):
+def lookup_precomputed_reactions(molecule_inchikey, min_diameter, similarity_cutoff=0.6):
     """This function returns precomputed reactions for a compound SMILES.
     Compounds were precomputed with a minimum similarity cutoff of 0.6 and no minimum diameter.
     The fingerprint radius was 3. 
@@ -186,8 +192,8 @@ def lookup_precomputed_reactions(molecule_smiles, min_diameter, similarity_cutof
     Output is a dataframe with five columns:
     ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]
     """
-    if molecule_smiles in precomputed_reactions.keys():
-        c2r_data = precomputed_reactions[molecule_smiles]
+    if molecule_inchikey in precomputed_reactions.keys():
+        c2r_data = precomputed_reactions[molecule_inchikey]
         c2r_data = pd.DataFrame(c2r_data, columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"])
         # Filter on min diameter and similarity cutoff
         c2r_data = c2r_data[c2r_data["Diameter"] >= min_diameter]
@@ -197,7 +203,7 @@ def lookup_precomputed_reactions(molecule_smiles, min_diameter, similarity_cutof
         return None
 
 ### Run C2R
-def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
+def compound_to_reaction(molecule_smiles, original_compound, rules_to_use, min_diameter, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
     """
     Find reactions in which a molecule can be used as a substrate
     - For the lowest retro rules diameters, find all reactions in which the compound can be used.
@@ -205,18 +211,21 @@ def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output
     - Write compound to reaction to intermediate file
     - Return compound to reactions
     """
+    # Generate inchi key for the molecule
+    molecule = mol_from_smiles(molecule_smiles)
+    molecule_inchikey = inchi.MolToInchiKey(molecule)
     # Lookup molecule in precomputed compounds
     if use_precomputed:
-        compound_to_reaction = lookup_precomputed_reactions(molecule_smiles = molecule_smiles, 
+        compound_to_reaction = lookup_precomputed_reactions(molecule_inchikey = molecule_inchikey, 
                                                             min_diameter = min_diameter, 
                                                             similarity_cutoff=similarity_cutoff)
         if compound_to_reaction is not None:
             #TODO: store this in intermediate file too?
             return compound_to_reaction
-    # If molecule is not known, perform compound to reaction search. 
-    molecule = mol_from_smiles(molecule_smiles)
+    # If molecule is not known, perform compound to reaction search on the user's original compound, not on the MAGI-cleaned molecule smiles. 
+    # Risk: problems with tautomers. The Substrate object in retro rules is a canonicalized version of the original compound 
     compound_to_reaction = []
-    
+    molecule = mol_from_smiles(original_compound)
     # Find reactions per group of reaction-substrates
     for (reaction_id, substrate_smiles), rules_df in rules_to_use:
         #calculate fingerprint similarity for the substrate of the reaction and the molecule of interest
@@ -259,7 +268,17 @@ def compound_to_reaction(molecule_smiles, rules_to_use, min_diameter, c2r_output
         print("No reactions found for {}".format(molecule_smiles))
         return None
 
+def compound_to_reaction_scoring(compound, reaction, compound_score, diameter, fingerprint_similarity):
+    """This function uses the fingerprint similarity and the reaction diameter to score 
+    the likelyhood of a reaction occurring."""
+    diameter_max = 16.0 # maximum diameter in the retro rules database
+    diameter_score = float(diameter) / diameter_max
+    fingerprint_similarity_score = fingerprint_similarity # already between 0 and 1
+    compound_score = compound_score # original compound score
+    c2r_score = (diameter_score + fingerprint_similarity_score + compound_score) / 3
+
 def main():
+    global retro_rules
     # Parse arguments and prepare MAGI run
     start_time = datetime.datetime.now()
     print("Starting compound to reaction search at {}".format(str(start_time)))
