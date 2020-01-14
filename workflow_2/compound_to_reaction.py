@@ -21,6 +21,16 @@ precomputed_reactions = {}
 unknown_compounds_present = False # Find a way to only open the retro rules database if there are unknown compounds present
 retro_rules = 3 #TODO: think if I want this to be global
 
+def reaction_from_smarts(smarts):
+    """
+    This function creates a Rdkit reaction object from a SMARTS string
+    """
+    reaction = AllChem.ReactionFromSmarts(smarts)
+    if reaction is None:
+        # TODO: exit or move mol to log unsearched compounds?
+        sys.exit("{} cannot be converted to rdkit reaction object".format(smarts))
+    return reaction
+
 ### Read and prepare data
 def read_retro_rules(min_diameter=0):
     """
@@ -40,7 +50,7 @@ def read_retro_rules(min_diameter=0):
     rule_smarts_all = list(set(retro_rules["Rule_SMARTS"]))
     rule_smarts_dict = {}
     for smarts in rule_smarts_all:
-        reaction = AllChem.ReactionFromSmarts(smarts)
+        reaction = reaction_from_smarts(smarts)
         rule_smarts_dict[smarts] = reaction
     def reaction_lookup(smarts):
         return rule_smarts_dict[smarts]
@@ -112,18 +122,26 @@ def canonicalize_tautomer(mol):
     mol = canon.canonicalize(mol)
     return mol
 
+def remove_stereochemistry(mol):
+    """
+    Removes stereochemistry centers from a molecule"""
+    Chem.RemoveStereochemistry(mol)
+    return mol
+
 def prepare_smiles(smiles):
     """
     Removes salts from molecule
     Turns tautomers in canonical form
     Neutralizes charged molecules
     Add hydrogens
+    remove stereochemistry
     """
     saltremover = SaltRemover.SaltRemover()
     mol = saltremover.StripMol(Chem.MolFromSmiles(smiles), dontRemoveEverything=True)
     mol = canonicalize_tautomer(mol)
     mol = NeutraliseCharges(mol)
     mol = Chem.AddHs(Chem.RemoveHs(mol))
+    mol = remove_stereochemistry(mol)
     smiles = Chem.MolToSmiles(mol)
     return smiles
 
@@ -202,6 +220,8 @@ def lookup_precomputed_reactions(molecule_inchikey, min_diameter, similarity_cut
     else:
         return None
 
+def get_inchi_key(molecule):
+    return inchi.MolToInchiKey(molecule)
 ### Run C2R
 def compound_to_reaction(molecule_smiles, original_compound, rules_to_use, min_diameter, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
     """
@@ -213,7 +233,7 @@ def compound_to_reaction(molecule_smiles, original_compound, rules_to_use, min_d
     """
     # Generate inchi key for the molecule
     molecule = mol_from_smiles(molecule_smiles)
-    molecule_inchikey = inchi.MolToInchiKey(molecule)
+    molecule_inchikey = get_inchi_key(molecule)
     # Lookup molecule in precomputed compounds
     if use_precomputed:
         compound_to_reaction = lookup_precomputed_reactions(molecule_inchikey = molecule_inchikey, 
@@ -230,6 +250,7 @@ def compound_to_reaction(molecule_smiles, original_compound, rules_to_use, min_d
     for (reaction_id, substrate_smiles), rules_df in rules_to_use:
         #calculate fingerprint similarity for the substrate of the reaction and the molecule of interest
         substrate = rules_df.iloc[0]["Substrate"]
+        substrate_ID = rules_df.iloc[0]["Substrate_ID"]
         similarity = calculate_fingerprint_similarity(substrate, molecule, fingerprint_radius)
         
         if similarity >= similarity_cutoff:
@@ -253,13 +274,13 @@ def compound_to_reaction(molecule_smiles, original_compound, rules_to_use, min_d
                                 diameter_to_store = diameter
             # store reaction with highest matching diameter
             if reaction_matched:          
-                compound_to_reaction.append([molecule_smiles, substrate_smiles,reaction_id, similarity,diameter_to_store])
+                compound_to_reaction.append([molecule_smiles, substrate_ID, substrate_smiles,reaction_id, similarity,diameter_to_store])
 
     # Store results and return data as dataframe
     if len(compound_to_reaction) > 0:
         # TODO: filter for highest diameter per reaction
         compound_to_reaction = pd.DataFrame(compound_to_reaction)
-        compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]
+        compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_ID", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]
         # Store data
         # TODO: find way to also store header
         compound_to_reaction.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
