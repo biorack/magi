@@ -5,7 +5,8 @@
 user_settings*
 local_settings.py
 *.pyc
-Icon
+Icon
+
 data/delta_mass/
 tests/full_workflow_test/test_output_files/
 *nohup*
@@ -14,4 +15,6 @@ workflow/database/
 workflow/blastbin/blastp*
 workflow/blastbin/makeblastdb*
 outputs/
+workflow_2/tests/output*
 
+.vscode/*
