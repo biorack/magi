@@ -83,6 +83,18 @@ def positive_number(number):
     else:
         return number
 
+# function adapted from https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+def str2bool(value):
+
+    if isinstance(value, bool):
+       return value
+    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def parse_arguments():
     """
     This is the MAGI argument parser that is used in all workflows. 
@@ -223,7 +235,7 @@ def parse_arguments():
         c2r_args.add_argument('--similarity_cutoff', 
             help="Minimum similarity cutoff", type = float, default = 0.6)
         c2r_args.add_argument('--use_precomputed_reactions', 
-            help="Use of previously computed reactions. Very slow if set to False", type = bool, default = True)
+            help="Use of previously computed reactions. Default is True. Very slow if set to False", type = str2bool, default = True)
         args = parser.parse_args()
         
         # Check parameters and set number of required CPUs

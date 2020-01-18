@@ -11,6 +11,8 @@ from rdkit import DataStructs
 from rdkit.Chem import inchi
 from rdkit.Chem import SaltRemover
 from molvs import tautomer
+
+import sqlite3
 import json
 
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
@@ -19,7 +21,9 @@ import workflow_helpers as mg
 ## Global parameters. None if not needed
 precomputed_reactions = {}
 unknown_compounds_present = False # Find a way to only open the retro rules database if there are unknown compounds present
-retro_rules = 3 #TODO: think if I want this to be global
+retro_rules = "Load the retro rules database with the read_retro_rules function" #TODO: think if I want this to be global
+Retro_rules_reactions = "Load the retro rules database with the read_retro_rules_reactions_from_db function"
+Retro_rules_substrates = "Load the retro rules database with the read_retro_rules_substrates_from_db function"
 
 def reaction_from_smarts(smarts):
     """
@@ -30,17 +34,84 @@ def reaction_from_smarts(smarts):
         # TODO: exit or move mol to log unsearched compounds?
         sys.exit("{} cannot be converted to rdkit reaction object".format(smarts))
     return reaction
+def reaction_from_binary(binary_object):
+    """Convert rdkit reaction binary to rdkit reaction"""
+    reaction = Chem.rdChemReactions.ChemicalReaction(binary_object)
+    return reaction
+def mol_from_binary(binary_object):
+    """Convert rdkit reaction mol to rdkit mol"""
+    mol = Chem.Mol(binary_object)
+    return mol
 
-### Read and prepare data
-def read_retro_rules(min_diameter=0):
+def lookup_similar_substrates(molecule, retro_rules_substrates=None, similarity_cutoff = 0.6, fingerprint_radius = 3):
+    """Compare the molecule of interest to the database with retro rules substrates and 
+    return a list of substrate_IDs of similar substrates"""
+    matching_substrate_ids = []
+    if type(Retro_rules_substrates) == str:
+        sys.exit(Retro_rules_substrates)
+    if retro_rules_substrates == None:
+        retro_rules_substrates = Retro_rules_substrates
+
+    # Check for each substrate if it is similar to the molecule of interest
+    for substrate in retro_rules_substrates:
+        similarity = calculate_fingerprint_similarity(substrate["substrate_rdkit_object"], molecule, fingerprint_radius)
+        if similarity > similarity_cutoff:
+            matching_substrate_ids.append(substrate["ID"])
+    return matching_substrate_ids
+
+
+def read_retro_rules_from_db(path_to_database, min_diameter=0):
     """
     Read retro rules database and:
     - pre-convert reactions and substrates to rdkit objects
     - remove all entries below the minimum diameter
     - group by reaction ID
     """
+    try:
+        # Read retro rules from database
+        global retro_rules
+        connection = sqlite3.connect("/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/database/C2R_test_database.db")
+        query = "SELECT * FROM Retro_rules_reactions \
+                INNER JOIN Retro_rules_substrates ON Retro_rules_reactions.substrate_ID = Retro_rules_substrates.ID \
+                WHERE diameter >= {}".format(min_diameter)
+        retro_rules = pd.read_sql_query(query, connection)
+        connection.close()
+        # Turn reactions and substrates into mols
+        retro_rules["reaction_rdkit_object"] = retro_rules["reaction_rdkit_object"].apply(reaction_from_binary)
+        retro_rules["substrate_rdkit_object"] = retro_rules["substrate_rdkit_object"].apply(mol_from_binary)
+        # Group by reaction ID and Canonical_SMILES
+        retro_rules = retro_rules.groupby(by=["Reaction_ID", "Canonical_SMILES"])
+    except:
+        print(retro_rules.columns)
+        raise
+### Read and prepare data
+def read_retro_rules_substrates_from_db(path_to_database="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/database/C2R_test_database.db"):
+    """
+    Read retro rules substrates database and
+    pre-convert substrates to rdkit objects
+    """
+    # Read retro rules from database
+    global Retro_rules_substrates
+    connection = sqlite3.connect(path_to_database)
+    query = "SELECT * FROM Retro_rules_substrates"
+    Retro_rules_substrates = pd.read_sql_query(query, connection)
+    connection.close()
+    # Turn reactions and substrates into mols
+    Retro_rules_substrates["substrate_rdkit_object"] = Retro_rules_substrates["substrate_rdkit_object"].apply(mol_from_binary)
+
+def read_retro_rules(min_diameter=0, useHs = True):
+    """
+    Read retro rules database and:
+    - pre-convert reactions and substrates to rdkit objects
+    - remove all entries below the minimum diameter
+    - group by reaction ID
+    """
+    global retro_rules
     # TODO: get this from local settings file
-    Retro_rules_db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "database/retro_rules_with_canonical_and_inchi.csv")
+    if useHs:
+        Retro_rules_db_path="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/retro_rules_with_canonical_and_inchi.csv"
+    else:
+        Retro_rules_db_path="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/retro_rules_with_canonical_and_inchi.csv"
     if not os.path.exists(Retro_rules_db_path):
         #TODO: move to argparse?
         sys.exit("retro rules path is wrong")
@@ -66,7 +137,6 @@ def read_retro_rules(min_diameter=0):
         return substrate_smiles_dict[smiles]
     retro_rules["Substrate"] = retro_rules["Canonical_SMILES"].apply(substrate_lookup)
     retro_rules = retro_rules.groupby(by=["Reaction_ID", "Canonical_SMILES"])
-    return retro_rules
 
 def load_precomputed_reactions(precomputed_reaction_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"database/precomputed_c2r_new.txt")):
     """Load the precomputed compound to reaction dictionary
@@ -100,7 +170,7 @@ def _InitialiseNeutralisationReactions():
         # Amides
         ('[$([N-]C=O)]','N'),
         )
-    return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y)) for x,y in patts]
+    return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y,False)) for x,y in patts]
 
 _reactions=None
 def NeutraliseCharges(mol, reactions=None):
@@ -128,20 +198,24 @@ def remove_stereochemistry(mol):
     Chem.RemoveStereochemistry(mol)
     return mol
 
-def prepare_smiles(smiles):
+def prepare_smiles(smiles, useHs = True):
     """
+    Remove stereochemistry
     Removes salts from molecule
     Turns tautomers in canonical form
     Neutralizes charged molecules
     Add hydrogens
-    remove stereochemistry
     """
     saltremover = SaltRemover.SaltRemover()
     mol = saltremover.StripMol(Chem.MolFromSmiles(smiles), dontRemoveEverything=True)
-    mol = canonicalize_tautomer(mol)
     mol = NeutraliseCharges(mol)
-    mol = Chem.AddHs(Chem.RemoveHs(mol))
     mol = remove_stereochemistry(mol)
+    mol = Chem.MolFromSmiles(Chem.MolToSmiles(mol)) # To fix kekulization bug
+    mol = canonicalize_tautomer(mol)
+    if useHs:
+        mol = Chem.AddHs(Chem.RemoveHs(mol))
+    else:
+        mol = Chem.RemoveHs(mol)
     smiles = Chem.MolToSmiles(mol)
     return smiles
 
@@ -156,12 +230,15 @@ def read_compounds_data(compounds_path):
     compounds_data["SMILES"] = compounds_data["original_compound"].apply(prepare_smiles)
     return compounds_data
 
-def mol_from_smiles(smiles):
+def mol_from_smiles(smiles, useHs = True):
     """
     Create Rdkit.Chem.Mol object from SMILES and add hydrogens
     """
     mol = Chem.MolFromSmiles(smiles)
-    mol = Chem.AddHs(Chem.RemoveHs(mol))
+    if useHs:
+        mol = Chem.AddHs(Chem.RemoveHs(mol))
+    else:
+        mol = Chem.RemoveHs(mol)
     if mol is None:
         # TODO: exit or move mol to log unsearched compounds?
         sys.exit("{} cannot be converted to rdkit.Mol object".format(smiles))
@@ -223,7 +300,7 @@ def lookup_precomputed_reactions(molecule_inchikey, min_diameter, similarity_cut
 def get_inchi_key(molecule):
     return inchi.MolToInchiKey(molecule)
 ### Run C2R
-def compound_to_reaction(molecule_smiles, original_compound, rules_to_use, min_diameter, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
+def compound_to_reaction(molecule_smiles, original_compound, rules_to_use=retro_rules, min_diameter=0, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
     """
     Find reactions in which a molecule can be used as a substrate
     - For the lowest retro rules diameters, find all reactions in which the compound can be used.
@@ -306,16 +383,17 @@ def main():
     magi_parameters = mg.general_magi_preparation()
 
     # Read data
-    unknown_compounds_present = True
+    unknown_compounds_present = True #TODO: build a check for this? Or move it? Only load full RR database when needed?
     if unknown_compounds_present:
         print("loading retro rules database")
         sys.stdout.flush()
-        retro_rules = read_retro_rules(magi_parameters["diameter"])
+        read_retro_rules(magi_parameters["diameter"])
     print("loading compounds")
     compounds_data = read_compounds_data(magi_parameters["compounds"])
     sys.stdout.flush()
-    print("loading precomputed reactions")
-    load_precomputed_reactions()
+    if magi_parameters["use_precomputed_reactions"]:
+        print("loading precomputed reactions")
+        load_precomputed_reactions()
     sys.stdout.flush()
 
     # Run compound to reaction search
