@@ -236,6 +236,7 @@ def parse_arguments():
             help="Minimum similarity cutoff", type = float, default = 0.6)
         c2r_args.add_argument('--use_precomputed_reactions', 
             help="Use of previously computed reactions. Default is True. Very slow if set to False", type = str2bool, default = True)
+        
         args = parser.parse_args()
         
         # Check parameters and set number of required CPUs

@@ -4,6 +4,7 @@ import sys
 import argparse
 import datetime
 import pandas as pd
+import multiprocessing as mp
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -18,12 +19,14 @@ import json
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 import workflow_helpers as mg
 
-## Global parameters. None if not needed
+## Global parameters.
 precomputed_reactions = {}
 unknown_compounds_present = False # Find a way to only open the retro rules database if there are unknown compounds present
 retro_rules = "Load the retro rules database with the read_retro_rules function" #TODO: think if I want this to be global
 Retro_rules_reactions = "Load the retro rules database with the read_retro_rules_reactions_from_db function"
 Retro_rules_substrates = "Load the retro rules database with the read_retro_rules_substrates_from_db function"
+compounds_metadata = None # To store metadata from the compounds. (TODO: Write and read to file to conserve memory?)
+useHs = True #Temp, to fix problems with explicit and implicit hydrogens in rdkit
 
 def reaction_from_smarts(smarts):
     """
@@ -45,45 +48,52 @@ def mol_from_binary(binary_object):
 
 def lookup_similar_substrates(molecule, retro_rules_substrates=None, similarity_cutoff = 0.6, fingerprint_radius = 3):
     """Compare the molecule of interest to the database with retro rules substrates and 
-    return a list of substrate_IDs of similar substrates"""
-    matching_substrate_ids = []
-    if type(Retro_rules_substrates) == str:
-        sys.exit(Retro_rules_substrates)
-    if retro_rules_substrates == None:
+    return a dictionary of substrate_IDs of similar substrates. 
+    The key is a substrate ID and the value is the similarity score."""
+    matching_substrate_ids = {}
+    if type(retro_rules_substrates) == str:
+        sys.exit(retro_rules_substrates)
+    if type(retro_rules_substrates) == None:
         retro_rules_substrates = Retro_rules_substrates
 
     # Check for each substrate if it is similar to the molecule of interest
-    for substrate in retro_rules_substrates:
+    for index, substrate in retro_rules_substrates.iterrows():
         similarity = calculate_fingerprint_similarity(substrate["substrate_rdkit_object"], molecule, fingerprint_radius)
         if similarity > similarity_cutoff:
-            matching_substrate_ids.append(substrate["ID"])
+            matching_substrate_ids[substrate["substrate_ID"]] = similarity
     return matching_substrate_ids
 
-
-def read_retro_rules_from_db(path_to_database, min_diameter=0):
+def read_retro_rules_from_db(path_to_database="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/database/C2R_test_database.db", min_diameter=0, use_mp = False):
     """
     Read retro rules database and:
     - pre-convert reactions and substrates to rdkit objects
     - remove all entries below the minimum diameter
     - group by reaction ID
     """
-    try:
+    with sqlite3.connect(path_to_database) as connection:
         # Read retro rules from database
+        global Retro_rules_reactions
         global retro_rules
-        connection = sqlite3.connect("/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/database/C2R_test_database.db")
         query = "SELECT * FROM Retro_rules_reactions \
-                INNER JOIN Retro_rules_substrates ON Retro_rules_reactions.substrate_ID = Retro_rules_substrates.ID \
-                WHERE diameter >= {}".format(min_diameter)
-        retro_rules = pd.read_sql_query(query, connection)
-        connection.close()
+                WHERE Retro_rules_reactions.diameter >= {}".format(min_diameter)
+        Retro_rules_reactions = pd.read_sql_query(query, connection)
         # Turn reactions and substrates into mols
-        retro_rules["reaction_rdkit_object"] = retro_rules["reaction_rdkit_object"].apply(reaction_from_binary)
-        retro_rules["substrate_rdkit_object"] = retro_rules["substrate_rdkit_object"].apply(mol_from_binary)
+        if use_mp:
+            cpu_count = mp.cpu_count() // 2 # use half of available CPUs
+            print("using {} cpus".format(cpu_count))
+            sys.stdout.flush()
+            try: 
+                p = mp.Pool(cpu_count)
+                Retro_rules_reactions["reaction_rdkit_object"] = p.map(reaction_from_binary, Retro_rules_reactions["reaction_rdkit_object"])
+            finally:
+                p.close()
+                p.terminate()
+        else:
+            Retro_rules_reactions["reaction_rdkit_object"] = Retro_rules_reactions["reaction_rdkit_object"].apply(reaction_from_binary)
         # Group by reaction ID and Canonical_SMILES
-        retro_rules = retro_rules.groupby(by=["Reaction_ID", "Canonical_SMILES"])
-    except:
-        print(retro_rules.columns)
-        raise
+        retro_rules = Retro_rules_reactions
+        Retro_rules_reactions = Retro_rules_reactions.groupby(by="retro_rules_ID")
+
 ### Read and prepare data
 def read_retro_rules_substrates_from_db(path_to_database="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/database/C2R_test_database.db"):
     """
@@ -91,15 +101,15 @@ def read_retro_rules_substrates_from_db(path_to_database="/Users/northenlab/Desk
     pre-convert substrates to rdkit objects
     """
     # Read retro rules from database
-    global Retro_rules_substrates
-    connection = sqlite3.connect(path_to_database)
-    query = "SELECT * FROM Retro_rules_substrates"
-    Retro_rules_substrates = pd.read_sql_query(query, connection)
-    connection.close()
-    # Turn reactions and substrates into mols
-    Retro_rules_substrates["substrate_rdkit_object"] = Retro_rules_substrates["substrate_rdkit_object"].apply(mol_from_binary)
+    with sqlite3.connect(path_to_database) as connection:
+        global Retro_rules_substrates
+        connection = sqlite3.connect(path_to_database)
+        query = "SELECT * FROM Retro_rules_substrates"
+        Retro_rules_substrates = pd.read_sql_query(query, connection)
+        # Turn reactions and substrates into mols
+        Retro_rules_substrates["substrate_rdkit_object"] = Retro_rules_substrates["substrate_rdkit_object"].apply(mol_from_binary)
 
-def read_retro_rules(min_diameter=0, useHs = True):
+def read_retro_rules(min_diameter=0, useHs = useHs):
     """
     Read retro rules database and:
     - pre-convert reactions and substrates to rdkit objects
@@ -198,7 +208,7 @@ def remove_stereochemistry(mol):
     Chem.RemoveStereochemistry(mol)
     return mol
 
-def prepare_smiles(smiles, useHs = True):
+def prepare_smiles(smiles, useHs = useHs):
     """
     Remove stereochemistry
     Removes salts from molecule
@@ -224,13 +234,16 @@ def read_compounds_data(compounds_path):
     This function will read an input file with candidate compounds
     Output is a pandas DataFrame with a column MAGI-prepared SMILES and a compound score
     """
+    global compounds_metadata
     if not os.path.exists(compounds_path):
         sys.exit("Compounds_path is wrong")
     compounds_data = mg.load_compound_results(compounds_path)
+    compounds_metadata = compounds_data.copy()
     compounds_data["SMILES"] = compounds_data["original_compound"].apply(prepare_smiles)
+    compounds_data = compounds_data[["original_compound", "SMILES"]]
     return compounds_data
 
-def mol_from_smiles(smiles, useHs = True):
+def mol_from_smiles(smiles, useHs = useHs):
     """
     Create Rdkit.Chem.Mol object from SMILES and add hydrogens
     """
@@ -278,13 +291,15 @@ def mol_matches_reaction(molecule, reaction):
         return False
 
 def lookup_precomputed_reactions(molecule_inchikey, min_diameter, similarity_cutoff=0.6):
-    """This function returns precomputed reactions for a compound SMILES.
+    """
+    This function returns precomputed reactions for a compound SMILES.
     Compounds were precomputed with a minimum similarity cutoff of 0.6 and no minimum diameter.
     The fingerprint radius was 3. 
 
     Input is a MAGI-prepared SMILES, the minimum diameter for a reaction and a minimum similarity cutoff.
     Results with a lower cutoff than 0.6 cannot be obtained, because they were not precomputed.
     Output is a dataframe with five columns:
+    TODO: do this
     ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]
     """
     if molecule_inchikey in precomputed_reactions.keys():
@@ -300,7 +315,7 @@ def lookup_precomputed_reactions(molecule_inchikey, min_diameter, similarity_cut
 def get_inchi_key(molecule):
     return inchi.MolToInchiKey(molecule)
 ### Run C2R
-def compound_to_reaction(molecule_smiles, original_compound, rules_to_use=retro_rules, min_diameter=0, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
+def compound_to_reaction(molecule_smiles, original_compound, rules_to_use=Retro_rules_reactions, substrates_to_use = Retro_rules_substrates, min_diameter=0, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
     """
     Find reactions in which a molecule can be used as a substrate
     - For the lowest retro rules diameters, find all reactions in which the compound can be used.
@@ -323,41 +338,48 @@ def compound_to_reaction(molecule_smiles, original_compound, rules_to_use=retro_
     # Risk: problems with tautomers. The Substrate object in retro rules is a canonicalized version of the original compound 
     compound_to_reaction = []
     molecule = mol_from_smiles(original_compound)
+
+    # Find substrates to which the molecule of interest matches
+    matching_substrates = lookup_similar_substrates(molecule, retro_rules_substrates=substrates_to_use, similarity_cutoff = similarity_cutoff, fingerprint_radius = fingerprint_radius)
     # Find reactions per group of reaction-substrates
-    for (reaction_id, substrate_smiles), rules_df in rules_to_use:
+    for (reaction_id, rules_df) in rules_to_use:
         #calculate fingerprint similarity for the substrate of the reaction and the molecule of interest
-        substrate = rules_df.iloc[0]["Substrate"]
-        substrate_ID = rules_df.iloc[0]["Substrate_ID"]
-        similarity = calculate_fingerprint_similarity(substrate, molecule, fingerprint_radius)
+        #substrate = rules_df.iloc[0]["Substrate"]
+        substrate_ID = rules_df.iloc[0]["substrate_ID"]
+        if substrate_ID in matching_substrates.keys():
+            similarity = matching_substrates[substrate_ID]
+        else:
+            similarity = 0
         
         if similarity >= similarity_cutoff:
-            diameters_to_check = sorted(rules_df["Diameter"].unique())
+            rules_df = rules_df[rules_df["substrate_ID"]==substrate_ID]
+            diameters_to_check = sorted(rules_df["diameter"].unique())
             # Assume that > 0.99 similarity is the same molecule, so substrate matches molecule
             if similarity > 0.99:
                 reaction_matched = True
-                diameter_to_store = diameters_to_check[-1]
+                diameter_to_store = max(diameters_to_check)
             # else, check if compound matches lowest reaction
             else:
-                reaction = rules_df[rules_df["Diameter"] == diameters_to_check[0]]["Reaction"].values[0]
+                reaction = rules_df[rules_df["diameter"] == diameters_to_check[0]]["reaction_rdkit_object"].values[0]
                 reaction_matched = mol_matches_reaction(molecule, reaction)
                 # if yes, check consecutive reactions
                 if reaction_matched:
                     diameter_to_store = diameters_to_check[0]
                     for diameter in diameters_to_check[-1:0:-1]:
                         if diameter > diameter_to_store:
-                            reaction = rules_df[rules_df["Diameter"] == diameter]["Reaction"].values[0]
+                            reaction = rules_df[rules_df["diameter"] == diameter]["reaction_rdkit_object"].values[0]
                             reaction_matched = mol_matches_reaction(molecule, reaction)
                             if reaction_matched:
                                 diameter_to_store = diameter
             # store reaction with highest matching diameter
             if reaction_matched:          
-                compound_to_reaction.append([molecule_smiles, substrate_ID, substrate_smiles,reaction_id, similarity,diameter_to_store])
+                compound_to_reaction.append([original_compound, rules_df.iloc[0]["reaction_ID"], similarity])
 
     # Store results and return data as dataframe
     if len(compound_to_reaction) > 0:
         # TODO: filter for highest diameter per reaction
         compound_to_reaction = pd.DataFrame(compound_to_reaction)
-        compound_to_reaction.columns = ["Molecule_SMILES", "Substrate_ID", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]
+        compound_to_reaction.columns = ["original_compound", "reaction_ID", "Similarity"]
         # Store data
         # TODO: find way to also store header
         compound_to_reaction.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
@@ -375,6 +397,39 @@ def compound_to_reaction_scoring(compound, reaction, compound_score, diameter, f
     compound_score = compound_score # original compound score
     c2r_score = (diameter_score + fingerprint_similarity_score + compound_score) / 3
 
+def format_output(compound_to_reaction_total):
+    """
+    Merge metadata to the compound to reaction table and return full data frame
+
+    Inputs
+    ------
+    A data frame with 
+    - a compound smiles
+    - the reaction ID to which it is matched
+    - the similarity score between the compound and the original substrate of the reaction
+
+    Outputs
+    ------
+    Additional info:
+    - the retro rules substrate and reaction IDs
+    - the diameter of the reaction
+    - input compound metadata?
+    """
+    ## Merge with reactions
+    compound_to_reaction_total = compound_to_reaction_total.merge(
+        retro_rules[["reaction_ID","substrate_ID","retro_rules_ID", "diameter"]],
+                                how="left", on="reaction_ID")
+    compound_to_reaction_total.rename({"retro_rules_ID":"retro_rules_reaction_ID"}, axis=1, inplace=True) 
+    ## Merge with substrates
+    compound_to_reaction_total = compound_to_reaction_total.merge(
+        Retro_rules_substrates[['substrate_ID', 'retro_rules_ID']],
+                                how="left", on="substrate_ID")
+    compound_to_reaction_total.rename({"retro_rules_ID":"retro_rules_substrate_ID", "inchi_key":"substrate_inchi_key"}, axis=1, inplace=True) 
+    ## Merge with initial metadata
+    compound_to_reaction_total = compound_to_reaction_total.merge(
+            compounds_metadata, how="left", on="original_compound")
+    return compound_to_reaction_total
+
 def main():
     global retro_rules
     # Parse arguments and prepare MAGI run
@@ -385,31 +440,35 @@ def main():
     # Read data
     unknown_compounds_present = True #TODO: build a check for this? Or move it? Only load full RR database when needed?
     if unknown_compounds_present:
-        print("loading retro rules database")
+        print("!!! Loading retro rules database")
         sys.stdout.flush()
-        read_retro_rules(magi_parameters["diameter"])
-    print("loading compounds")
+        read_retro_rules_from_db(min_diameter = magi_parameters["diameter"])
+        read_retro_rules_substrates_from_db()
+    print("!!! Loading compounds")
     compounds_data = read_compounds_data(magi_parameters["compounds"])
     sys.stdout.flush()
     if magi_parameters["use_precomputed_reactions"]:
-        print("loading precomputed reactions")
+        print("!!! Loading precomputed reactions")
         load_precomputed_reactions()
+    else:
+        print("!!! Not using precomputed reactions.")
     sys.stdout.flush()
 
     # Run compound to reaction search
     compound_to_reaction_total = []
-    print("starting c2r searches")
+    print("!!! Starting c2r searches")
     c2r_output_file = os.path.join(magi_parameters["intermediate_files_dir"], "compound_to_reaction.csv")
-    pd.DataFrame(data = None, columns = ["Molecule_SMILES", "Substrate_SMILES", "Reaction_ID", "Similarity", "Diameter"]).to_csv(c2r_output_file, index = False)  
+    pd.DataFrame(data = None, columns = ["Molecule_SMILES", "reaction_ID", "Similarity"]).to_csv(c2r_output_file, index = False)  
     sys.stdout.flush()
     for index, row in compounds_data[["SMILES", "original_compound"]].iterrows():
         molecule_smiles = row["SMILES"]
         original_compound = row["original_compound"]
-        print("Starting with {} at {}".format(original_compound, str(datetime.datetime.now())))
+        print("!!! Starting with {} at {}".format(original_compound, str(datetime.datetime.now())))
         sys.stdout.flush()
         c2r = compound_to_reaction(molecule_smiles = molecule_smiles, 
                                     original_compound = original_compound,
-                                    rules_to_use = retro_rules, 
+                                    rules_to_use = Retro_rules_reactions, 
+                                    substrates_to_use = Retro_rules_substrates,
                                     min_diameter = magi_parameters["diameter"], 
                                     c2r_output_file = c2r_output_file, 
                                     fingerprint_radius = magi_parameters["fingerprint"], 
@@ -417,12 +476,18 @@ def main():
                                     use_precomputed=magi_parameters["use_precomputed_reactions"])
         compound_to_reaction_total.append(c2r)
     compound_to_reaction_total = pd.concat(compound_to_reaction_total)
+
+    # Maybe do some cool scoring here?
+
+    # Format output
+    compound_to_reaction_total = format_output(compound_to_reaction_total)
     # Store data
-    print("storing final data")
+    outputfilename = os.path.join(magi_parameters["output"], "compound_to_reaction_total.csv")
+    print("!!! Saving compound to reaction results to {}".format(outputfilename))
     #TODO: also store compound scores?
-    compound_to_reaction_total.to_csv(os.path.join(magi_parameters["output"], "compound_to_reaction_total.csv"), index=False)
-    print("Finished in {}".format(str(datetime.datetime.now() - start_time)))
-    print("Done with compound to reaction search at {}".format(str(datetime.datetime.now())))
+    compound_to_reaction_total.to_csv(outputfilename, index=False)
+    print("!!! Finished in {}".format(str(datetime.datetime.now() - start_time)))
+    print("!@# Done with compound to reaction search at {}".format(str(datetime.datetime.now())))
 
 if __name__ == "__main__":
     main()
