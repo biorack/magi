@@ -83,9 +83,10 @@ def positive_number(number):
     else:
         return number
 
-# function adapted from https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
 def str2bool(value):
-
+    """
+    source: adapted from https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+    """
     if isinstance(value, bool):
        return value
     if value.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -577,3 +578,111 @@ def write_intermediate_file_path(output_dir, variable_of_interest, variable_path
     used_parameters[variable_of_interest] = variable_path_of_interest
     with open(os.path.join(output_dir, "used_parameters.json"), "w") as jsonfile:
          json.dump(used_parameters, jsonfile)
+
+## TODO: Check if this is necessary
+def load_mrs_reaction():
+    """
+    This function loads the mrs reaction database. 
+
+    Outputs
+    ------
+    mrs_reaction: a pandas dataframe with information on reactions. Each row represents a reaction.
+    """
+    my_settings = get_settings()
+    mrs_reaction_path = my_settings.mrs_reaction_path
+    print( '!!! MRS-Reaction: {}'.format(mrs_reaction_path))
+    mrs_reaction = load_dataframe(mrs_reaction_path)
+    return mrs_reaction
+
+
+def reformat_pactolus(df, original_compound=None, compound_score=None):
+    """
+    Reformats pactolus output table to be direcly portable into MAGI.
+    1.  changes column "inchi_key_y" or "inchi_key" to
+        "original_compound"
+    2.  changes column "score" to "compound_score"
+
+    Inputs
+    ------
+    df: Pactolus output table as Pandas DataFrame
+    original_compound: column name corresponding to the original
+                       compound inchi key. If None, will look for
+                       matches to both "inchi_key_y" or "inchi_key".
+    compound_score: column name corresponding to the pactolus score. If
+                    None, will look for match to "score"
+
+    Outputs:
+    df: reformatted Pactolus table
+    """
+
+    cols = df.columns.values
+    if original_compound is None:
+        old_cols = pd.Series(['inchi_key_y', 'inchi_key'])
+        tmp = old_cols[old_cols.isin(cols)].values
+        if len(tmp) == 0:
+            raise RuntimeError('no columns named "inchi_key_y" or "inchi_key" \
+                in Pactolus table to rename')
+        elif len(tmp) > 1:
+            raise RuntimeError('both "inchi_key_y" and "inchi_key" found in \
+                Pactolus table columns')
+        else:
+            original_compound = tmp[0]
+
+    i = np.argwhere(cols == original_compound)
+    if len(i) == 0:
+        raise RuntimeError('There is no column named "%s", please double \
+            check your input.' % (original_compound))
+    else:
+        i = i[0][0]
+    cols[i] = 'original_compound'
+    
+    if compound_score is None:
+        compound_score = 'score'
+    
+    i = np.argwhere(cols == compound_score)
+    if len(i) == 0:
+        raise RuntimeError('There is no column named "%s", please double \
+            check your input.' % (original_compound))
+    else:
+        i = i[0][0]
+    cols[i] = 'compound_score'
+    df.columns = cols
+    return df
+
+def ec_parse(x):
+    """
+    Cleans up IMG gene table's Enzyme column by pulling out and
+    separating EC numbers. Can be used as a pandas.apply() function.
+
+    Inputs
+    ------
+    x: a string
+
+    Outputs
+    -------
+    out: a string of EC numbers separated by a "|" character, or only the
+         "|" character if the input is null or empty
+    """
+
+    if pd.isnull(x):
+        return '|'
+
+    out = '|'
+    if x != '':
+        if '<<>>' in x:
+            one = x.split('<<>>')
+            for two in one:
+                try:
+                    ec = two.split('EC:')[1].split('=')[0]
+                except:
+                    ec = ''
+                out += ec+'|'
+        else:
+            try:
+                ec = x.split('EC:')[1].split('=')[0]
+            except:
+                ec = ''
+            out += ec+'|'
+        return out
+    else:
+        return out
