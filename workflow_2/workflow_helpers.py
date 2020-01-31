@@ -113,139 +113,137 @@ def parse_arguments():
             msg = "ERROR: You have exceeded the cpus on this machine ({})".format(max_cpu)
             raise argparse.ArgumentTypeError(msg)
         return cpu_count
-    try:
-        """parse arguments"""
-        parser = argparse.ArgumentParser()
-        # required arguments
-        required_args = parser.add_argument_group('Required arguments')
-        required_args.add_argument('-f', '--fasta', type=is_existing_file,
-            help='path to fasta file of genes in sample')
-        required_args.add_argument('-c', '--compounds', type=is_existing_file,
-            help='path to observed compounds file')
-        required_args.add_argument('--jsonfile', type=is_existing_file,
-            help='path to .json file with magi input parameters. Use instead of any arguments here. MAGI is extremely sensitive to the keys and values in this file.')
-        
-        # jump-start the script after certain computations
-        start_halfway_args = parser.add_argument_group('Arguments to jump-start the script after certain computations')
-        start_halfway_args.add_argument('--gene_to_reaction', type=is_existing_file,
-            help='path to gene_to_reaction file, must be in pickle format')
-        start_halfway_args.add_argument('--compound_to_reaction', type=is_existing_file,
-            help='path to compound_to_reaction file, must be in pickle format')
-        start_halfway_args.add_argument('--reaction_to_gene', type=is_existing_file,
-            help='path to reaction_to_gene file, must be in pickle format')
-        start_halfway_args.add_argument('--merged_before_score', type=is_existing_file,
-            help='path to merged_before_score table, must be in hdf5 format,\
-            with the key "merged_before_score"')
-        start_halfway_args.add_argument('--genome_db', help = "path to genome .db files", type=is_database)
 
-        # Use this if only a part of the workflow should be run
-        stop_halfway_args = parser.add_argument_group('Arguments to run a part of the script')
-        stop_halfway_args.add_argument('--gene_to_reaction_only',
-            help="Use this parameter if you are only interested in the gene to reaction search", 
-            action='store_true', default=False)
-        stop_halfway_args.add_argument('--compound_to_reaction_only',
-            help="Use this parameter if you are only interested in the compound to reaction search", 
-            action='store_true', default=False)
-        
-        # Arguments to run multiple parts of the workflow sequentially
-        pipeline_args = parser.add_argument_group('Arguments to control running MAGI scripts sequentially')
-        pipeline_args.add_argument('--not_first_script', default = False, action='store_true', help="set this to true if this is not the first script in a sequential magi run.")
-        pipeline_args.add_argument('--intermediate_files_dir', help="path to intermediate files directory")
-        
-        # optional runtime variables
-        optional_args = parser.add_argument_group("Optional runtime variables")
-        optional_args.add_argument('-a', '--annotations', type=is_existing_file,
-            help='path to annotation file for genes in sample', 
-            default=None)
-        optional_args.add_argument('-n', '--cpu_count', 
-            help='number of cpus to use for multiprocessing. Default is to use max!', 
-            type=int, default=0)
-        optional_args.add_argument('-o', '--output', 
-            help='path to a custom output', 
-            type=str)
-        optional_args.add_argument('-l', '--level', 
-            help='how many levels deep to search the chemical network', 
-            type=int, choices=[0,1,2,3], default=2)
-        optional_args.add_argument('--legacy', dest='legacy', action='store_true',
-            help='use legacy tautomer searching; default is no')
-        optional_args.add_argument('--no-legacy', dest='legacy', action='store_false',
-            help='use precomputed compound-to-reaction; default is yes')
-        optional_args.set_defaults(legacy=False)
-        optional_args.add_argument('--mute', 
-            help='mutes pandas warnings', 
-            action='store_true')
-        optional_args.add_argument('--pactolus', 
-            help='Flag to tell MAGI that the compounds input is a pactolus file', 
-            action='store_true')
-        optional_args.add_argument('--test', 
-            help='TBD: run MAGI only on the first # of pactolus compounds', 
-            type=int)
-        optional_args.add_argument('--debug', 
-            help='TBD: prints a lot of info', 
-            action='store_true')
-        optional_args.add_argument('--blast_filter', 
-            help='How stringent to filter the top BLAST results, as percent;\
-            default is 85 meaning that only BLAST results within 85%% of the top\
-            result will be taken.', 
-            type=percentage_values_to_decimal, default=0.85)
-        optional_args.add_argument('--reciprocal_closeness', 
-            help='Cutoff to call a reciprocal disagreement as "close", as percent;\
-            default is 75 meaning that a reciprocal disagreement will be classified\
-            as "close" if the lower blast score (e score) is within 75%% of the higher\
-            score', 
-            type=percentage_values_to_decimal, default=0.75)
-        optional_args.add_argument('--final_weights', 
-            help='Defined weights to weight the final scoring for the scores:\
-            compound_score reciprocal_score homology_score reaction_connection', 
-            type=positive_number, nargs=4, default=[1.0, 1.0, 1.0, 1.0])
-        optional_args.add_argument('--chemnet_penalty', 
-            help='Base factor in the chemical network search level penalty', 
-            type=positive_number, default=4)
-        optional_args.add_argument('--intermediate_files',
-            help='What directory within --output to store intermediate files',
-            type=str, default='intermediate_files')
-        
-        # Parameters for accurate mass search
-        mass_search_args = parser.add_argument_group("Arguments for the optional accurate mass search")
-        mass_search_args.add_argument('--is_mass_search',
-                            action='store_true', default=False,
-                            help = "Set this parameter if m/z values need to be transformed into candidate compounds."
-                            )
-        mass_search_args.add_argument('--polarity',
-                            type=str, choices=['pos','neg','neut'], default=None,
-                            help = "Specify if the masses were measured in negative mode, positive mode or if they have been transformed to neutral masses."
-                            )
-        mass_search_args.add_argument('--adducts_pos',
-                            type=str, default=None,
-                            help="Specify which positive adducts to investigate if the polarity is positive."
-                            )
-        mass_search_args.add_argument('--adducts_neg',
-                            type=str, default=None,
-                            help="Specify which positive adducts to investigate if the polarity is negative."
-                            )
-        mass_search_args.add_argument('--ppm', 
-            help='The ppm cutoff for the accurate mass search. Default is 10 ppm.', 
-            type=int, default=10)
+    """parse arguments"""
+    parser = argparse.ArgumentParser()
+    # required arguments
+    required_args = parser.add_argument_group('Required arguments')
+    required_args.add_argument('-f', '--fasta', type=is_existing_file,
+        help='path to fasta file of genes in sample')
+    required_args.add_argument('-c', '--compounds', type=is_existing_file,
+        help='path to observed compounds file')
+    required_args.add_argument('--jsonfile', type=is_existing_file,
+        help='path to .json file with magi input parameters. Use instead of any arguments here. MAGI is extremely sensitive to the keys and values in this file.')
+    
+    # jump-start the script after certain computations
+    start_halfway_args = parser.add_argument_group('Arguments to jump-start the script after certain computations')
+    start_halfway_args.add_argument('--gene_to_reaction', type=is_existing_file,
+        help='path to gene_to_reaction file, must be in pickle format')
+    start_halfway_args.add_argument('--compound_to_reaction', type=is_existing_file,
+        help='path to compound_to_reaction file, must be in pickle format')
+    start_halfway_args.add_argument('--reaction_to_gene', type=is_existing_file,
+        help='path to reaction_to_gene file, must be in pickle format')
+    start_halfway_args.add_argument('--merged_before_score', type=is_existing_file,
+        help='path to merged_before_score table, must be in hdf5 format,\
+        with the key "merged_before_score"')
+    start_halfway_args.add_argument('--genome_db', help = "path to genome .db files", type=is_database)
 
-        # MAGI c2r 2.0 parameters
-        c2r_args = parser.add_argument_group("Arguments for the optional accurate mass search")
-        c2r_args.add_argument('--diameter', 
-            help="Minimum diameter to use for retro rules reactions", type = int, default = 12) # TODO: add check to be in range and even
-        c2r_args.add_argument('--fingerprint', 
-            help="fingerprint radius for Morgan molecular fingerprint", type = int, default = 3)
-        c2r_args.add_argument('--similarity_cutoff', 
-            help="Minimum similarity cutoff", type = float, default = 0.6)
-        c2r_args.add_argument('--use_precomputed_reactions', 
-            help="Use of previously computed reactions. Default is True. Very slow if set to False", type = str2bool, default = True)
-        
-        args = parser.parse_args()
-        
-        # Check parameters and set number of required CPUs
-        if args.fasta is None and args.compounds is None and args.jsonfile is None and args.not_first_script is False:
-            raise argparse.ArgumentTypeError('ERROR: either FASTA or metabolites file is required, or a json file with input parameters.')
-        args.cpu_count = set_cpu_count(args.cpu_count)
-    except argparse.ArgumentTypeError as ex:
-        sys.exit(ex.message)
+    # Use this if only a part of the workflow should be run
+    stop_halfway_args = parser.add_argument_group('Arguments to run a part of the script')
+    stop_halfway_args.add_argument('--gene_to_reaction_only',
+        help="Use this parameter if you are only interested in the gene to reaction search", 
+        action='store_true', default=False)
+    stop_halfway_args.add_argument('--compound_to_reaction_only',
+        help="Use this parameter if you are only interested in the compound to reaction search", 
+        action='store_true', default=False)
+    
+    # Arguments to run multiple parts of the workflow sequentially
+    pipeline_args = parser.add_argument_group('Arguments to control running MAGI scripts sequentially')
+    pipeline_args.add_argument('--not_first_script', default = False, action='store_true', help="set this to true if this is not the first script in a sequential magi run.")
+    pipeline_args.add_argument('--intermediate_files_dir', help="path to intermediate files directory")
+    
+    # optional runtime variables
+    optional_args = parser.add_argument_group("Optional runtime variables")
+    optional_args.add_argument('-a', '--annotations', type=is_existing_file,
+        help='path to annotation file for genes in sample', 
+        default=None)
+    optional_args.add_argument('-n', '--cpu_count', 
+        help='number of cpus to use for multiprocessing. Default is to use max!', 
+        type=int, default=0)
+    optional_args.add_argument('-o', '--output', 
+        help='path to a custom output', 
+        type=str)
+    optional_args.add_argument('-l', '--level', 
+        help='how many levels deep to search the chemical network', 
+        type=int, choices=[0,1,2,3], default=2)
+    optional_args.add_argument('--legacy', dest='legacy', action='store_true',
+        help='use legacy tautomer searching; default is no')
+    optional_args.add_argument('--no-legacy', dest='legacy', action='store_false',
+        help='use precomputed compound-to-reaction; default is yes')
+    optional_args.set_defaults(legacy=False)
+    optional_args.add_argument('--mute', 
+        help='mutes pandas warnings', 
+        action='store_true')
+    optional_args.add_argument('--pactolus', 
+        help='Flag to tell MAGI that the compounds input is a pactolus file', 
+        action='store_true')
+    optional_args.add_argument('--test', 
+        help='TBD: run MAGI only on the first # of pactolus compounds', 
+        type=int)
+    optional_args.add_argument('--debug', 
+        help='TBD: prints a lot of info', 
+        action='store_true')
+    optional_args.add_argument('--blast_filter', 
+        help='How stringent to filter the top BLAST results, as percent;\
+        default is 85 meaning that only BLAST results within 85%% of the top\
+        result will be taken.', 
+        type=percentage_values_to_decimal, default=0.85)
+    optional_args.add_argument('--reciprocal_closeness', 
+        help='Cutoff to call a reciprocal disagreement as "close", as percent;\
+        default is 75 meaning that a reciprocal disagreement will be classified\
+        as "close" if the lower blast score (e score) is within 75%% of the higher\
+        score', 
+        type=percentage_values_to_decimal, default=0.75)
+    optional_args.add_argument('--final_weights', 
+        help='Defined weights to weight the final scoring for the scores:\
+        compound_score reciprocal_score homology_score reaction_connection', 
+        type=positive_number, nargs=4, default=[1.0, 1.0, 1.0, 1.0])
+    optional_args.add_argument('--chemnet_penalty', 
+        help='Base factor in the chemical network search level penalty', 
+        type=positive_number, default=4)
+    optional_args.add_argument('--intermediate_files',
+        help='What directory within --output to store intermediate files',
+        type=str, default='intermediate_files')
+    
+    # Parameters for accurate mass search
+    mass_search_args = parser.add_argument_group("Arguments for the optional accurate mass search")
+    mass_search_args.add_argument('--is_mass_search',
+                        action='store_true', default=False,
+                        help = "Set this parameter if m/z values need to be transformed into candidate compounds."
+                        )
+    mass_search_args.add_argument('--polarity',
+                        type=str, choices=['pos','neg','neut'], default=None,
+                        help = "Specify if the masses were measured in negative mode, positive mode or if they have been transformed to neutral masses."
+                        )
+    mass_search_args.add_argument('--adducts_pos',
+                        type=str, default=None,
+                        help="Specify which positive adducts to investigate if the polarity is positive."
+                        )
+    mass_search_args.add_argument('--adducts_neg',
+                        type=str, default=None,
+                        help="Specify which positive adducts to investigate if the polarity is negative."
+                        )
+    mass_search_args.add_argument('--ppm', 
+        help='The ppm cutoff for the accurate mass search. Default is 10 ppm.', 
+        type=int, default=10)
+
+    # MAGI c2r 2.0 parameters
+    c2r_args = parser.add_argument_group("Arguments for the optional accurate mass search")
+    c2r_args.add_argument('--diameter', 
+        help="Minimum diameter to use for retro rules reactions", type = int, default = 12) # TODO: add check to be in range and even
+    c2r_args.add_argument('--fingerprint', 
+        help="fingerprint radius for Morgan molecular fingerprint", type = int, default = 3)
+    c2r_args.add_argument('--similarity_cutoff', 
+        help="Minimum similarity cutoff", type = float, default = 0.6)
+    c2r_args.add_argument('--use_precomputed_reactions', 
+        help="Use of previously computed reactions. Default is True. Very slow if set to False", type = str2bool, default = True)
+    
+    args = parser.parse_args()
+    
+    # Check parameters and set number of required CPUs
+    if args.fasta is None and args.compounds is None and args.jsonfile is None and args.not_first_script is False:
+        parser.error('ERROR: either FASTA or metabolites file is required, or a json file with input parameters.')
+    args.cpu_count = set_cpu_count(args.cpu_count)
     return args
 
 def make_output_dirs(output_dir=None, fasta_file=None, compounds_file=None, intermediate_files='intermediate_files'):
