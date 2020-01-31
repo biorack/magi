@@ -13,28 +13,16 @@ my_settings = mg.get_settings()
 
 #refseq_dbpath = my_settings.refseq_db
 # set up joiner tables
-def get_reaction_to_protein_table(path_to_database=my_settings.magi_database):
+def get_reaction_to_protein_table(path_to_database=my_settings.magi_database, protein_identifier = "protein_ID"):
     """
     Load the table with protein identifiers and matching Rhea reaction identifiers
-    Output is a pandas dataframe with two columns, 'reaction_id' and 'refseq_id'
+    Output is a pandas dataframe with two columns, 'rhea_ID' and 'protein_ID' or 'uniprot_ID
     """
     with sqlite3.connect(path_to_database) as connection:
-        query = "SELECT rhea_ID, protein_ID FROM Proteins"
+        query = "SELECT rhea_ID, {} FROM Proteins".format(protein_identifier)
         reaction_to_protein_table = pd.read_sql_query(query, connection)
-    reaction_to_protein_table.columns = ['reaction_id', 'refseq_id']
+    # TODO: check if protein_ID is an okay name and that it doesn't have to be refseq_ID
     return reaction_to_protein_table
-
-#a = mrs_reaction.index.values
-#b = mrs_reaction['refseq_id'].values
-#to_blowup = zip(a,b)
-#data = []
-#for pair in to_blowup:
-#    rxn_id = pair[0]
-#    refseqs = pair[1]
-#    for r in refseqs.split('|'):
-#        if r != '':
-#            data.append([rxn_id, r])
-#rxn_refseq_join = pd.DataFrame(data, columns=['reaction_id', 'refseq_id'])
 
 def partition_indexes(totalsize, numberofpartitions, offset=0):
     """
@@ -101,16 +89,22 @@ def refseq_to_reactions(blast_results, refseq_col):
     if refseq_col not in blast_results.columns:
         raise RuntimeError('%s is not a column in the dataframe!'
                            % (refseq_col))
-    rxn_refseq_join = get_reaction_to_protein_table()
+    #TODO: find more reproducible way to use uniprot IDs and 
+    # longer uniprot ID notation (called protein ID here)
+    if refseq_col =="query acc.":
+        protein_identifier = "uniprot_ID"
+    else:
+        protein_identifier = "protein_ID"
+    rxn_refseq_join = get_reaction_to_protein_table(protein_identifier = protein_identifier)
     result_table = pd.merge(
         blast_results, rxn_refseq_join, 
-        left_on=refseq_col, right_on='refseq_id', how='left')
-    result_table.drop('refseq_id', axis=1, inplace=True)
+        left_on=refseq_col, right_on=protein_identifier, how='left')
+    result_table.drop(protein_identifier, axis=1, inplace=True)
 
     # keep only the best hit to each reaction, for each query
     result_table.sort_values(
         ['query acc.', 'e_score'],
-        ascending=[True, False]).drop_duplicates(['query acc.', 'reaction_id'])
+        ascending=[True, False]).drop_duplicates(['query acc.', 'rhea_ID'])
 
     return result_table
 
@@ -187,14 +181,12 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     -------
     blast_results: pandas DataFrame that stores all blast results.
     """
-    my_settings = mg.get_settings()
     blastbin = my_settings.blastbin
     db_name = os.path.basename(database_path)
 
     # don't open more processes than necessary
     if cpu > len(query_list):
         cpu = len(query_list)
-
     # set up the blast search strings
     idxes = partition_indexes(len(query_list), cpu)
     mplist = []
