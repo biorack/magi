@@ -21,12 +21,13 @@ import workflow_helpers as mg
 
 ## Global parameters.
 precomputed_reactions = {}
+my_settings = mg.get_settings()
 unknown_compounds_present = False # Find a way to only open the retro rules database if there are unknown compounds present
 retro_rules = "Load the retro rules database with the read_retro_rules function" #TODO: think if I want this to be global
 Retro_rules_reactions = "Load the retro rules database with the read_retro_rules_reactions_from_db function"
 Retro_rules_substrates = "Load the retro rules database with the read_retro_rules_substrates_from_db function"
 compounds_metadata = None # To store metadata from the compounds. (TODO: Write and read to file to conserve memory?)
-useHs = True #Temp, to fix problems with explicit and implicit hydrogens in rdkit
+useHs = False #Temp, to fix problems with explicit and implicit hydrogens in rdkit
 
 def reaction_from_smarts(smarts):
     """
@@ -63,7 +64,7 @@ def lookup_similar_substrates(molecule, retro_rules_substrates=None, similarity_
             matching_substrate_ids[substrate["substrate_ID"]] = similarity
     return matching_substrate_ids
 
-def read_retro_rules_from_db(path_to_database="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/database/C2R_test_database.db", min_diameter=0, use_mp = False):
+def read_retro_rules_from_db(path_to_database=my_settings.magi_database, min_diameter=0, use_mp = False):
     """
     Read retro rules database and:
     - pre-convert reactions and substrates to rdkit objects
@@ -95,7 +96,7 @@ def read_retro_rules_from_db(path_to_database="/Users/northenlab/Desktop/h_leegw
         Retro_rules_reactions = Retro_rules_reactions.groupby(by="retro_rules_ID")
 
 ### Read and prepare data
-def read_retro_rules_substrates_from_db(path_to_database="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/database/C2R_test_database.db"):
+def read_retro_rules_substrates_from_db(path_to_database=my_settings.magi_database):
     """
     Read retro rules substrates database and
     pre-convert substrates to rdkit objects
@@ -271,10 +272,9 @@ def calculate_fingerprint_similarity(mol1, mol2, fingerprint_radius = 3):
     Outputs
     -------
     dice_similarity: The similarity between the two molecular fingerprints.
-    TODO: check if useFeatures=True) needs to be added to getting the fingerprints.
     """
-    fingerprint1 = AllChem.GetMorganFingerprint(mol1, fingerprint_radius)
-    fingerprint2 = AllChem.GetMorganFingerprint(mol2, fingerprint_radius)
+    fingerprint1 = AllChem.GetMorganFingerprint(mol1, fingerprint_radius, useFeatures=True)
+    fingerprint2 = AllChem.GetMorganFingerprint(mol2, fingerprint_radius, useFeatures=True)
     dice_similarity = DataStructs.DiceSimilarity(fingerprint1, fingerprint2)
     return dice_similarity
 
@@ -475,17 +475,18 @@ def main():
                                     similarity_cutoff = magi_parameters["similarity_cutoff"], 
                                     use_precomputed=magi_parameters["use_precomputed_reactions"])
         compound_to_reaction_total.append(c2r)
-    compound_to_reaction_total = pd.concat(compound_to_reaction_total)
+    compound_to_reaction_total = pd.concat(compound_to_reaction_total) #TODO what to do when no reactions are found for any compound?
 
     # Maybe do some cool scoring here?
 
     # Format output
     compound_to_reaction_total = format_output(compound_to_reaction_total)
     # Store data
-    outputfilename = os.path.join(magi_parameters["output"], "compound_to_reaction_total.csv")
-    print("!!! Saving compound to reaction results to {}".format(outputfilename))
+    compound_to_reaction_path = os.path.join(magi_parameters["intermediate_files_dir"], "compound_to_reaction_total.csv")
+    mg.write_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path", compound_to_reaction_path)
+    print("!!! Saving compound to reaction results to {}".format(compound_to_reaction_path))
     #TODO: also store compound scores?
-    compound_to_reaction_total.to_csv(outputfilename, index=False)
+    compound_to_reaction_total.to_csv(compound_to_reaction_path, index=False)
     print("!!! Finished in {}".format(str(datetime.datetime.now() - start_time)))
     print("!@# Done with compound to reaction search at {}".format(str(datetime.datetime.now())))
 
