@@ -20,15 +20,24 @@ def prepare_compound_to_reaction_results(compound_to_reaction_path, output_dir, 
     """
     # Get all retro rules reaction IDs from the c2r search
     reaction_ids = pd.read_csv(compound_to_reaction_path)
-    reaction_ids = reaction_ids["retro_rules_reaction_ID"].to_frame()
-    reaction_ids.columns = ["retro_rules_ID"]
+    reaction_ids = reaction_ids["reaction_ID"].to_frame()
+    reaction_ids.drop_duplicates(inplace = True)
+    # Add retro rules IDs
+    with sqlite3.connect(path_to_database) as connection:
+        query = "SELECT reaction_ID, retro_rules_ID FROM Retro_rules_reactions"
+        reference_df = pd.read_sql_query(query, connection)
+    reaction_ids = reaction_ids.merge(
+                    reference_df,
+                    how = "left", 
+                    on = "reaction_ID"
+                    )
 
     # Lookup matching rhea ID
     with sqlite3.connect(path_to_database) as connection:
         query = "SELECT * FROM Retro_rules_to_rhea_reactions"
-        retro_rules_to_rhea_reactions = pd.read_sql_query(query, connection)
+        reference_df = pd.read_sql_query(query, connection)
     reaction_ids = reaction_ids.merge(
-                    retro_rules_to_rhea_reactions,
+                    reference_df,
                     how = "left", 
                     on = "retro_rules_ID"
                     )

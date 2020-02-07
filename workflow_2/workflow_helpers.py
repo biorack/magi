@@ -361,10 +361,10 @@ def print_parameters(args):
     if args.fasta is not None: 
         print( '@@@ BLAST filter: %s' % (args.blast_filter))
     if args.compounds is not None:
-        print( '@@@ Using precomputed compound results: %s' % (not args.legacy))
-        print( '@@@ Chemnet search to level %s' % (args.level))
-        print( '@@@ Reciprocal closeness: %s' % (args.reciprocal_closeness))
-        print( '@@@ Chemnet base penalty: %s' % (args.chemnet_penalty))
+        print( '@@@ Using precomputed compound results: %s' % (not args.use_precomputed_reactions))
+        print( '@@@ Similarity cutoff %s' % (args.similarity_cutoff))
+        print( '@@@ Minimum diameter: %s' % (args.diameter))
+        print( '@@@ Fingerprint radius: %s' % (args.fingerprint))
     print( '@@@ MAGI score weights: %s' % (args.final_weights))
     print( '@@@ Using %s CPUs' % (args.cpu_count))
     
@@ -401,9 +401,12 @@ def general_magi_preparation():
         if magi_parameters["output"] is None:
             raise RuntimeError("Enter output file directory")
         else:
-            magi_parameters["output_dir"] = os.path.abspath(magi_parameters["output"])
+            output_dir_to_use = os.path.abspath(magi_parameters["output"])
             # Read used parameters from previous run
-            magi_parameters = use_json_as_magi_input(os.path.join(magi_parameters["output_dir"], "used_parameters.json"), magi_parameters)
+            magi_parameters = use_json_as_magi_input(os.path.join(output_dir_to_use, "used_parameters.json"), magi_parameters)
+            # Overwrite output directory
+            magi_parameters["output_dir"] = output_dir_to_use
+            magi_parameters["intermediate_files_dir"] = os.path.join(output_dir_to_use, magi_parameters["intermediate_files"])
     else:
         print_version_info()
         print_parameters(args)
