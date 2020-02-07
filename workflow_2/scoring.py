@@ -11,9 +11,9 @@ import sqlite3
 
 my_settings = mg.get_settings()
 
-def read_compounds_metadata(compounds_file):
+def read_compounds_metadata(compounds_metadata_path):
     """ Read everything in the input csv file"""
-    compounds_metadata = mg.load_compounds_file(compounds_file)
+    compounds_metadata = mg.load_dataframe(compounds_metadata_path)
     return compounds_metadata
 
 def read_compound_to_reaction(compound_to_reaction_path, path_to_database=my_settings.magi_database):
@@ -139,10 +139,10 @@ def reciprocal_agreement(df, forward_name='reaction_id_r2g',
               not close
     """
     # find agreement
-    agree_idx = df[df['reaction_id_r2g'] == df['reaction_id_g2r']].index
+    agree_idx = df[df['rhea_ID_r2g'] == df['rhea_ID_g2r']].index
     df.loc[agree_idx, 'reciprocal_score'] = 2.
     # disagreement
-    disagree = df[df['reaction_id_r2g'] != df['reaction_id_g2r']].index
+    disagree = df[df['rhea_ID_r2g'] != df['rhea_ID_g2r']].index
     slc = df.loc[disagree]
     # close disagreements get a medium score
     close = (
@@ -232,23 +232,24 @@ def magi_score(scores, weights=np.asarray([np.nan, np.nan])):
     
     return geometric_mean
 
-def calculate_scores(df, reciprocal_closeness, final_weights, chemnet_penalty, start_time):
+def calculate_scores(merged_dataframe, reciprocal_closeness, final_weights, start_time):
     """
     This part of the script calculates:
-        - the reciprocal agreement score, 
-        - the homology score, 
-        - the reaction connection score 
+        - the homology score, which consists of two homology components and a reciprocal agreement score.
+        - the reaction connection score, which represents how well a compound is matched to a reaction.
+            It consists of the similarity to the original substrate of the reaction and the Retro Rules reaction diameter.
         - the final MAGI integrated score.
+    It also uses the original user's compound score
     
     Inputs
     ------
-    df: The data frame with g2r and c2g merged
+    merged_dataframe: The data frame with g2r and c2g merged
     reciprocal_closeness:  The closeness treshold to use to score 
                            reciprocal agreement
-    final_weights:         The weights for compound_score, reciprocal_score,
-                    homology_score and reaction_connection in that order
-    chemnet_penalty:        penalty for finding compound in the 
-                chemical similarity network instead of the compound itself
+    final_weights:         The weights for compound_score, compound_similarity_score, 
+                            reaction_diameter_score, reciprocal_score,
+                            homology_score and reaction_connection in that order
+
     start_time:             Time value to print the time
 
     Outputs
@@ -259,84 +260,67 @@ def calculate_scores(df, reciprocal_closeness, final_weights, chemnet_penalty, s
     sys.stdout.flush()
     
     # score reciprocal agreement
-    df = reciprocal_agreement(df, closeness_threshold=reciprocal_closeness)
+    merged_dataframe = reciprocal_agreement(merged_dataframe, closeness_threshold=reciprocal_closeness)
     
     # calculate homology score
-    score = homology_score(df)
+    homology_scores = homology_score(merged_dataframe)
     # the nulls get a really low score
-    score[pd.isnull(score)] = 1
-    df['homology_score'] = score
+    homology_scores[pd.isnull(homology_scores)] = 1
+    merged_dataframe['homology_score'] = homology_scores
     
     # reaction connection score says if the compound got connected to any
     # reaction in the database. Can't have zero because that messes up
     # geometric mean, so added a small number.
-    df['reaction_connection'] = df[['reaction_id_r2g', 'reaction_id_g2r']]\
+    merged_dataframe['reaction_connection'] = merged_dataframe[['rhea_ID_r2g', 'rhea_ID_g2r']]\
                                     .apply(pd.notnull).sum(axis=1) + 0.01
     
     # calculate final MAGI integrated score
-    scoring_data = ['compound_score', 'reciprocal_score', \
+    scoring_data = ['compound_score', 'similarity', 
+                    'diameter', 'reciprocal_score', 
                     'homology_score', 'reaction_connection']
     
-    scores = df[scoring_data].values
+    scores = merged_dataframe[scoring_data].values
     if final_weights is not None:
         weights = np.asarray([final_weights] * scores.shape[0])
-        scores = magi_score(scores, weights)
+        merged_dataframe['MAGI_score'] = magi_score(scores, weights)
     else:
-        scores = magi_score(scores)
-    df['MAGI_score'] = scores / (chemnet_penalty ** df['level'].values)
+        merged_dataframe['MAGI_score'] = magi_score(scores)
     print( '!@# Scoring done in %s minutes' %((time.time() - start_time) / 60))
-    return df
+    return merged_dataframe
 
-def format_table(df):
+def format_table(df, compounds_metadata):
     """
     This function will:
         - Write gene IDs to strings if they were floats
+        - Sort the dataframe based on the MAGI score and drop duplicates
     """
     print( '\n!@# Formatting final table | TLOG %s' % (time.time()))
     start = time.time()
     sys.stdout.flush()
           
     # find gene ids that are floats, convert those to strings, without the decimal
-    float_entries = df['subject acc.'].apply(lambda x: isinstance(x, float))
-    df.loc[float_entries, 'subject acc.'] = df.loc[float_entries, \
-                    'subject acc.'].apply(lambda x: "{:.0f}".format(x))
+    float_entries = df['gene_ID'].apply(lambda x: isinstance(x, float))
+    df.loc[float_entries, 'gene_ID'] = df.loc[float_entries, \
+                    'gene_ID'].apply(lambda x: "{:.0f}".format(x))
        
-    # sort the final table and drop key duplicates
-    df = df.sort_values(
-        ['original_compound', 'MAGI_score'], 
-        ascending=[True, False]
-        ).drop_duplicates(
-            ['original_compound', 'level', 'neighbor', 'compound_score',
-             'reciprocal_score', 'query acc.', 'reaction_id_r2g',
-             'reaction_id_g2r']
+    # sort the final table and drop matches with more than one reference protein
+    df = df.sort_values('MAGI_score', ascending=False).drop_duplicates(
+            ['original_compound', 'compound_score',
+             'reciprocal_score', 'gene_ID', 'rhea_ID_r2g',
+             'rhea_ID_g2r']
              )
     
-    # Add database IDs for the g2r and r2g searches
-    mrs_reaction_path = mg.get_settings(); mrs_reaction_path = mrs_reaction_path.mrs_reaction_path
-    mrs_reaction = mg.load_dataframe(mrs_reaction_path)
-    df = df.merge(mrs_reaction[['database_id']],
-        left_on='reaction_id_r2g', right_index=True, how='left')
-    df = df.merge(mrs_reaction[['database_id']],
-        left_on='reaction_id_g2r', right_index=True, how='left',
-        suffixes=('_r2g', '_g2r'))
-    
-    # Rename query acc column to gene_id column
-    cols = df.columns.values
-    idx = pd.np.argwhere(cols == 'query acc.')[0][0]
-    cols[idx] = 'gene_id'
-    df.columns = cols
-    
-    # Shuffle column order and remove reaction ID and subject acc columns
-    df = df[['MAGI_score','gene_id', 'original_compound', 'neighbor',
-        'note', 'compound_score','level','homology_score','reciprocal_score',
-        'reaction_connection', 'e_score_r2g','database_id_r2g', 'e_score_g2r',
-        'database_id_g2r']]
+    # Merge compound input metadata to the data frame
+    if "compound_score" in compounds_metadata.columns:
+        df = df.merge(compounds_metadata, how = "right", on = ["original_compound", "compound_score"]).sort_values('MAGI_score', ascending=False)
+    else:
+        df = df.merge(compounds_metadata, how = "right", on = "original_compound").sort_values('MAGI_score', ascending=False)
     return df, start
 
 def save_outputs(df, start, output_dir, intermediate_files_dir):
     # save the full dataframe
     df.to_csv(os.path.join(output_dir, 'magi_results.csv'), index=False)
-    print( 'full results saved to {}'.format(os.path.join(output_dir, 'magi_results.csv')))
+    print( '!!! Full results saved to {}'.format(os.path.join(output_dir, 'magi_results.csv')))
     
     # save a compound-centric dataframe, where only the best row for each
     # original_compound was chosen (this is only for compound scoring, do
@@ -345,27 +329,23 @@ def save_outputs(df, start, output_dir, intermediate_files_dir):
     compound_centric = df[pd.notnull(df['original_compound'])]\
                          .sort_values('MAGI_score', ascending=False)\
                          .drop_duplicates(['original_compound', 'compound_score'])
-    input_compounds = pd.read_pickle(os.path.join(intermediate_files_dir, "scrubbed_compounds.pkl"))
-    compound_centric = pd.merge(
-        compound_centric, input_compounds,
-        on=['original_compound', 'compound_score'],
-        how='right')
+
     compound_centric.to_csv(os.path.join(output_dir, 
         'magi_compound_results.csv'), index=False)
-    
+    print( '!!! Compound results saved to {}'.format(os.path.join(output_dir, 'magi_compound_results.csv')))
+
     # Save a gene-centric dataframe.
     gene_centric = df.sort_values(['MAGI_score', 'e_score_g2r'], 
         ascending=[False, False])\
-        .drop_duplicates(['gene_id', 'database_id_g2r'])
+        .drop_duplicates(['gene_ID', 'rhea_ID_g2r'])
     gene_centric.to_csv(os.path.join(output_dir,
         'magi_gene_results.csv'), index=False)
+    print( '!!! Gene results saved to {}'.format(os.path.join(output_dir, 'magi_gene_results.csv')))
     
     print( '!@# MAGI Scoring done in %s minutes' %((time.time() - start) / 60))
     with open(os.path.join(intermediate_files_dir, "timer.txt"),"r") as timerfile:
         main_start = float(timerfile.read())
     print( '\n!@# MAGI analysis complete in %s minutes' %((time.time() - main_start) / 60))
-    print( '!!! final results stored to %s' \
-            %(os.path.join(output_dir, 'magi_results.csv')))
 
 def main():
     # Parse arguments and prepare for reaction to gene workflow
@@ -375,26 +355,26 @@ def main():
     if magi_parameters["gene_to_reaction_only"] or magi_parameters["compound_to_reaction_only"]:
         print("Not performing MAGI scoring workflow")
     else:
-        # Get paths to intermediate files and check if all files exist
-        if magi_parameters["gene_to_reaction"] is not None:
-            gene_to_reaction_path = mg.is_existing_file(magi_parameters["gene_to_reaction"])
-        else:
-            gene_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "gene_to_reaction_path")
-        if magi_parameters["compound_to_reaction"] is not None:
-            compound_to_reaction_path = mg.is_existing_file(magi_parameters["compound_to_reaction"])
-        else:
-            compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path")
-        if magi_parameters["reaction_to_gene"] is not None:
-            reaction_to_gene_path = mg.is_existing_file(magi_parameters["reaction_to_gene"])
-        else:
-            reaction_to_gene_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "reaction_to_gene_path")
-
-        # Read intermediate files
-        gene_to_reaction = read_gene_to_reaction(gene_to_reaction_path)
-        compound_to_reaction = read_compound_to_reaction(compound_to_reaction_path)
-        reaction_to_gene = read_reaction_to_gene(reaction_to_gene_path)
-        # Merge the gene to reaction and reaction to gene tables
         if magi_parameters["merged_before_score"] is None:
+            # Get paths to intermediate files and check if all files exist
+            if magi_parameters["gene_to_reaction"] is not None:
+                gene_to_reaction_path = mg.is_existing_file(magi_parameters["gene_to_reaction"])
+            else:
+                gene_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "gene_to_reaction_path")
+            if magi_parameters["compound_to_reaction"] is not None:
+                compound_to_reaction_path = mg.is_existing_file(magi_parameters["compound_to_reaction"])
+            else:
+                compound_to_reaction_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path")
+            if magi_parameters["reaction_to_gene"] is not None:
+                reaction_to_gene_path = mg.is_existing_file(magi_parameters["reaction_to_gene"])
+            else:
+                reaction_to_gene_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "reaction_to_gene_path")
+
+            # Read intermediate files
+            gene_to_reaction = read_gene_to_reaction(gene_to_reaction_path)
+            compound_to_reaction = read_compound_to_reaction(compound_to_reaction_path)
+            reaction_to_gene = read_reaction_to_gene(reaction_to_gene_path)
+            # Merge the gene to reaction and reaction to gene tables
             merged_dataframe = merge_g2r_and_r2g_searches(gene_to_reaction = gene_to_reaction,
                                     compound_to_reaction = compound_to_reaction,
                                     reaction_to_gene = reaction_to_gene,
@@ -407,26 +387,16 @@ def main():
         start_time = time.time()
         merged_dataframe = calculate_scores(merged_dataframe, 
                                         magi_parameters["reciprocal_closeness"], 
-                                        magi_parameters["final_weights"], 
-                                        magi_parameters["chemnet_penalty"], start_time)
+                                        magi_parameters["final_weights"], start_time)
         # Merge more info to data frame and shuffle column order
-        merged_dataframe, time_start = format_table(merged_dataframe)
+        if magi_parameters["compounds"] is not None:
+            compounds_metadata_path = mg.is_existing_file(magi_parameters["compounds"])
+        else:
+            compounds_metadata_path = mg.get_intermediate_file_path(magi_parameters["output_dir"], "compounds")
+        compounds_metadata = read_compounds_metadata(compounds_metadata_path)
+        merged_dataframe, time_start = format_table(merged_dataframe, compounds_metadata)
         # Save final output
         save_outputs(merged_dataframe, time_start, magi_parameters["output_dir"], magi_parameters["intermediate_files_dir"])
 
 if __name__ == "__main__":
-    main()    
-'''
-def read_compounds_metadata(compounds_file):
-    ## Everything in the input csv file
-    compounds_metadata = mg.load_compounds_file(compounds_file)
-    return compounds_metadata
-def read_genes_metadata()
-    ## Get fasta header
-def read_reactions_metadata()
-
-def read_stuff():
-    c2r = read_compound_to_reaction()
-    compounds_metadata = read_compounds_metadata()
-    g2r = read_gee
-'''
+    main()

@@ -196,8 +196,8 @@ def parse_arguments():
         type=percentage_values_to_decimal, default=0.75)
     optional_args.add_argument('--final_weights', 
         help='Defined weights to weight the final scoring for the scores:\
-        compound_score reciprocal_score homology_score reaction_connection', 
-        type=positive_number, nargs=4, default=[1.0, 1.0, 1.0, 1.0])
+        compound_score, similarity, diameter, reciprocal_score homology_score reaction_connection', 
+        type=positive_number, nargs=6, default=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
     optional_args.add_argument('--chemnet_penalty', 
         help='Base factor in the chemical network search level penalty', 
         type=positive_number, default=4)
