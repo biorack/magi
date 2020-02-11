@@ -73,7 +73,6 @@ def retrieve_jobs(
         filter_string += '%s=%s&' %(f[0], f[1])
 
     get_url = os.path.join(base_url,'admin/ids/?%sjson=True' % (filter_string))
-    #print(get_url)
     r = client.get(get_url)
     if r.status_code not in [200]:
         raise RuntimeError(
@@ -503,7 +502,8 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda-4.4',
+            'source /global/common/software/m2650/python-cori/bin/activate',
+            #'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'debug':
@@ -520,7 +520,8 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda-4.4',
+            'source /global/common/software/m2650/python-cori/bin/activate',
+           # 'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'genepool':
@@ -536,7 +537,8 @@ def job_script(job_data, n_cpd=None):
             '#$ -o %s/log_out.txt' % (out_path),
             '#$ -e %s/log_err.txt' % (out_path),
             '',
-            'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            'source /global/common/software/m2650/python-cori/bin/activate',
+           # 'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
             ''
             ]
 
