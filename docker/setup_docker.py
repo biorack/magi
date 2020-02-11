@@ -40,7 +40,6 @@ def main():
     lines.append("chemnet_pickle =    os.path.join(repo_location, 'workflow/database/compound_groups.pkl')\n")
     lines.append("c2r =               os.path.join(repo_location, 'workflow/database/c2r.pkl')\n")
     lines.append("\n")
-    lines.append("magi_results_storage = os.path.join(repo_location, 'outputs')\n")
 
     with open('magi/local_settings/%s.py' %(fname), 'w') as f:
         for line in lines:
@@ -52,7 +51,7 @@ def main():
     # steps 3 and 4: change localsettings paths
     files = [
         'magi/workflow/workflow_helpers.py',
-        'magi/workflow/magi_workflow_20170519.py',
+        'magi/workflow/magi_workflow.py',
     ]
     for fname in files:
         change_localsettings_path(fname, repo_path)

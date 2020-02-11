@@ -19,9 +19,10 @@ variables in the local_settings files used are:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # All the setup junk
+import os
 import sys
 # local settings path
-sys.path.insert(0, '/global/u1/e/erbilgin/repos/magi')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 
 # needed for rdkit and molvs
@@ -41,7 +42,6 @@ import numpy as np
 import subprocess
 import time
 import multiprocessing as mp
-import os
 import pickle
 import re
 import networkx as nx
@@ -82,7 +82,7 @@ def load_dataframe(fname, filetype=None, key=None):
     """
 
     if filetype is None:
-        file_ext = fname.split('.')[-1]
+        file_ext = os.path.splitext(fname)[1][1:]
     else:
         file_ext = filetype
     if file_ext in ['pkl', 'pickle']:
@@ -110,13 +110,13 @@ def load_dataframe(fname, filetype=None, key=None):
 # JGI custom compiled blast binaries
 blastbin = my_settings.blastbin
 
-print '!!! loading refseq and reaction tables...'
+print( '!!! loading refseq and reaction tables...')
 # this table is only refseqs that are found in mrs-reaction
 refseq_path = my_settings.refseq_path
-print '!!! Reference sequences in this file:', refseq_path
+print( '!!! Reference sequences in this file: {}'.format(refseq_path))
 refseq = load_dataframe(refseq_path)
 refseq.dropna(inplace=True)
-print '!!!', len(refseq), 'reference sequences'
+print( '!!! {} reference sequences'.format(len(refseq)))
 
 # path to the refseq database (for reverse blasting)
 refseq_dbpath = my_settings.refseq_db
@@ -126,20 +126,20 @@ refseq_dbpath = my_settings.refseq_db
 # (those that had compounds with R-groups)
 mrs_reaction_path = my_settings.mrs_reaction_path
 
-print '!!! MRS-Reaction:', mrs_reaction_path
+print( '!!! MRS-Reaction: {}'.format(mrs_reaction_path))
 mrs_reaction = load_dataframe(mrs_reaction_path)
-print '!!!', len(mrs_reaction), 'reactions'
-print '!!!', len(mrs_reaction[mrs_reaction['refseq_id'] != '']), \
-        'reactions with a refseq'
-print '!!!', len(mrs_reaction[mrs_reaction['ECs'] != '']), 'reactions with an EC'
+print( '!!! {} reactions'.format(len(mrs_reaction)))
+print( '!!!', len(mrs_reaction[mrs_reaction['refseq_id'] != '']), \
+        'reactions with a refseq')
+print( '!!! {} reactions with an EC'.format(len(mrs_reaction[mrs_reaction['ECs'] != ''])))
 
-print '!!! loading compound table'
+print( '!!! loading compound table')
 compounds = load_dataframe(my_settings.compounds_df)
 with open(my_settings.c2r, 'r') as fid:
     c2r = pickle.load(fid)
 
 #chemnet files
-print '!!! loading chemnet files'
+print( '!!! loading chemnet files')
 with open(my_settings.chemnet_pickle, 'r') as fid:
     cpd_group_data = pickle.load(fid)
 cpd_df = pd.DataFrame(cpd_group_data, columns=['inchikey'])
@@ -147,7 +147,7 @@ cpd_group_lookup = cpd_group_data
 
 # load the MST chemical network
 with open(my_settings.mst_path, 'r') as f:
-    net = pickle.load(f)
+    net = nx.read_graphml(f, node_type=int)
 
 # regex expression to test inchikey input
 # Character 9 of the second block must be "S" (standard inchi)
@@ -168,7 +168,7 @@ for pair in to_blowup:
 
 rxn_refseq_join = pd.DataFrame(data, columns=['reaction_id', 'refseq_id'])
 
-print '!!! All databases loaded into memory'
+print( '!!! All databases loaded into memory')
 # setup junk has been loaded
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -265,7 +265,7 @@ def ec_parse(x):
     else:
         return out
 
-def load_genome(fasta, MAGI_PATH, annotation_file=None):
+def load_genome(fasta, intfile_path, annotation_file=None):
     """
     This function will take some standard fasta a input and convert it
     to an appropriate genome dataframe.
@@ -278,7 +278,7 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
            >UNIQUE_GENE_IDENTIFIER OTHER_INFORMATION
            Note the space between the unique identifier and other info
 
-    MAGI_PATH: path to the root directory of MAGI Data. If None, the
+    intfile_path: path to the temporary storage place of the database. If None, the
                BLAST database is not made, and the gene table is not
                stored.
 
@@ -291,7 +291,7 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
     -------
     genome: gene sequence table that is merged with the annotation table
             if one is provided. This table is saved as a pickle file to
-            MAGI_PATH/gene_fastas/filename.pkl
+            intfile_path/gene_fastas/filename.pkl
     db_path: path to the genome's BLAST database
     """
     # TODO: find a way to handle windows text files (\n\r for new lines)
@@ -305,10 +305,10 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
 
     data = []
     for entry in genes.split('>')[1:]:
-        h = '>' + entry.split('\n')[0]
-        img = h.split(' ')[0][1:]
-        s = ''.join(entry.split('\n')[1:])
-        data.append([img, h, s])
+        header = '>' + entry.splitlines()[0]
+        gene_id = header.split(' ')[0][1:]
+        sequence = ''.join(entry.splitlines()[1:])
+        data.append([gene_id, header, sequence])
     genome = pd.DataFrame(data, columns=['Gene_ID', 'header', 'sequence'])
     if genome['Gene_ID'].duplicated().any():
         first_dup = genome[genome['Gene_ID'].duplicated()].head(1)
@@ -337,44 +337,46 @@ def load_genome(fasta, MAGI_PATH, annotation_file=None):
             newcols = cols[-1:] + cols[:-1]
             annotation_table = annotation_table[newcols]
         except KeyError:
-            print 'Could not find a column corresponding to EC annotations, \
-                    skipping EC parsing'
+            print( 'Could not find a column corresponding to EC annotations, \
+                    skipping EC parsing')
 
         genome = pd.merge(genome, annotation_table, on='Gene_ID', how='left')
 
-    print '!@# FASTA file loaded with', len(genome), 'genes'
+    print( '!@# FASTA file loaded with {} genes'.format(len(genome)))
 
     genome.set_index('Gene_ID', inplace=True, drop=True)
-    genome_name = fasta.split('/')[-1].split('.')[0]
-    if MAGI_PATH is not None:
-        gene_fasta_path = os.path.join(MAGI_PATH, 'gene_fastas')
+    genome_name = os.path.splitext(os.path.basename(fasta))[0]
+    if intfile_path is not None:
+        gene_fasta_path = os.path.join(intfile_path, 'gene_fastas')
         if not os.path.isdir(gene_fasta_path):
             os.makedirs(gene_fasta_path)
         gene_seq_path = os.path.join(gene_fasta_path,
             '%s_sequences.pkl' % (genome_name))
         # gene_seq_path = '%s/gene_fastas/%s_sequences.pkl' \
-        #                 % (MAGI_PATH, genome_name)
+        #                 % (intfile_path, genome_name)
         genome.to_pickle(gene_seq_path)
-        print '!!! saved gene_sequence table here:', gene_seq_path
+        print( '!!! saved gene_sequence table here: {}'.format(gene_seq_path))
 
-        # Make the blast database of the fasta if it doesn't already exist
+        # Make the blast database of the fasta
         # this command makes the blast database for a given fasta file.
-        makeblastdb_path = '%s/makeblastdb' % (blastbin)
+        makeblastdb_path = os.path.join(blastbin, 'makeblastdb')
         fasta_path = fasta
-        db_path = MAGI_PATH + '/BLAST_dbs/' + fasta_path.split('/')[-1].split(
-            '.')[0] + '.db'
-        print '!!! blast database stored here:', db_path
-        make_db_command = '%s -in %s -out %s -dbtype prot' \
-            % (makeblastdb_path, fasta_path, db_path)
-        if not os.path.isfile(db_path + '.pin'):
-            blastp = subprocess.Popen(
-                make_db_command,
-                shell=True, stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            if blastp.stdout is not None:
-                print blastp.stdout.read()
-            if blastp.stderr is not None:
-                print blastp.stderr.read()
+        db_path = os.path.join(intfile_path, 'BLAST_dbs',(os.path.splitext(os.path.basename(fasta_path))[0]+'.db'))
+        print( '!!! blast database stored here: {}'.format(db_path))
+        if os.name == 'nt': #Check if the operating system is windows or linux/mac
+            make_db_command = '%s -in %s -out %s -dbtype prot' \
+                % (makeblastdb_path+'.exe', fasta_path, db_path)
+        else:
+            make_db_command = '%s -in %s -out %s -dbtype prot' \
+                % (makeblastdb_path, fasta_path, db_path)
+        blastp = subprocess.Popen(
+            make_db_command,
+            shell=True, stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if blastp.stdout is not None:
+            print( blastp.stdout.read())
+        if blastp.stderr is not None:
+            print( blastp.stderr.read())
     else:
         db_path = None
     return genome, db_path
@@ -464,14 +466,14 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     result_path: where you want results saved
     cpu: number of processes to open
     scriptpath: path to shell script that opens multiple blast processes
-    raise_blast_error: boolean, False will still print BLAST errors/warnings,
+    raise_blast_error: boolean, False will still print( BLAST errors/warnings,
                         but will not raise an error
 
     Outputs
     -------
     blast_results: pandas DataFrame that stores all blast results.
     """
-    db_name = database_path.split('/')[-1]
+    db_name = os.path.basename(database_path)
 
     # don't open more processes than necessary
     if cpu > len(query_list):
@@ -489,45 +491,52 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
                 seq += query_full_table.loc[gid, 'sequence']
                 seq += '\n'
             else:
-                print '%s not in sequence database!' % (gid)
+                print( '%s not in sequence database!' % (gid))
         mplist.append(seq)
 
     # call a shell script that opens n blasts,
     # instead of opening pool of workers
     # first need to save the input seq as a temporary file
-    cwd = result_path + '/' + 'multi_blast_files'
+    cwd = os.path.join(result_path, 'multi_blast_files')
     if not os.path.isdir(cwd):
         os.makedirs(cwd)
     for i, seq in enumerate(mplist):
         with open('%s/tmp_seq_%s.faa' % (cwd, i), 'w') as f:
             f.write(seq)
 
-    # then call the job
-    scriptpath = '%s/recip_blaster.sh' % (blastbin)
-    print '!!! blast script:', scriptpath
-    print '!!! # processes to open:', cpu
-    print '!!! database path:', database_path
-    print '!!! results stored:', cwd
+    # then call the job. TODO: fix prints for windows. They are not accurate
+    scriptpath = os.path.join(blastbin, 'recip_blaster.sh')
+    print( '!!! blast script: {}'.format(scriptpath))
+    print( '!!! # processes to open: {}'.format(cpu))
+    print( '!!! database path: {}'.format(database_path))
+    print( '!!! results stored: {}'.format(cwd))
     sys.stdout.flush()
-    subprocess.call(
-        '%s %s %s %s %s 2> %s/blasterr__%s.txt'
-        % (scriptpath, cpu, database_path, cwd, my_settings.repo_location,
-            result_path, db_name),
+    blaster_file = "{}__{}.txt".format(os.path.join(result_path, 'blasterr'), db_name)
+    if os.name == 'nt': #Check if the operating system is windows or linux/mac
+        subprocess.call('{0} -query  {1} -db {2} -outfmt "10 qacc sacc qcovs length ppos evalue bitscore" -evalue 1 -max_target_seqs 10 > {3} &'.format(
+        os.path.join(blastbin, "blastp.exe"),
+        os.path.join(cwd, "tmp_seq_0.faa"),
+        database_path,
+        os.path.join(cwd, "tmp_out_blasted_0.txt")), shell=True)
+    else:
+        subprocess.call(
+        '%s %s %s %s %s 2> %s'
+        % (scriptpath, cpu, database_path, cwd, my_settings.repo_location,blaster_file),
         shell=True)
-    with open('%s/blasterr__%s.txt' % (result_path, db_name), 'r') as f:
-        msg = f.read()
-    if msg != '':
-        print '!@# WARNING: BLAST script error message:'
-        print msg
-        print '-'*80
-        if raise_blast_error:
-            raise RuntimeError('blast had an error message')
+        with open(blaster_file, 'r') as f:
+            msg = f.read()
+        if msg != '':
+            print( '!@# WARNING: BLAST script error message:')
+            print( msg)
+            print( '-'*80)
+            if raise_blast_error:
+                raise RuntimeError('blast had an error message')
     sys.stdout.flush()
 
     # collect the results
     results = ''
     for i, seq in enumerate(mplist):
-        with open('%s/tmp_out_blasted_%s.txt' % (cwd, i), 'r') as f:
+        with open(os.path.join(cwd, 'tmp_out_blasted_%s.txt' % i), 'r') as f:
             results += f.read()
     results_table = tabulate_blast(results)
 
@@ -585,7 +594,7 @@ def tautomer_finder(compound_mol, result='split', raise_errors=False):
             "smiles" returns the smiles string
             "inchi" returns the InChI string 
             "mol" returns RdKit Mol object
-    reaise_errors: when False, it still prints the error as a warning
+    raise_errors: when False, it still prints the error as a warning
 
     Outputs
     -------
@@ -612,9 +621,9 @@ def tautomer_finder(compound_mol, result='split', raise_errors=False):
             enumerated_tautomers = []
     except Exception as e:
         if raise_errors is False:
-            print 'WARNING: %s could not be tautomerized; %s' \
+            print( 'WARNING: %s could not be tautomerized; %s' \
                     % (Chem.InchiToInchiKey(Chem.MolToInchi(compound_mol)),
-                        e.args)
+                        e.args))
             enumerated_tautomers = [compound_smiles]
         else:
             raise
@@ -697,8 +706,8 @@ def neighbor_finder(inchikey, chemical_network=net, cpd_group=None, level=2):
             neighbor_groups.append((level, neighbor_inchikey_list))
 
     else:
-        print '695 WARNING: Could not find "%s" in the chemical network' \
-              % (inchikey)
+        print( '695 WARNING: Could not find "%s" in the chemical network' \
+              % (inchikey))
 
     return neighbor_groups
 
@@ -849,8 +858,8 @@ def connect_compound_to_reaction(inchikey, tautomer=False, neighbor_level=2):
         # make an rdkit mol of the compound
         compound_mol = mol_from_inchikey(inchikey)
         if compound_mol is None:
-            print 'WARNING: Could not find "%s" in the compound database; \
-                skipping tautomer and neighbor searching' % (inchikey)
+            print( 'WARNING: Could not find "%s" in the compound database; \
+                skipping tautomer and neighbor searching' % (inchikey))
             return pd.DataFrame(compound_results)
 
         # get tautomers of the compound
@@ -1146,42 +1155,230 @@ def ppm_error(mass, theoretical_mass):
     ppm = (mass - theoretical_mass) / theoretical_mass * 1e6
     return abs(ppm)
 
-def accurate_mass_search(mass_list, ppm=10, compound_db=compounds):
+def accurate_mass_match(mass, compound_df=None, ppm=5, extract='inchi_key'):
     """
-    Given an input list of monoisotopic masses, finds all compounds in
-    the database matching within the given ppm error.
-    
+    Accurate mass searching against a compound database.
     Inputs
     ------
-    mass_list: array like list of monoisotopic masses
-    ppm: ppm error cuttof for accurate mass search
+    mass:           An accurate monoisotopic mass
+    compound_df:    A dataframe of compounds. Must have a column named
+                    "mono_isotopic_molecular_weight"
+    ppm:            ppm error to allow the mass matcher
+    extract:        What compound information to return. Must correspond
+                    to a valid column in compound_df
     
     Outputs
     -------
-    df: dataframe with columns query_mass, target_mass, ppm,
+    cpd:            List of compounds that were matched
+    """
+
+    err = ppm_window(mass, ppm=ppm, result='error')
+
+    potential_compounds = compound_df[
+                            abs(compound_df['mono_isotopic_molecular_weight'] \
+                            - mass) <= err]
+
+    theoretical = potential_compounds['mono_isotopic_molecular_weight']
+    ppm_error = (theoretical - mass) / theoretical * 1e6
+    ppm_error = abs(ppm_error)
+    potential_compounds['ppm_error'] = ppm_error
+
+    cpds = potential_compounds[[extract, 'ppm_error']].values.tolist()
+    if len(cpds) == 0:
+        cpds = None
+    return cpds
+
+def mz_neutral_transform(val, adduct, transform='neutralize'):
+    """
+    val: m/z or neutral mass
+    adduct: adduct to consider
+    transform: 'neutralize' or 'ionize'
+      if neutralize, neutralizes 'val' by subtracting adduct
+      if ionize, ionizes 'val' by adding adduct
+    list of acceptible adducts:
+      M+, M+H, M+NH4, M+Na, M+CH3OH+H, M+K, M+ACN+H, M+2Na-H,
+      M+IsoProp+H, M+ACN+Na, M+2K-H, M+DMSO+H, M+2ACN+H,
+      M+IsoProp+Na+H, 2M+H, 2M+NH4, 2M+Na, 2M+K, 2M+ACN+H,
+      2M+ACN+Na, M+3H, M+2H+Na, M+H+2Na, M+3Na, M+2H, M+H+NH4,
+      M+H+Na, M+H+K, M+ACN+2H, M+2Na, M+2ACN+2H, M+3ACN+2H, M-H,
+      M+Cl, M+FA-H, M+Hac-H, 2M-H, 2M+FA-H, 2M+Hac-H, 3M-H, M-3H,
+      M-2H, M-H2O-H, M+Na-2H, M+K-2H, M+Br, M+TFA-H
+    """
+    acceptible_adducts = [
+    'M+','M+H', 'M+NH4', 'M+Na', 'M+CH3OH+H', 'M+K', 'M+ACN+H', 'M+2Na-H',
+    'M+IsoProp+H', 'M+ACN+Na', 'M+2K-H', 'M+DMSO+H', 'M+2ACN+H',
+    'M+IsoProp+Na+H', '2M+H', '2M+NH4', '2M+Na', '2M+K', '2M+ACN+H',
+    '2M+ACN+Na', 'M+3H', 'M+2H+Na', 'M+H+2Na', 'M+3Na', 'M+2H', 'M+H+NH4',
+    'M+H+Na', 'M+H+K', 'M+ACN+2H', 'M+2Na', 'M+2ACN+2H', 'M+3ACN+2H', 'M-H',
+    'M+Cl', 'M+FA-H', 'M+Hac-H', '2M-H', '2M+FA-H', '2M+Hac-H', '3M-H',
+    'M-3H', 'M-2H', 'M-H2O-H', 'M+Na-2H', 'M+K-2H', 'M+Br', 'M+TFA-H'
+    ]
+
+    # M + N
+    simple = {
+      'M+': 0.0000,
+      'M+H': 1.007276,
+      'M+NH4': 18.033823,
+      'M+Na': 22.989218,
+      'M+CH3OH+H': 33.033489,
+      'M+K': 38.963158,
+      'M+ACN+H': 42.033823,
+      'M+2Na-H': 44.971160,
+      'M+IsoProp+H': 61.06534,
+      'M+ACN+Na': 64.015765,
+      'M+2K-H': 76.919040,
+      'M+DMSO+H': 79.02122,
+      'M+2ACN+H': 83.060370,
+      'M+IsoProp+Na+H': 84.05511,
+      'M-H': -1.007276,
+      'M+Cl': 34.969402,
+      'M+FA-H': 44.998201,
+      'M+Hac-H': 59.013851,
+      'M-H2O-H': -19.01839,
+      'M+Na-2H': 20.974666,
+      'M+K-2H': 36.948606,
+      'M+Br': 78.918885,
+      'M+TFA-H': 112.985586,
+    }
+    # 2M + N
+    two_M = {
+      '2M+H': 1.007276,
+      '2M+NH4': 18.033823,
+      '2M+Na': 22.989218,
+      '2M+K': 38.963158,
+      '2M+ACN+H': 42.033823,
+      '2M+ACN+Na': 64.015765,
+      '2M-H': -1.007276,
+      '2M+FA-H': 44.998201,
+      '2M+Hac-H': 59.013851,
+    }
+    # 3M + N
+    three_M = {
+      '3M-H': -1.007276,
+    }
+    # M/2 + N
+    two_charge = {
+      'M+2H': 1.007276,
+      'M+H+NH4': 9.520550,
+      'M+H+Na': 11.998247,
+      'M+H+K': 19.985217,
+      'M+ACN+2H': 21.520550,
+      'M+2Na': 22.989218,
+      'M+2ACN+2H': 42.033823,
+      'M+3ACN+2H': 62.547097,
+      'M-2H': -1.007276,
+    }
+    # M/3 + N
+    three_charge = {
+      'M+3H': 1.007276,
+      'M+2H+Na': 8.334590,
+      'M+H+2Na': 15.7661904,
+      'M+3Na': 22.989218,
+      'M-3H': -1.007276,
+    }
+    transform = transform.lower()
+    if transform not in ['neutralize', 'ionize']:
+      raise RuntimeError('%s is not an acceptible transformaion;\
+           please use "ionize" or "neutralize"' % (transform))
+    if adduct not in acceptible_adducts:
+      raise RuntimeError('%s not in the list of acceptible adducts'
+           % (adduct))
+    x = None
+    if adduct in simple.keys():
+      if transform == 'neutralize':
+           x = val - simple[adduct]
+      elif transform == 'ionize':
+           x = val + simple[adduct]
+
+    if adduct in two_M.keys():
+      if transform == 'neutralize':
+           x = (val - two_M[adduct]) / 2
+      elif transform == 'ionize':
+           x = 2 * val + two_M[adduct]
+
+    if adduct in three_M.keys():
+      if transform == 'neutralize':
+           x = (val - three_M[adduct]) / 3
+      elif transform == 'ionize':
+           x = 3 * val + three_M[adduct]
+
+    if adduct in two_charge.keys():
+      if transform == 'neutralize':
+           x = (val - two_charge[adduct]) * 2
+      elif transform == 'ionize':
+           x = (val / 2) + two_charge[adduct]
+
+    if adduct in three_charge.keys():
+      if transform == 'neutralize':
+           x = (val - three_charge[adduct]) * 3
+      elif transform == 'ionize':
+           x = (val / 3) + three_charge[adduct]
+    return x
+
+def accurate_mass_search(mz_filename, polarity, adducts, ppm_cutoff, reference_compounds = compounds):
+    """
+    Given an input filename, finds all compounds in the reference_compounds database matching within the given ppm error.
+    
+    Inputs
+    ------
+    mz_filename: absolute path with filename to the file that needs to be searched. m/z values need to be in a column called 'original_compound'
+    polarity: either pos, neg or neut
+    adducts: list of adducts to search.
+    ppm_cutoff: ppm error cuttof for accurate mass search
+    reference_compounds: default is the unique_compound_groups_magi.pkl file in local settings (compounds_df).
+    
+    Outputs
+    -------
+    mass_searched_filename: filename of dataframe with columns query_mass, target_mass, ppm,
         original_compound, compound_score corresponding to the mass_list
         masses, found masses, ppm difference, inchikeys for those
         compounds, and a function of the ppm error as a compound score
 
     compound_score = ppm_cutoff + 1 - ppm_difference
     """
+    # load compound table (should be masses in original_compounds)
+    features_to_search = pd.read_csv(mz_filename)
+    # Load reference compounds
 
-    data = []
-    for m in mass_list:
-        slc = compound_db[abs(compound_db['mono_isotopic_molecular_weight']\
-            - m) <= ppm_window(m, ppm=ppm, result='error')]
-        vals = slc[['mono_isotopic_molecular_weight', 'inchi_key']].values
-        if len(vals) > 0:
-            for v in vals:
-                m2 = v[0]
-                inchikey = v[1]
-                p = ppm_error(m, m2)
-                s = ppm + 1. - p
-                data.append([m, m2,p, inchikey, s])
-        else:
-            data.append([m, pd.np.nan, pd.np.nan, 'None', pd.np.nan])
-    df = pd.DataFrame(
-        data,
-        columns=['query_mass', 'target_mass', 'ppm',
-                 'original_compound', 'compound_score'])
-    return df
+    # rename original_compounds column
+    columns = features_to_search.columns.values
+    if 'original_compound' not in columns:
+        raise RuntimeError('no original_compound')
+    columns[columns == 'original_compound'] = 'original_mz'
+    features_to_search.columns = columns
+
+    # set up data container
+    data = {
+        'original_compound': [],
+        'searched_adduct': [],
+        'original_mz': [],
+        'ppm_error': [],
+        'compound_score': []
+    }
+    # accurate mass search and store results
+    for mz in features_to_search['original_mz'].unique():
+        for adduct in adducts:
+            if adduct != '':
+                neutral_mass = mz_neutral_transform(mz, adduct)
+            else:
+                neutral_mass = mz
+            found_compounds = accurate_mass_match(neutral_mass,
+                                                  compound_df=reference_compounds,
+                                                  ppm=ppm_cutoff
+                                                 )
+            if found_compounds is not None:
+                for cpd in found_compounds:
+                    data['original_compound'].append(cpd[0])
+                    data['ppm_error'].append(cpd[1])
+                    data['compound_score'].append(ppm_cutoff + 1 - cpd[1])
+                    data['searched_adduct'].append(adduct)
+                    data['original_mz'].append(mz)
+
+    # merge with user input and save
+    df = pd.DataFrame(data)
+    features_to_search = features_to_search.merge(df, on='original_mz', how='left')
+    
+    # save the new table
+    mass_searched_filename = os.path.splitext(mz_filename)[0] + '_mass_searched_{}.csv'.format(polarity)
+    features_to_search.to_csv(mass_searched_filename, index = False)
+    return mass_searched_filename

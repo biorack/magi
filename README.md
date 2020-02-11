@@ -44,31 +44,12 @@ $ source activate magi
 ```
 
 #### Windows
-The Windows installation is a little more involved.
+The Windows installation is a little different.
 
 ```
 $ git clone https://github.com/biorack/magi.git
 $ cd magi
-```
-
-First, you will need to extract the database files manually and make sure they
-are in the folder `/workflow/database/`. 
-
-Second, **comment out or delete** the following lines in `setup.py` :
-```python
-# step one: extract the db tarball
-print 'Extracting database files...'
-cmd = ['tar', '-xvzf', 'databases.tar.gz']
-subprocess.call(
-	cmd,
-    cwd = os.path.join(repo_path, 'workflow')
-    )
-print 'Done'
-```
-
-Now you can run `setup.py` and continue installation:
-```
-$ python setup.py
+$ python setup_windows.py
 $ conda env create -f magi_env.yml
 $ activate magi
 $ cd tests/full_workflow_test/
@@ -98,15 +79,19 @@ $ ./run_full_workflow_test.sh
 
 #### Windows
 ```
-$ python time python ../../workflow/magi_workflow_20170519.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
+$ python time python ../../workflow/magi_workflow.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
 ```
+
+### 4. Run MAGI locally
+
+The easiest way to run MAGI locally is to copy the script run_magi.sh to a directory and to add your path to the MAGI directory, the path to your fasta and compounds file. Run the script from the command line. Note that some parts of this workflow are still under construction. For further details, you could use the --help function from the command line or read the README in the Workflow folder.
 
 ### 4. MAGI website interface (optional)
 
 If you are interfacing with the magi_web repository, you need to manually change a few things in `magi_job/`; otherwise, ignore this section.
 
 1. change local settings import path in magi_job/utils.py
-2. set absolute path to workflow/magi_workflow_20170519.py in job_data() in magi_job/utils.py
+2. set absolute path to workflow/magi_workflow.py in job_data() in magi_job/utils.py
 
 ## Local Installation (custom)
 
@@ -155,8 +140,6 @@ mrs_reaction_path = ''    # path to metabolite-reaction-refseq database
 compounds_df =  ''        # path to compounds database
 mst_path =  ''            # path to chemical similarity network graph
 chemnet_pickle = ''       # path to chemical similarity network descriptions
-
-magi_results_storage = '' # path to where to store magi outputs and blast databases
 
 # The next 2 lines are only required if you are interfacing with magi_web
 magiwebsuperuser = ''     # admin username for magi_web

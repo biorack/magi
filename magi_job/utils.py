@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 import sys
 
 # load local settings
-sys.path.insert(0, '/global/u2/p/pasteur/repos/magi')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from local_settings import local_settings as settings_loc
 my_settings = getattr(
     __import__(
@@ -439,8 +439,8 @@ def determine_fasta_language(job_data, translate=True):
             new_data += protein + '\n\n'
         
         # save the new file
-        new_filename = file_path.split('/')[-1].split('.')[0] + '_translated.faa'
-        new_filepath = '/'.join(file_path.split('/')[:-1]) + '/%s' %(new_filename)
+        new_filename = os.path.splitext(os.path.basename(file_path))[0]+'_translated.faa'
+        new_filepath = os.path.join(os.path.dirname(file_path), new_filename)
         with open(new_filepath, 'w') as f:
             f.write(new_data)
         # change the field in job_data
@@ -459,9 +459,9 @@ def job_script(job_data, n_cpd=None):
     
     # where to write the job script to
     if job_data['fields']['fasta_file'] != '':
-        out_path = '/'.join(job_data['fields']['fasta_file'].split('/')[:-1])
+        out_path = os.path.dirname(job_data['fields']['fasta_file'])
     else:
-        out_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1])
+        out_path = os.path.dirname(job_data['fields']['metabolite_file'])
 
     script_path = os.path.join(out_path, 'admin')
     # prepare score weights
@@ -559,7 +559,8 @@ def job_script(job_data, n_cpd=None):
         '',
         'python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/helpertools/nersc_memmonitor.py > %s &' % (os.path.join(script_path, 'memory.txt')),
         '',
-        'time python /global/homes/p/pasteur/repos/magi/workflow/magi_workflow_20170519.py \\',
+        'magi_path=/global/homes/p/pasteur/repos/magi',
+        'time python $magi_path/workflow/magi_workflow_gene_to_reaction.py \\',
         '%s' % (fasta_file_line),
         '%s' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
@@ -569,12 +570,18 @@ def job_script(job_data, n_cpd=None):
         '--chemnet_penalty %s \\' % (job_data['fields']['chemnet_penalty']),
         '--output %s --mute' % (out_path),
         '',
-        'if [ $? -eq 0 ]',
-        'then',
+        'if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
+        '  python $magi_path/workflow/magi_workflow_compound_to_reaction.py --not_first_script --output %s' % (out_path), 
+        'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
+        'if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
+        '  python $magi_path/workflow/magi_workflow_reaction_to_gene.py --notf_first_script --output %s' % (out_path), 
+        'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
+        '  if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
+        'python $magi_path/workflow/magi_workflow_scoring.py --not_first_script --output %s' % (out_path), 
+        '  else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
+        'if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
         '  date -u > %s/end_time.txt' % (os.path.join(out_path, 'admin')),
-        'else',
-        '  touch %s/incomplete' % (os.path.join(out_path, 'admin')),
-        'fi'
+        'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin'))
     ]
     
     job = '\n'.join(header_lines) + '\n' + '\n'.join(job_lines) + '\n'
@@ -793,7 +800,7 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     performs accurate mass search using unique_compounds table
     """
     # allow administrative override of compound limit
-    note_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    note_path = os.path.join(os.path.dirname(job_data['fields']['metabolite_file']), 'admin')
     if 'cpd_override' in os.listdir(note_path):
         max_compounds = 1e6
     search_ppm = job_data['fields']['ppm']
@@ -850,7 +857,7 @@ def accurate_mass_search_wrapper(job_data, reference_compounds, max_compounds=25
     compounds = compounds.merge(df, on='original_mz', how='left')
     
     # save the new table
-    new_path = job_data['fields']['metabolite_file'].split('.')[0] + '_mass_searched.csv'
+    new_path = os.path.splitext(job_data['fields']['metabolite_file'])[0] + '_mass_searched.csv'
     job_data['fields']['metabolite_file'] = new_path
     compounds.to_csv(job_data['fields']['metabolite_file'])
 
@@ -878,7 +885,7 @@ def save_job_params(job_data, fname='too_many_compounds'):
     compound_df = pd.read_csv(job_data['fields']['metabolite_file'])
     job_data['n_mz'] = compound_df.shape[0]
 
-    job_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    job_path = os.path.join(os.path.dirname(job_data['fields']['metabolite_file']), 'admin')
     with open(os.path.join(job_path, fname), 'w') as f:
         f.write(json.dumps(job_data))
 
@@ -895,7 +902,7 @@ def accurate_mass_checkpoint(job_data, fname='too_many_compounds'):
 
     """
     # check if the email file exists
-    job_path = '/'.join(job_data['fields']['metabolite_file'].split('/')[:-1]) + '/admin'
+    job_path = os.path.join(os.path.dirname(job_data['fields']['metabolite_file']), 'admin')
     if not os.path.isfile(os.path.join(job_path, fname)):
         return True
     

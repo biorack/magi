@@ -1,49 +1,14 @@
 name: magi
 channels:
-- rdkit
 - conda-forge
 - anaconda
-- defaults
 dependencies:
-- hdf5=1.8.18=0
-- libgfortran=3.0.0
-- numexpr=2.6.2=py27_1
-- pytables=3.4.2=np111py27_1
-- bzip2=1.0.6=3
-- cairo=1.14.8=0
-- certifi=2016.2.28=py27_0
-- decorator=4.1.2=py27_0
-- fontconfig=2.12.1=3
-- freetype=2.5.5=2
-- jbig=2.1=0
-- jpeg=9b=0
-- libiconv=1.14=0
-- libpng=1.6.30=1
-- libtiff=4.0.6=3
-- libxml2=2.9.4=0
-- mkl=2017.0.3=0
-- networkx=1.11=py27_0
-- numpy=1.11.3=py27_0
-- olefile=0.44=py27_0
-- openssl=1.0.2l=0
-- pandas=0.20.1=np111py27_0
-- pillow=4.2.1=py27_0
-- pip=9.0.1=py27_1
-- pixman=0.34.0=0
-- python=2.7.13=0
-- python-dateutil=2.6.1=py27_0
-- pytz=2017.2=py27_0
-- readline=6.2=2
-- requests=2.14.2=py27_0
-- setuptools=36.4.0=py27_0
-- six=1.10.0=py27_0
-- sqlite=3.13.0=0
-- tk=8.5.18=0
-- wheel=0.29.0=py27_0
-- xz=5.2.3=0
-- zlib=1.2.11=0
-- boost=1.56.0=py27_3
-- rdkit=2017.03.3=np111py27_1
+- networkx=2.2
+- numpy=1.16.5
+- pandas=0.24.2
+- pip=19.3.1
+- python=2.7.15
+- rdkit=2018.09.3
 - pip:
-  - molvs==0.0.9
-  - tables==3.4.2
+  - molvs==0.1.1
+  - tables==3.5.2
