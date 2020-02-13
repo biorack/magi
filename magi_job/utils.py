@@ -503,6 +503,7 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
             'source /global/common/software/m2650/python-cori/bin/activate',
+            'export HDF5_USE_FILE_LOCKING=FALSE',
             #'module load python/2.7-anaconda-4.4',
             ''
         ]
@@ -521,6 +522,7 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
             'source /global/common/software/m2650/python-cori/bin/activate',
+            'export HDF5_USE_FILE_LOCKING=FALSE',
            # 'module load python/2.7-anaconda-4.4',
             ''
         ]
@@ -539,6 +541,7 @@ def job_script(job_data, n_cpd=None):
             '',
             'source /global/common/software/m2650/python-cori/bin/activate',
            # 'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            'export HDF5_USE_FILE_LOCKING=FALSE',
             ''
             ]
 
@@ -560,7 +563,7 @@ def job_script(job_data, n_cpd=None):
         'python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/helpertools/nersc_memmonitor.py > %s &' % (os.path.join(script_path, 'memory.txt')),
         '',
         'magi_path=/global/homes/p/pasteur/repos/magi',
-        'time python $magi_path/workflow/magi_workflow_gene_to_reaction.py \\',
+        'python $magi_path/workflow/magi_workflow_gene_to_reaction.py \\',
         '%s' % (fasta_file_line),
         '%s' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
