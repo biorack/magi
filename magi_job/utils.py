@@ -574,7 +574,7 @@ def job_script(job_data, n_cpd=None):
         '  python $magi_path/workflow/magi_workflow_compound_to_reaction.py --not_first_script --output %s' % (out_path), 
         'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
         'if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
-        '  python $magi_path/workflow/magi_workflow_reaction_to_gene.py --notf_first_script --output %s' % (out_path), 
+        '  python $magi_path/workflow/magi_workflow_reaction_to_gene.py --not_first_script --output %s' % (out_path), 
         'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
         '  if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
         'python $magi_path/workflow/magi_workflow_scoring.py --not_first_script --output %s' % (out_path), 
