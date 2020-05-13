@@ -7,7 +7,7 @@ def main():
     parser.add_argument('-f', help='full setup', action='store_true')
     parser.add_argument('-d', help='database only', action='store_true', default=False)
     args = parser.parse_args()
-
+    # Get path to MAGI
     repo_path = os.getcwd()
 
     if args.d:
@@ -19,15 +19,15 @@ def main():
         fname = input('USER INPUT: Settings Name (leave blank for default): ')
 
     if args.f or args.d:
-        # step one: extract the db tarball
+        # step one: extract the database files
         print('Extracting database files...')
         db_dir = os.path.join(repo_path, 'workflow_2', 'database')
         # wipe out existing db directory
         if os.path.isdir(db_dir):
             subprocess.call(['rm', '-r', db_dir])
         os.makedirs(db_dir)
-        for zipfile in ['reference_sequences.zip', 'MAGI_database.db.zip']:
-            cmd = ['unzip', os.path.join("..",zipfile)]
+        for zipfile in ['rhea2uniprot.db.zip', 'reaction_to_gene_reference.zip', 'MAGI_database.zip']:
+            cmd = ['unzip', os.path.join(repo_path, workflow_2, zipfile)]
             subprocess.call(
                 cmd,
                 cwd = os.path.join(repo_path, 'workflow_2','database')

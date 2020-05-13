@@ -4,6 +4,7 @@
 *.db
 user_settings*
 local_settings.py
+magi_2_user_settings.py
 *.pyc
 Icon
 
