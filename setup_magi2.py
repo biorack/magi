@@ -1,21 +1,23 @@
 import os
-import subprocess
+import shutil
+from zipfile import ZipFile
 import argparse
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', help='full setup', action='store_true')
     parser.add_argument('-d', help='database only', action='store_true', default=False)
+    parser.add_argument('-s', help='local settings only', action='store_true', default=False)
     args = parser.parse_args()
     # Get path to MAGI
     repo_path = os.getcwd()
 
-    if args.d:
+    if args.d or args.s:
         args.f = False
     else:
         args.f = True
 
-    if args.f:
+    if args.f or args.s:
         fname = input('USER INPUT: Settings Name (leave blank for default): ')
 
     if args.f or args.d:
@@ -24,17 +26,14 @@ def main():
         db_dir = os.path.join(repo_path, 'workflow_2', 'database')
         # wipe out existing db directory
         if os.path.isdir(db_dir):
-            subprocess.call(['rm', '-r', db_dir])
-        os.makedirs(db_dir)
+            shutil.rmtree(db_dir)
+        os.mkdir(db_dir)
         for zipfile in ['rhea2uniprot.db.zip', 'reaction_to_gene_reference.zip', 'MAGI_database.zip']:
-            cmd = ['unzip', os.path.join(repo_path, workflow_2, zipfile)]
-            subprocess.call(
-                cmd,
-                cwd = os.path.join(repo_path, 'workflow_2','database')
-                )
+            with ZipFile(os.path.join(repo_path, "workflow_2", zipfile), "r") as zip_file:
+                zip_file.extractall(db_dir)
         print('Done')
 
-    if args.f:
+    if args.f or args.s:
         # step two: make local_settings.py file
 
         if fname == '':
@@ -44,11 +43,11 @@ def main():
         lines.append("# Location where MAGI is stored locally \n")
         lines.append("repo_location = '%s'\n\n" % (repo_path))
         lines.append("# Location where NCBI BLAST tools are stored \n")
-        lines.append("blastbin =          os.path.join(repo_location, 'workflow/blastbin')\n")
+        lines.append("blastbin = os.path.join(repo_location, 'workflow','blastbin')\n")
         lines.append("\n")
         lines.append("# Database with UniProt reference sequences of proteins that have a Rhea reation\n")
-        lines.append("refseq_path =       os.path.join(repo_location, 'workflow_2','database','reference_sequences','reaction_to_gene_reference.csv')\n")
-        lines.append("refseq_db =         os.path.join(repo_location, 'workflow_2','database','reference_sequences','rhea2uniprot.db')\n")
+        lines.append("refseq_path = os.path.join(repo_location, 'workflow_2','database','reference_sequences','reaction_to_gene_reference.csv')\n")
+        lines.append("refseq_db = os.path.join(repo_location, 'workflow_2','database','reference_sequences','rhea2uniprot.db')\n")
 
         with open('local_settings/%s.py' %(fname), 'w') as f:
             for line in lines:

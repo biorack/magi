@@ -5,7 +5,6 @@ import argparse
 import datetime
 import pandas as pd
 import multiprocessing as mp
-mp.set_start_method('spawn', True)
 from functools import partial
 
 from rdkit import Chem
