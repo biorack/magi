@@ -220,11 +220,8 @@ def workflow(fasta_file, intermediate_files_dir, cpu_count,
 
     # Select only the gene-to-reaction with the best e_scores for each input gene. Filtered by blast_score parameter.
     gene_groups = gene_to_reaction.groupby('query acc.')
-    if len(gene_groups.groups) > 1:
-        multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
-        idx = multidx.levels[1]
-    else:
-        idx = gene_groups['e_score'].apply(keep_top_blast_helper).index
+    multidx = gene_groups['e_score'].apply(keep_top_blast_helper).index
+    idx = multidx.levels[1]
     gene_to_reaction_top = gene_to_reaction.loc[idx]
     del gene_to_reaction
     print( '!@# gene_to_reaction table completed in %s minutes' \

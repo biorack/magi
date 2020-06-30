@@ -92,7 +92,7 @@ def read_retro_rules_from_db(path_to_database=my_settings.magi_database, min_dia
                 p.close()
                 p.terminate()
         else:
-            retro_rules["reaction_rdkit_object"] = retro_rules["retro_rules_smarts"].apply(reaction_from_smarts)
+            retro_rules["retro_rules_smarts"] = retro_rules["retro_rules_smarts"].apply(reaction_from_smarts)
         retro_rules.rename(columns = {"retro_rules_smarts":"reaction_rdkit_object"}, inplace = True)
         # Group by reaction ID and Canonical_SMILES
         Retro_rules_reactions = retro_rules.groupby(by=["retro_rules_ID", "substrate_ID"])
@@ -337,7 +337,7 @@ def lookup_precomputed_reactions(molecule_inchikey, min_diameter, similarity_cut
     else:
         return None
 
-def lookup_matching_reactions_for_one_compound(original_compound, compound_score, inchi_key, similarity_cutoff = 0.6):
+def lookup_matching_reactions_for_one_compound(original_compound, compound_score, inchi_key, similarity_cutoff = 0.6, path_to_database=my_settings.magi_database):
     """
     This function looks up if reactions were precomputed for a given inchi key.
     Input
@@ -377,7 +377,7 @@ def lookup_matching_reactions_for_one_compound(original_compound, compound_score
 def get_inchi_key(molecule):
     return inchi.MolToInchiKey(molecule)
 ### Run C2R
-def find_precomputed_reactions(compounds_data, min_diameter = 12, similarity_cutoff =0.6):
+def find_precomputed_reactions(compounds_data, c2r_output_file, min_diameter = 12, similarity_cutoff =0.6):
     """
     This function will look up reactions from previous MAGI runs for all compounds.
     Input: 
@@ -401,6 +401,8 @@ def find_precomputed_reactions(compounds_data, min_diameter = 12, similarity_cut
                         similarity_cutoff = similarity_cutoff)
         if c2r_subset is not None:
             precomputed_reactions.append(c2r_subset)
+            # Store data
+            c2r_subset.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
         else:
             not_precomputed_compounds.append(row)
     
@@ -416,7 +418,7 @@ def find_precomputed_reactions(compounds_data, min_diameter = 12, similarity_cut
 
     return precomputed_reactions, not_precomputed_compounds
 
-def find_new_reactions(compounds_data, intermediate_files_dir, output_dir, min_diameter = 12, cpu_count = 1, fingerprint_radius = 3, similarity_cutoff = 0.6):
+def find_new_reactions(compounds_data, c2r_output_file, min_diameter = 12, cpu_count = 1, fingerprint_radius = 3, similarity_cutoff = 0.6):
     """
     This function will calculate to which reactions a compound matches based on the retro rules database
 
@@ -428,14 +430,6 @@ def find_new_reactions(compounds_data, intermediate_files_dir, output_dir, min_d
     sys.stdout.flush()
     read_retro_rules_from_db(min_diameter = min_diameter)
     read_retro_rules_substrates_from_db()
-
-    # prepare for output
-    c2r_output_file = os.path.join(intermediate_files_dir, "compound_to_reaction.csv")
-    mg.write_intermediate_file_path(output_dir, "compound_to_reaction_path", c2r_output_file)
-    print("!!! Saving compound to reaction results to {}".format(c2r_output_file))
-    # Write header to output file
-    pd.DataFrame(data = None, columns = ["original_compound", "reaction_ID", "similarity", "compound_score"]).to_csv(c2r_output_file, index = False)  
-    sys.stdout.flush()
 
     # Set up multiprocessing
     if cpu_count > 1:
@@ -481,7 +475,6 @@ def compound_to_reaction(canonical_and_original_smiles_and_compound_score, rules
     - Return compound to reactions
     """
     molecule_smiles, original_compound, compound_score = canonical_and_original_smiles_and_compound_score[1]
-    print("!!! Starting C2R for compound {}".format(original_compound))
     sys.stdout.flush()
     # Generate inchi key for the molecule
     molecule = mol_from_smiles(molecule_smiles)
@@ -542,7 +535,6 @@ def compound_to_reaction(canonical_and_original_smiles_and_compound_score, rules
         except ValueError:
             print("ERROR: Something wrong with reaction IDs in MAGI database. Exiting...")
         # Store data
-        # TODO: find way to also store header
         compound_to_reaction.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
         return compound_to_reaction
     else:
@@ -603,16 +595,26 @@ def main():
     sys.stdout.flush()
     compounds_data = preprocess_compounds_data(magi_parameters["compounds"], magi_parameters["cpu_count"])
 
+    # prepare for output
+    c2r_output_file = os.path.join(magi_parameters["intermediate_files_dir"], "compound_to_reaction.csv")
+    mg.write_intermediate_file_path(magi_parameters["output_dir"], "compound_to_reaction_path", c2r_output_file)
+    print("!!! Saving compound to reaction results to {}".format(c2r_output_file))
+    sys.stdout.flush()
+    # Write header to output file
+    pd.DataFrame(data = None, columns = ["original_compound", "reaction_ID", "similarity", "compound_score"]).to_csv(c2r_output_file, index = False)  
+    
     # Check if all compounds have precomputed reactions
     if magi_parameters["use_precomputed_reactions"]:
         print("!!! Finding precomputed reactions for input compounds")
         reactions, not_precomputed_compounds = find_precomputed_reactions(
             compounds_data = compounds_data, 
-            min_diameter = magi_parameters["min_diameter"], 
+            c2r_output_file = c2r_output_file,
+            min_diameter = magi_parameters["diameter"], 
             similarity_cutoff = magi_parameters["similarity_cutoff"])
     else:
         print("!!! Not using precomputed reactions.")
         not_precomputed_compounds = compounds_data
+        reactions = None
         # set reactions as empty df?
     sys.stdout.flush()
 
@@ -622,19 +624,23 @@ def main():
         # Run compound to reaction search
         print("!!! Starting new compound to reaction searches")
         sys.stdout.flush()
-        new_reactions = find_new_reactions(not_precomputed_compounds)
-        reactions = pd.concat(reactions, new_reactions)
+        new_reactions = find_new_reactions(not_precomputed_compounds, c2r_output_file)
+        if reactions is not None:
+            reactions = pd.concat(reactions, new_reactions)
+        else:
+            reactions = new_reactions
+            del new_reactions
 
     # Maybe do some cool scoring here?
 
     # Format output
     if magi_parameters["compound_to_reaction_only"]:
-        c2r = format_output(c2r)
+        reactions = format_output(reactions)
         # Store data
         compound_to_reaction_path = os.path.join(magi_parameters["intermediate_files_dir"], "compound_to_reaction_total.csv")
         print("!!! Saving final compound to reaction results to {}".format(compound_to_reaction_path))
         #TODO: also store compound scores?
-        c2r.to_csv(compound_to_reaction_path, index=False)
+        reactions.to_csv(compound_to_reaction_path, index=False)
     print("!!! Finished in {}".format(str(datetime.datetime.now() - start_time)))
     print("!@# Done with compound to reaction search at {}".format(str(datetime.datetime.now())))
 

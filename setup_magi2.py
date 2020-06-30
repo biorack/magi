@@ -41,13 +41,16 @@ def main():
 
         lines = ["import os\n\n"]
         lines.append("# Location where MAGI is stored locally \n")
-        lines.append("repo_location = '%s'\n\n" % (repo_path))
+        lines.append("repo_location = r'%s'\n\n" % (repo_path))
         lines.append("# Location where NCBI BLAST tools are stored \n")
         lines.append("blastbin = os.path.join(repo_location, 'workflow','blastbin')\n")
         lines.append("\n")
+        lines.append("# Location where MAGI database is stored \n")
+        lines.append("magi_database = os.path.join(repo_location, 'workflow_2','database','MAGI_database.db')")
+        lines.append("\n\n")
         lines.append("# Database with UniProt reference sequences of proteins that have a Rhea reation\n")
-        lines.append("refseq_path = os.path.join(repo_location, 'workflow_2','database','reference_sequences','reaction_to_gene_reference.csv')\n")
-        lines.append("refseq_db = os.path.join(repo_location, 'workflow_2','database','reference_sequences','rhea2uniprot.db')\n")
+        lines.append("refseq_path = os.path.join(repo_location, 'workflow_2','database','reaction_to_gene_reference.csv')\n")
+        lines.append("refseq_db = os.path.join(repo_location, 'workflow_2','database','rhea2uniprot.db')\n")
 
         with open('local_settings/%s.py' %(fname), 'w') as f:
             for line in lines:
