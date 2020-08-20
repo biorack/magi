@@ -540,7 +540,8 @@ def main():
     start_time = datetime.datetime.now()
     print("Starting compound to reaction search at {}".format(str(start_time)))
     magi_parameters = mg.general_magi_preparation()
-
+    magi_parameters["cpu_count"] = 1 # Quick fix for multiprocessing bug
+    
     # Load compounds data and add SMILES, MOLs and InChI Keys
     print("!!! Loading compounds")
     sys.stdout.flush()
