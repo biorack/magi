@@ -114,57 +114,8 @@ def read_retro_rules_substrates_from_db(path_to_database=my_settings.magi_databa
     Retro_rules_substrates["retro_rules_smiles"] = Retro_rules_substrates["retro_rules_smiles"].apply(mol_from_smiles)
     Retro_rules_substrates.rename(columns = {"retro_rules_smiles":"substrate_rdkit_object"}, inplace = True)
 
-def read_retro_rules(min_diameter=0, useHs = useHs):
-    """
-    Read retro rules database and:
-    - pre-convert reactions and substrates to rdkit objects
-    - remove all entries below the minimum diameter
-    - group by reaction ID
-    """
-    global retro_rules
-    # TODO: get this from local settings file
-    if useHs:
-        Retro_rules_db_path="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/retro_rules_with_canonical_and_inchi.csv"
-    else:
-        Retro_rules_db_path="/Users/northenlab/Desktop/h_leegwater/internship/magi_2_database/retro_rules_with_canonical_and_inchi.csv"
-    if not os.path.exists(Retro_rules_db_path):
-        #TODO: move to argparse?
-        sys.exit("retro rules path is wrong")
-    retro_rules = pd.read_csv(Retro_rules_db_path)
-    retro_rules = retro_rules[retro_rules["Diameter"] >= min_diameter]
-    ## Get all reaction objects
-    rule_smarts_all = list(set(retro_rules["Rule_SMARTS"]))
-    rule_smarts_dict = {}
-    for smarts in rule_smarts_all:
-        reaction = reaction_from_smarts(smarts)
-        rule_smarts_dict[smarts] = reaction
-    def reaction_lookup(smarts):
-        return rule_smarts_dict[smarts]
-    retro_rules["Reaction"] = retro_rules["Rule_SMARTS"].apply(reaction_lookup)
-
-    # Get all substrate objects
-    substrate_smiles_all = list(set(retro_rules["Canonical_SMILES"]))
-    substrate_smiles_dict = {}
-    for smiles in substrate_smiles_all:
-        mol = mol_from_smiles(smiles)
-        substrate_smiles_dict[smiles] = mol
-    def substrate_lookup(smiles):
-        return substrate_smiles_dict[smiles]
-    retro_rules["Substrate"] = retro_rules["Canonical_SMILES"].apply(substrate_lookup)
-    retro_rules = retro_rules.groupby(by=["Reaction_ID", "Canonical_SMILES"])
-
-def load_precomputed_reactions(precomputed_reaction_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),"database/precomputed_c2r_new.txt")):
-    """Load the precomputed compound to reaction dictionary
-    Input is the path to the precomputed reactions file
-    Object is stored in global variable precomputed_reactions"""
-    if not os.path.exists(precomputed_reaction_path):
-        sys.exit("precomputed reaction path is wrong")
-    with open(precomputed_reaction_path, "r") as json_file:
-        global precomputed_reactions 
-        precomputed_reactions = json.load(json_file)
-
-""" contribution from Hans de Winter on https://www.rdkit.org/docs/Cookbook.html"""
 def _InitialiseNeutralisationReactions():
+    """ contribution from Hans de Winter on https://www.rdkit.org/docs/Cookbook.html"""
     patts= (
         # Imidazoles
         ('[n+;H]','n'),

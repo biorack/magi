@@ -31,6 +31,10 @@ def read_compound_to_reaction(compound_to_reaction_path, path_to_database=my_set
         database_info = pd.read_sql_query(query, connection)
     compound_to_reaction = compound_to_reaction.merge(database_info, how = "left", on="reaction_ID")
     compound_to_reaction.drop("reaction_ID", axis = 1, inplace = True)
+
+    ## Fix problems with unavailable reactions and add penalty for compounds not matched to any reaction
+    compound_to_reaction.drop_duplicates(inplace = True)
+    compound_to_reaction["rhea_ID"] = compound_to_reaction["rhea_ID"].astype("str")
     return compound_to_reaction
 
 def read_gene_to_reaction(gene_to_reaction_path):
@@ -43,6 +47,8 @@ def read_gene_to_reaction(gene_to_reaction_path):
     gene_to_reaction.columns = ["gene_ID", "g2r_reference_protein", "e_score", "rhea_ID"]
     gene_to_reaction.sort_values(by="e_score", ascending = False, inplace = True)
     gene_to_reaction.drop_duplicates(inplace = True)
+
+    gene_to_reaction["rhea_ID"] = gene_to_reaction["rhea_ID"].astype("str")
     return gene_to_reaction
 
 def read_reaction_to_gene(reaction_to_gene_path):
@@ -56,6 +62,8 @@ def read_reaction_to_gene(reaction_to_gene_path):
     reaction_to_gene.columns = ["r2g_reference_protein", "gene_ID", "e_score", "rhea_ID"]
     reaction_to_gene.sort_values(by="e_score", ascending = False, inplace = True)
     reaction_to_gene.drop_duplicates(inplace = True)
+
+    reaction_to_gene["rhea_ID"] = reaction_to_gene["rhea_ID"].astype("str")
     return reaction_to_gene
 
 def merge_g2r_and_r2g_searches(compound_to_reaction, reaction_to_gene, gene_to_reaction, intermediate_files_dir):
@@ -315,6 +323,8 @@ def format_table(df, compounds_metadata):
         df = df.merge(compounds_metadata, how = "right", on = ["original_compound", "compound_score"]).sort_values('MAGI_score', ascending=False)
     else:
         df = df.merge(compounds_metadata, how = "right", on = "original_compound").sort_values('MAGI_score', ascending=False)
+
+    df['MAGI_score'] = df['MAGI_score'].fillna(0)
     return df, start
 
 def save_outputs(df, start, output_dir, intermediate_files_dir):
