@@ -8,7 +8,7 @@ Our vision is to systematically explore dark-biochemistry, using state-of-the-ar
 For more documentation and a tutorial on how to analyze MAGI results, you can visit the
 [MAGI website](https://magi.nersc.gov)
 
-## MAGI 2.0
+## MAGI 2.0 is under development!
 We are currently developing MAGI 2.0, which can be found in workflow_2. Where MAGI 1.0 links genes to metabolites based on similarity between chemical structures, known reactions and similarity between genes, MAGI 2.0 has an additional feature. Based on reaction patterns, MAGI 2.0 calculates whether a metabolite can be used by an enzyme and by that, MAGI 2.0 adds more evidence to gene-metabolite links. Below, you will find instructions to install both MAGI 1.0 and MAGI 2.0.
 
 ## Features
@@ -26,7 +26,8 @@ There are three steps you need to complete to install MAGI:
 1. Clone the repository and set up local environment and paths
 2. Install BLAST to the appropriate repository directory
 3. Test MAGI to make sure it works correctly
-4. (Optional) If interfacing with the magi website, you need to adjust some additional paths
+4. Run MAGI locally
+5. (Optional) If interfacing with the magi website, you need to adjust some additional paths
 
 These will take approximately 10 minutes to install.
 
@@ -83,7 +84,7 @@ and simply copy the `blastp` and `makeblastdb` binaries into `workflow/blastbin`
 To confirm everything was set up correctly, run the following test.
 You will see some warnings; this is normal.
 The test should take a few minutes.
-This test only works for MAGI 1.0. The test for MAGI 2.0 is still under development, but you can probably use it anyways.
+This test only works for MAGI 1.0. The test for MAGI 2.0 is still under development, but you can probably use MAGI 2.0 without running a test.
 
 #### Linux & MacOS
 
@@ -101,7 +102,7 @@ $ python time python ../../workflow/magi_workflow.py --fasta ./s_coelicolor_gene
 
 The easiest way to run MAGI locally is to copy the script run_magi.sh (or run_magi2.sh for MAGI 2.0) to a directory and to add your path to the MAGI directory, the path to your fasta and compounds file. Run the script from the command line. Note that some parts of this workflow are still under construction. For further details, you could use the --help function from the command line or read the README in the Workflow folder.
 
-### 4. MAGI website interface (optional)
+### 5. MAGI website interface (optional)
 
 If you are interfacing with the magi_web repository, you need to manually change a few things in `magi_job/`; otherwise, ignore this section.
 
@@ -182,19 +183,11 @@ SETTINGS_FILE = 'magi_2_user_settings'
 `magi_2_user_settings.py` should have the following paths and variables defined:
 
 ```python
-"# Location where MAGI is stored locally \n")
-"repo_location = r'%s'\n\n" % (repo_path))
-
-"# Location where NCBI BLAST tools are stored \n")
-"blastbin = os.path.join(repo_location, 'workflow','blastbin')\n") # Note that this is the same for MAGI1.0 and MAGI2.0
-
-"# Location where MAGI database is stored \n")
-"magi_database = os.path.join(repo_location, 'workflow_2','database','MAGI_database.db')")
-
-"# Database with UniProt reference sequences of proteins that have a Rhea reation\n")
-"refseq_path = os.path.join(repo_location, 'workflow_2','database','reaction_to_gene_reference.csv')\n")
-"refseq_db = os.path.join(repo_location, 'workflow_2','database','rhea2uniprot.db')\n")
-
+repo_location = ""  # Location where MAGI is stored locally
+blastbin =      ""  # Location where NCBI BLAST tools are stored. Note that this is the same for MAGI1.0 and MAGI2.0
+magi_database = ""  # Location where MAGI database is stored
+refseq_path =   ""  # Database with UniProt reference sequences of proteins that have a Rhea reation
+refseq_db =     ""  # Database with UniProt reference sequences of proteins that have a Rhea reation
 ```
 When switching between machines or databases, you may have multiple `user_settings.py`
 files that can be named whatever you want as long as the variable in `local_settings.py`
