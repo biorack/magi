@@ -11,7 +11,7 @@ import json
 from multiprocessing import cpu_count as counting_cpus
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from local_settings import local_settings as settings_loc
+from local_settings import local_settings_magi2 as settings_loc
 
 def is_existing_file(filepath):
     """

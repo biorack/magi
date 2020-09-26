@@ -34,7 +34,7 @@ def main():
         print('Done')
 
     if args.f or args.s:
-        # step two: make local_settings.py file
+        # step two: make local_settings_magi2.py file
 
         if fname == '':
             fname = 'magi_2_user_settings'
@@ -55,7 +55,7 @@ def main():
         with open('local_settings/%s.py' %(fname), 'w') as f:
             for line in lines:
                 f.write(line)
-        with open('local_settings/local_settings.py', 'a') as f:
+        with open('local_settings/local_settings_magi2.py', 'a') as f:
             f.write("SETTINGS_FILE= '%s'\n" % (fname))
         print('Successfully wrote local settings files')
 
