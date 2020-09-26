@@ -1,0 +1,13 @@
+name: magi_2
+channels:
+- conda-forge
+- anaconda
+dependencies:
+- numpy
+- pandas
+- pip
+- python=3.8
+- rdkit
+- pip:
+  - molvs
+# - tables
