@@ -297,8 +297,8 @@ def format_table(df):
        
     # sort the final table and drop key duplicates
     df = df.sort_values(
-        ['original_compound', 'MAGI_score'], 
-        ascending=[True, False]
+        ['e_score_r2g','e_score_g2r','original_compound', 'MAGI_score'], 
+        ascending=[False,False,True, False], 
         ).drop_duplicates(
             ['original_compound', 'level', 'neighbor', 'compound_score',
              'reciprocal_score', 'query acc.', 'reaction_id_r2g',

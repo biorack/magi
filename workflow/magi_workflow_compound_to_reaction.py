@@ -105,10 +105,10 @@ def neighbor_finder(inchikey, cpd_group_lookup, chemical_network, cpd_group=None
         transformed_neighbor_node_dict = {}
         for k in list(set(neighbor_node_dict.values())):
             transformed_neighbor_node_dict[k] = []
-        for k, v in neighbor_node_dict.iteritems():
+        for k, v in neighbor_node_dict.items():
             if v != 0:
                 transformed_neighbor_node_dict[v].append(k)
-        for level, node_list in transformed_neighbor_node_dict.iteritems():
+        for level, node_list in transformed_neighbor_node_dict.items():
             neighbor_inchikey_list = []
             for neighbor_cpd_group in node_list:
                 neighbor_inchikey_str = cpd_group_lookup[neighbor_cpd_group]
@@ -221,7 +221,7 @@ def tautomer_finder(compound_mol, result='split', raise_errors=False):
     # some compounds break the tautomerizer
     try:
         enumerated_tautomers = enumerate_tautomers_smiles(compound_smiles)
-    except TypeError, e:
+    except TypeError as e:
         if e.message == 'tuple indices must be integers, not NoneType':
             enumerated_tautomers = []
     except Exception as e:
@@ -451,8 +451,7 @@ def load_objects(use_tautomer_legacy = False):
     else:
         print("!!! loading compound-reactions table")
         # Loading c2r
-        with open(my_settings.c2r, 'r') as fid:
-            c2r = pickle.load(fid)
+        c2r = pd.read_pickle(my_settings.c2r)
         reference_compounds = None
         mrs_reaction = None
 
@@ -461,8 +460,7 @@ def load_objects(use_tautomer_legacy = False):
         chemical_network = nx.read_graphml(f, node_type=int)
     #chemnet files
     print( '!!! loading chemnet files')
-    with open(my_settings.chemnet_pickle, 'r') as fid:
-        cpd_group_lookup = pickle.load(fid)
+    cpd_group_lookup = pd.read_pickle(my_settings.chemnet_pickle)
 
     return c2r, mrs_reaction, reference_compounds, cpd_group_lookup, chemical_network
 

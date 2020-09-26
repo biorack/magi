@@ -73,7 +73,6 @@ def retrieve_jobs(
         filter_string += '%s=%s&' %(f[0], f[1])
 
     get_url = os.path.join(base_url,'admin/ids/?%sjson=True' % (filter_string))
-    #print(get_url)
     r = client.get(get_url)
     if r.status_code not in [200]:
         raise RuntimeError(
@@ -503,7 +502,9 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda-4.4',
+            'source /global/common/software/m2650/python-cori/bin/activate',
+            'export HDF5_USE_FILE_LOCKING=FALSE',
+            #'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'debug':
@@ -520,7 +521,9 @@ def job_script(job_data, n_cpd=None):
             '#SBATCH --mail-user=%s' %(MAGI_EMAIL),
             '#SBATCH --mail-type=FAIL,TIME_LIMIT',
             '',
-            'module load python/2.7-anaconda-4.4',
+            'source /global/common/software/m2650/python-cori/bin/activate',
+            'export HDF5_USE_FILE_LOCKING=FALSE',
+           # 'module load python/2.7-anaconda-4.4',
             ''
         ]
     elif partition == 'genepool':
@@ -536,7 +539,9 @@ def job_script(job_data, n_cpd=None):
             '#$ -o %s/log_out.txt' % (out_path),
             '#$ -e %s/log_err.txt' % (out_path),
             '',
-            'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            'source /global/common/software/m2650/python-cori/bin/activate',
+           # 'module switch python/2.7.4 python/2.7-anaconda_4.3.0',
+            'export HDF5_USE_FILE_LOCKING=FALSE',
             ''
             ]
 
@@ -557,7 +562,8 @@ def job_script(job_data, n_cpd=None):
         '',
         'python /project/projectdirs/metatlas/projects/metatlas_reactions/workflow/helpertools/nersc_memmonitor.py > %s &' % (os.path.join(script_path, 'memory.txt')),
         '',
-        'time python /global/homes/p/pasteur/repos/magi/workflow/magi_workflow.py \\',
+        'magi_path=/global/homes/p/pasteur/repos/magi',
+        'python $magi_path/workflow/magi_workflow_gene_to_reaction.py \\',
         '%s' % (fasta_file_line),
         '%s' % (met_file_line),
         '--level %s \\' % (job_data['fields']['network_level']),
@@ -567,12 +573,18 @@ def job_script(job_data, n_cpd=None):
         '--chemnet_penalty %s \\' % (job_data['fields']['chemnet_penalty']),
         '--output %s --mute' % (out_path),
         '',
-        'if [ $? -eq 0 ]',
-        'then',
+        'if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
+        '  python $magi_path/workflow/magi_workflow_compound_to_reaction.py --not_first_script --output %s' % (out_path), 
+        'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
+        'if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
+        '  python $magi_path/workflow/magi_workflow_reaction_to_gene.py --not_first_script --output %s' % (out_path), 
+        'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
+        '  if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
+        'python $magi_path/workflow/magi_workflow_scoring.py --not_first_script --output %s' % (out_path), 
+        '  else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin')),
+        'if [ $? -eq 0 ] && [ ! -f %s/incomplete ]; then' % (os.path.join(out_path, 'admin')),
         '  date -u > %s/end_time.txt' % (os.path.join(out_path, 'admin')),
-        'else',
-        '  touch %s/incomplete' % (os.path.join(out_path, 'admin')),
-        'fi'
+        'else touch %s/incomplete; fi' % (os.path.join(out_path, 'admin'))
     ]
     
     job = '\n'.join(header_lines) + '\n' + '\n'.join(job_lines) + '\n'
