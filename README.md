@@ -53,7 +53,7 @@ For MAGI 2.0
 ```bash
 $ git clone https://github.com/biorack/magi.git
 $ cd magi
-$ python setup.py
+$ python setup_magi2.py
 $ conda env create -f magi_2_env.yml
 $ source activate magi
 ```

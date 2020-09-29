@@ -376,6 +376,10 @@ def find_new_reactions(compounds_data, c2r_output_file, min_diameter = 12, cpu_c
     Input is a dataframe for which new reactions should be found and a MAGI parameters dict
     Output is a data frame with the original compound, reactions and similarity scores
     """
+    # make sure compounds_data is a dataframe, not Series (this can happen if it only contains 1 row)
+    if isinstance(compounds_data, pd.Series):
+        compounds_data=compounds_data.to_frame().T
+
     # Load retro rules database
     print("!!! Loading retro rules database")
     sys.stdout.flush()
@@ -578,7 +582,7 @@ def main():
         sys.stdout.flush()
         new_reactions = find_new_reactions(not_precomputed_compounds, c2r_output_file)
         if reactions is not None:
-            reactions = pd.concat(reactions, new_reactions)
+            reactions = pd.concat([reactions, new_reactions])
         else:
             reactions = new_reactions
             del new_reactions

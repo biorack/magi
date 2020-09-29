@@ -10,4 +10,4 @@ dependencies:
 - rdkit
 - pip:
   - molvs
-# - tables
+  - tables
