@@ -344,7 +344,7 @@ def find_precomputed_reactions(compounds_data, c2r_output_file, min_diameter = 1
     not_precomputed_compounds = []
     # find reactions
     for row in compounds_data.iterrows():
-        row = row[1]
+        ix = row[0]; row = row[1]
         c2r_subset = lookup_matching_reactions_for_one_compound(
                         original_compound = row["original_compound"], 
                         compound_score = row["compound_score"], 
@@ -355,18 +355,17 @@ def find_precomputed_reactions(compounds_data, c2r_output_file, min_diameter = 1
             # Store data
             c2r_subset.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
         else:
-            not_precomputed_compounds.append(row)
-    
+            not_precomputed_compounds.append(ix)
+    not_precomputed_compounds = compounds_data.iloc[not_precomputed_compounds]
     # Change data type to single pandas dataframe
     if len(precomputed_reactions) > 0:
         precomputed_reactions = pd.concat(precomputed_reactions)
     elif len(precomputed_reactions) == 1:
         precomputed_reactions = precomputed_reactions[0]
-    if len(not_precomputed_compounds) > 0:
-        not_precomputed_compounds = pd.concat(not_precomputed_compounds)
-    elif len(not_precomputed_compounds) == 1:
-        not_precomputed_compounds = not_precomputed_compounds[0]
-
+   # if len(not_precomputed_compounds) > 0:
+   #     not_precomputed_compounds = pd.concat(not_precomputed_compounds)
+   # elif len(not_precomputed_compounds) == 1:
+   #     not_precomputed_compounds = not_precomputed_compounds[0]
     return precomputed_reactions, not_precomputed_compounds
 
 def find_new_reactions(compounds_data, c2r_output_file, min_diameter = 12, cpu_count = 1, fingerprint_radius = 3, similarity_cutoff = 0.6):
@@ -376,10 +375,6 @@ def find_new_reactions(compounds_data, c2r_output_file, min_diameter = 12, cpu_c
     Input is a dataframe for which new reactions should be found and a MAGI parameters dict
     Output is a data frame with the original compound, reactions and similarity scores
     """
-    # make sure compounds_data is a dataframe, not Series (this can happen if it only contains 1 row)
-    if isinstance(compounds_data, pd.Series):
-        compounds_data=compounds_data.to_frame().T
-
     # Load retro rules database
     print("!!! Loading retro rules database")
     sys.stdout.flush()
@@ -416,9 +411,11 @@ def find_new_reactions(compounds_data, c2r_output_file, min_diameter = 12, cpu_c
             c2r.append(c2r_subset)
     
     if all(df is None for df in c2r):
-        sys.exit("No reactions found for any of the compounds.")
+    #    sys.exit("No reactions found for any of the compounds.")
+        print("No new reactions found for any of the compounds.")   
+        c2r=[] #TODO what to do when no reactions are found for any compound?
     else:
-        c2r = pd.concat(c2r) #TODO what to do when no reactions are found for any compound?
+        c2r = pd.concat(c2r) 
     return c2r
 
 def compound_to_reaction(canonical_and_original_smiles_and_compound_score, rules_to_use=Retro_rules_reactions, substrates_to_use = Retro_rules_substrates, min_diameter=0, c2r_output_file=None, fingerprint_radius=3, similarity_cutoff=0.6, use_precomputed = True):
@@ -567,26 +564,31 @@ def main():
             c2r_output_file = c2r_output_file,
             min_diameter = magi_parameters["diameter"], 
             similarity_cutoff = magi_parameters["similarity_cutoff"])
+        print(str(len(reactions))+" precomputed reactions found")
     else:
         print("!!! Not using precomputed reactions.")
         not_precomputed_compounds = compounds_data
-        reactions = None
-        # set reactions as empty df?
+        reactions = []
+        # set reactions as empty df? --> yes
     sys.stdout.flush()
 
     # Run compound to reaction search for all non-precomputed compounds
     if len(not_precomputed_compounds) > 0:
    
         # Run compound to reaction search
-        print("!!! Starting new compound to reaction searches")
+        print("!!! Starting new compound to reaction searches for "+str(len(not_precomputed_compounds))+" compounds"); 
         sys.stdout.flush()
         new_reactions = find_new_reactions(not_precomputed_compounds, c2r_output_file)
-        if reactions is not None:
-            reactions = pd.concat([reactions, new_reactions])
-        else:
-            reactions = new_reactions
-            del new_reactions
-
+        if len(new_reactions) > 0:
+            print(str(len(new_reactions))+" new reactions found");
+            if len(reactions) > 0:
+                reactions = pd.concat([reactions, new_reactions])
+            else:
+                reactions = new_reactions
+                del new_reactions
+    if len(reactions) == 0:
+        sys.exit("No reactions found for any of the compounds.")
+        
     # Maybe do some cool scoring here?
 
     # Format output

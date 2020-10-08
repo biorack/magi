@@ -63,6 +63,7 @@ def load_refseq_sequences_dataframe(refseq_path = my_settings.refseq_path):
     # this table is only refseqs that are found in mrs-reaction
     print( '!!! Reference sequences in this file: {}'.format(refseq_path))
     refseq = mg.load_dataframe(refseq_path)
+    refseq = refseq[refseq['sequence'].notnull()]
     print( '!!! {} reference sequences'.format(len(refseq)))
     refseq.set_index("uniprot_ID", inplace = True)
     return refseq
