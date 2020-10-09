@@ -1,26 +1,26 @@
 #!/bin/bash
 
 # Name of the run 
-name=test_1
+name=magi2_quicktest
 
 # Full path to location where magi is installed
-magi_path=/path_to_magi/magi
+magi_path=.
 
 # Input fasta file with protein sequences and unique identifiers in the header
 # Example of a header:
 # >gene_1 some description
-fasta=../input_files/example_fasta_name.fa
+fasta=./tests/full_workflow_test/s_coelicolor_genes_fasta_smallset.faa
 
 # Input file with candidate compound SMILES in a column called original_compound
-compounds=../input_files/example_compounds_name.csv
+compounds=./tests/full_workflow_test/random_smiles.csv
 
 # Other parameters for MAGI that may be useful
 cpu_count=8
 min_diameter=12 # this is the Retro Rules diameter, see https://retrorules.org/doc for details
-output_directory=./output_$name
+output_directory=./tests/$name/output_$name
 ## Log files
-logfile_name=./log_magi_run_$name.txt
-error_log_name=./error_log_magi_run_$name.txt
+logfile_name=./tests/$name/log_magi_run_$name.txt
+error_log_name=./tests/$name/error_log_magi_run_$name.txt
 
 #####################################################################################
 source activate magi_2 #if this does not work, use conda activate magi

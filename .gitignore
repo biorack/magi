@@ -3,13 +3,13 @@
 *.ipynb_checkpoints
 *.db
 user_settings*
-local_settings.py
-magi_2_user_settings.py
+local_settings/*
 *.pyc
 Icon
 
 data/delta_mass/
 tests/full_workflow_test/test_output_files/
+tests/magi2_quicktest/
 *nohup*
 *testlog*
 workflow/database/
