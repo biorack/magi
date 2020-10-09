@@ -55,7 +55,7 @@ $ git clone https://github.com/biorack/magi.git
 $ cd magi
 $ python setup_magi2.py
 $ conda env create -f magi_2_env.yml
-$ source activate magi
+$ source activate magi_2
 ```
 
 #### Windows
@@ -121,14 +121,14 @@ If you are interfacing with the magi_web repository, you need to manually change
 * requests (only if you are using scripts in `magi_job/`)
 
 
-### Python Dependencies for MAGI 1.0
+### Python Dependencies for MAGI 2.0
 
 * Python 3.6 or higher
 * pandas
 * numpy
 * rdkit
 * molVS
-* pytables
+* pytables (or tables)
 * requests (only if you are using scripts in `magi_job/`)
 
 ### Local Settings for MAGI 1.0
