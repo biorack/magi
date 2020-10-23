@@ -2,6 +2,9 @@
 
 # Name of the run 
 name=magi2_quicktest
+if [ ! -e ./tests/$name ]; then
+	mkdir ./tests/$name
+fi
 
 # Full path to location where magi is installed
 magi_path=.
