@@ -217,6 +217,7 @@ def multi_blast(query_list, query_full_table, database_path, result_path,
     sys.stdout.flush()
     blaster_file = "{}__{}.txt".format(os.path.join(result_path, 'blasterr'), db_name)
     if os.name == 'nt': #Check if the operating system is windows or linux/mac
+        # This is for windows
         subprocess.call('{0} -query  {1} -db {2} -outfmt "10 qacc sacc qcovs length ppos evalue bitscore" -evalue 1 -max_target_seqs 10 > {3} &'.format(
         os.path.join(blastbin, "blastp.exe"),
         os.path.join(cwd, "tmp_seq_0.faa"),

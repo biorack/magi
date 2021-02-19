@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import argparse
 
@@ -21,7 +22,7 @@ def change_localsettings_path(fname, repo_path):
     lines[i] = "sys.path.insert(0, '%s')\n" % (repo_path)
     with open(fname, 'w') as f:
         f.write(''.join(lines))
-    print 'Successfully adjusted %s' % (fname)
+    print('Successfully adjusted %s' % (fname))
 
 def main():
     parser = argparse.ArgumentParser()
@@ -37,11 +38,17 @@ def main():
         args.f = True
 
     if args.f:
-        fname = raw_input('USER INPUT: Settings Name (leave blank for default): ')
+        message = 'USER INPUT: Settings Name (leave blank for default): '
+        if sys.version_info.major == 2:
+            fname = raw_input(message)
+        elif sys.version_info.major == 3:
+            fname = input(message)
+        else:
+            raise EnvironmentError("Something wrong with your python version?")
 
     if args.f or args.d:
         # step one: extract the db tarball
-        print 'Extracting database files...'
+        print('Extracting database files...')
         db_dir = os.path.join(repo_path, 'workflow', 'database')
         # wipe out existing db directory
         if os.path.isdir(db_dir):
@@ -51,11 +58,11 @@ def main():
             cmd = ['unzip', '../%s' %(zipfile)]
             subprocess.call(
                 cmd,
-                cwd = os.path.join(repo_path, 'workflow/database')
+                cwd = os.path.join(repo_path, 'workflow','database')
                 )
-            subprocess.call(["cp", os.path.join(repo_path, "workflow/magi_cpd_similarity.graphml"), 
-            os.path.join(repo_path, "workflow/database/magi_cpd_similarity.graphml")])
-        print 'Done'
+            subprocess.call(["cp", os.path.join(repo_path, "workflow","magi_cpd_similarity.graphml"), 
+            os.path.join(repo_path, 'workflow','database','magi_cpd_similarity.graphml')])
+        print('Done')
 
     if args.f:
         # step two: make local_settings.py file
@@ -64,16 +71,16 @@ def main():
             fname = 'user_settings'
 
         lines = ["import os\n\n"]
-        lines.append("repo_location = '%s'\n\n" % (repo_path))
-        lines.append("blastbin =          os.path.join(repo_location, 'workflow/blastbin')\n")
+        lines.append("repo_location = r'%s'\n\n" % (repo_path))
+        lines.append("blastbin =          os.path.join(repo_location, 'workflow','blastbin')\n")
         lines.append("\n")
-        lines.append("refseq_path =       os.path.join(repo_location, 'workflow/database/mrs_reaction_filtered_refseq_db_newrxns_actinofixed.pkl')\n")
-        lines.append("refseq_db =         os.path.join(repo_location, 'workflow/database/mrs_reaction_filtered_refseq_db_fasta_blastdb_actinofix')\n")
-        lines.append("mrs_reaction_path = os.path.join(repo_location, 'workflow/database/mrs_reaction_newrxns_added_actinofix.pkl')\n")
-        lines.append("compounds_df =      os.path.join(repo_location, 'workflow/database/unique_compounds_groups_magi.pkl')\n")
-        lines.append("mst_path =          os.path.join(repo_location, 'workflow/database/magi_cpd_similarity.graphml')\n")
-        lines.append("chemnet_pickle =    os.path.join(repo_location, 'workflow/database/compound_groups.pkl')\n")
-        lines.append("c2r =               os.path.join(repo_location, 'workflow/database/c2r.pkl')\n")
+        lines.append("refseq_path =       os.path.join(repo_location, 'workflow','database','mrs_reaction_filtered_refseq_db_newrxns_actinofixed.pkl')\n")
+        lines.append("refseq_db =         os.path.join(repo_location, 'workflow','database','mrs_reaction_filtered_refseq_db_fasta_blastdb_actinofix')\n")
+        lines.append("mrs_reaction_path = os.path.join(repo_location, 'workflow','database','mrs_reaction_newrxns_added_actinofix.pkl')\n")
+        lines.append("compounds_df =      os.path.join(repo_location, 'workflow','database','unique_compounds_groups_magi.pkl')\n")
+        lines.append("mst_path =          os.path.join(repo_location, 'workflow','database','magi_cpd_similarity.graphml')\n")
+        lines.append("chemnet_pickle =    os.path.join(repo_location, 'workflow','database','compound_groups.pkl')\n")
+        lines.append("c2r =               os.path.join(repo_location, 'workflow','database','c2r.pkl')\n")
         lines.append("\n")
         lines.append("magi_task_path = ''\n")
         lines.append("magiweburl = 'https://magi.nersc.gov'\n")
@@ -86,9 +93,9 @@ def main():
                 f.write(line)
         with open('local_settings/local_settings.py', 'a') as f:
             f.write("SETTINGS_FILE= '%s'\n" % (fname))
-        print 'Successfully wrote local settings files'
+        print('Successfully wrote local settings files')
 
-    print 'Setup Done!'
+    print('Setup Done!')
 
 if __name__ == '__main__':
     main()

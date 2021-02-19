@@ -100,6 +100,9 @@ def workflow(compound_to_reaction, genome_db_path, blast_filter, intermediate_fi
 def main():
     # Parse arguments and prepare for reaction to gene workflow
     magi_parameters = mg.general_magi_preparation()
+    if os.name == 'nt':
+        # set cpu to 1 for windows, otherwise BLAST is being weird
+        cpu_count=magi_parameters["cpu_count"] = 1
     
     if magi_parameters["gene_to_reaction_only"] or magi_parameters["compound_to_reaction_only"]:
         print("Not performing MAGI reaction to gene workflow")
