@@ -66,7 +66,7 @@ $ git clone https://github.com/biorack/magi.git
 $ cd magi
 $ python setup_windows.py
 $ conda env create -f magi_env.yml
-$ activate magi
+$ conda activate magi
 $ cd tests/full_workflow_test/
 ```
 
@@ -77,7 +77,8 @@ binaries are required to run MAGI.
 
 You may download the BLAST binaries appropriate for your machine 
 [here](https://www.ncbi.nlm.nih.gov/guide/howto/run-blast-local/), 
-and simply copy the `blastp` and `makeblastdb` binaries into `workflow/blastbin`.
+and simply copy the `blastp` and `makeblastdb` binaries into `workflow/blastbin`. 
+For Windows, copy blastp.exe, makeblastdb.exe and nghttp2dll (if it is in the .tar.gz folder on NCBI that you downloaded).
 
 ### 3. Test MAGI
 
@@ -94,6 +95,13 @@ $ ./run_full_workflow_test.sh
 ```
 
 #### Windows
+If you use Git Bash, you can follow the Linux & MacOS instructions. However, you may need to load conda in Git Bash by typing
+```
+./c/ProgramData/Anaconda3/etc/profile.d/conda.sh
+conda activate base
+conda activate magi
+```
+If you use the Anaconda Prompt:
 ```
 $ python time python ../../workflow/magi_workflow.py --fasta ./s_coelicolor_genes_fasta_smallset.faa --compounds ./s_coelicolor_pactolus_data_smallset.csv --output ./test_output_files --cpu_count 4 --mute
 ```
