@@ -181,13 +181,13 @@ def get_job_dir(job_json):
     return job_path
 
 def mirror_inputs(all_jobs,
-    base_url=my_settings.magiweburl,
+    base_url=my_settings.magifilesweburl,
     dir_root=my_settings.magi_task_path,
     verbose=False):
     """
     dir_root is where to mirror the files to
     """
-    base_url = os.path.join(base_url, 'files', 'input')
+    base_url = os.path.join(base_url, 'input')
 
     for job in all_jobs:
         fasta_exist = False

@@ -4,6 +4,7 @@ import sys
 import subprocess
 
 base_url = utils.my_settings.magiweburl
+files_url = utils.my_settings.magifilesweburl
 magi_task_root = utils.my_settings.magi_task_path
 MAGI_EMAIL = utils.my_settings.admin_email
 
@@ -37,8 +38,8 @@ for job in run_jobs:
             msg += 'Your MAGI job has started!\n'
             msg += '%s\n\n' % (job_link)
             msg += "You can monitor your job's progress by looking at the log files:\n"
-            msg += 'OUTPUT: %s\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_out.txt'))
-            msg += 'ERROR: %s\n\n' % (os.path.join(base_url, 'files//processed/%s/' % (job_path), 'log_err.txt'))
+            msg += 'OUTPUT: %s\n' % (os.path.join(files_url, 'processed/%s/' % (job_path), 'log_out.txt'))
+            msg += 'ERROR: %s\n\n' % (os.path.join(files_url, 'processed/%s/' % (job_path), 'log_err.txt'))
             msg += 'If you have any questions, please contact us by replying to this email.\n'
 
             utils.email_user(job['fields']['email'], subj, msg)

@@ -77,7 +77,6 @@ for j in jobs:
         data['end_time'].append(pd.np.nan)
 
 a = pd.DataFrame(data)
-
 # convert time zones
 # convert utc time to pacific
 a['upload_time'] = a['upload_time'].apply(lambda x: x.tz_localize('UTC').tz_convert('US/Pacific'))

@@ -75,15 +75,16 @@ def load_genome(fasta, intfile_path, annotation_file=None):
     # process the fasta file
     with open(fasta, 'r') as f:
         genes = f.read()
+    genes = genes.strip()
     if genes.strip()[0] != '>':
         raise RuntimeError('%s does not appear to be a FASTA file' % (fasta))
-
+    genes = '\n%s'%genes
     data = []
-    for entry in genes.split('>')[1:]:
-        header = '>' + entry.splitlines()[0]
+    for entry in genes.split('\n>')[1:]:
+        header = '>' + entry.strip().splitlines()[0]
         gene_id = header.split(' ')[0][1:]
-        sequence = ''.join(entry.splitlines()[1:])
-        data.append([gene_id, header, sequence])
+        sequence = ''.join(entry.strip().splitlines()[1:])
+        data.append([gene_id.strip(), header.strip(), sequence.strip()])
     genome = pd.DataFrame(data, columns=['Gene_ID', 'header', 'sequence'])
     # Check if IDs are unique and if any of the sequences or IDs are empty strings
     genome = genome.replace('', np.nan)
