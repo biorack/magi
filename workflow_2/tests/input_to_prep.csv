@@ -1,0 +1,7 @@
+name,original_compound
+salty_smiles,"C(CCN)CC(C(=O)O)N.Cl"
+normal_smiles,"C(CCN)CC(C(=O)O)N"
+negative_smiles,"CC(=O)[O-]"
+normal_smiles_2,"CC(=O)O"
+complicated_smiles1,"C(CC[NH3+])CC(C(=O)O)N.[Cl-]"
+complicated_smiles2,"CC(=O)[O-].[Cl-]"

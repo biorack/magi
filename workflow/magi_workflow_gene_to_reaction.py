@@ -267,6 +267,9 @@ def format_output(gene_to_reaction_top_path, output_dir, intermediate_files_dir)
 def main():
     # Parse arguments and prepare for gene to reaction workflow
     magi_parameters = mg.general_magi_preparation()
+    if os.name == 'nt':
+        # set cpu to 1 for windows, otherwise BLAST is being weird
+        cpu_count=magi_parameters["cpu_count"] = 1
     
     if magi_parameters["compound_to_reaction_only"]:
         print("Not performing MAGI gene to reaction workflow")

@@ -1,3 +1,1 @@
-This folder will at some point contain a Jupiter notebook MAGI tutorial similar to https://magi.nersc.gov/tutorial/
-
-For now, just follow that tutorial.
+The online tutorial can be found on https://magi.nersc.gov/tutorial/
