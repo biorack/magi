@@ -52,6 +52,7 @@ def main():
         lines.append("refseq_path = os.path.join(repo_location, 'workflow_2','database','reaction_to_gene_reference.csv')\n")
         lines.append("refseq_db = os.path.join(repo_location, 'workflow_2','database','rhea2uniprot.db')\n")
 
+        os.makedirs('local_settings', exist_ok=True)
         with open('local_settings/%s.py' %(fname), 'w') as f:
             for line in lines:
                 f.write(line)
