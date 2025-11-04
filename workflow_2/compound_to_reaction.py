@@ -177,6 +177,9 @@ def prepare_smiles(smiles, useHs = useHs):
     mol = NeutraliseCharges(mol)
     mol = remove_stereochemistry(mol)
     mol = Chem.MolFromSmiles(Chem.MolToSmiles(mol)) # To fix kekulization bug
+    if mol is None:
+        print("Warning! Molecule could not be processed: {}".format(smiles))
+        return smiles, None
     mol = canonicalize_tautomer(mol)
     if useHs:
         mol = Chem.AddHs(Chem.RemoveHs(mol))
@@ -213,7 +216,9 @@ def preprocess_compounds_data(compounds_path, cpu_count):
     #        p.terminate()
     #else:
     compounds_data["SMILES"], compounds_data["Mol"] = zip(*compounds_data["original_compound"].apply(prepare_smiles))
-    
+    # Drop compounds that could not be prepared and have None as Mol object
+    compounds_data = compounds_data[compounds_data["Mol"].notnull()]
+
     # Prepare a InChI Key
     compounds_data["inchi_key"] = compounds_data["Mol"].apply(get_inchi_key)
 
