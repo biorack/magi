@@ -172,20 +172,40 @@ def prepare_smiles(smiles, useHs = useHs):
     Neutralizes charged molecules
     Add hydrogens
     """
-    saltremover = SaltRemover.SaltRemover()
-    mol = saltremover.StripMol(Chem.MolFromSmiles(smiles), dontRemoveEverything=True)
-    mol = NeutraliseCharges(mol)
-    mol = remove_stereochemistry(mol)
-    mol = Chem.MolFromSmiles(Chem.MolToSmiles(mol)) # To fix kekulization bug
-    if mol is None:
-        print("Warning! Molecule could not be processed: {}".format(smiles))
+    try:
+        saltremover = SaltRemover.SaltRemover()
+    except Exception as e:
+        print(f"Warning! Salt remover failed: {e}")
+        saltremover = None
+    if saltremover is None:
+        print("Warning! Salt remover failed.")
         return smiles, None
-    mol = canonicalize_tautomer(mol)
-    if useHs:
-        mol = Chem.AddHs(Chem.RemoveHs(mol))
-    else:
-        mol = Chem.RemoveHs(mol)
-    smiles = Chem.MolToSmiles(mol)
+    
+    try:
+        mol = saltremover.StripMol(Chem.MolFromSmiles(smiles), dontRemoveEverything=True)
+        mol = NeutraliseCharges(mol)
+        mol = remove_stereochemistry(mol)
+        mol = Chem.MolFromSmiles(Chem.MolToSmiles(mol)) # To fix kekulization bug
+        mol = canonicalize_tautomer(mol)
+    except Exception as e:
+        print(f"Warning! Molecule could not be processed: {smiles}. Error: {e}")
+        return smiles, None
+
+    try:
+        if useHs:
+            mol = Chem.AddHs(Chem.RemoveHs(mol))
+        else:
+            mol = Chem.RemoveHs(mol)
+    except Exception as e:
+        print(f"Warning! Hydrogens could not be processed for molecule: {smiles}. Error: {e}")
+        return smiles, None
+    
+    try:
+        smiles = Chem.MolToSmiles(mol)
+    except Exception as e:
+        print(f"Warning! SMILES could not be generated for molecule: {smiles}. Error: {e}")
+        return smiles, None
+
     return smiles, mol
 
 def preprocess_compounds_data(compounds_path, cpu_count):
