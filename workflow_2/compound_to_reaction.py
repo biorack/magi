@@ -172,6 +172,7 @@ def prepare_smiles(smiles, useHs = useHs):
     Neutralizes charged molecules
     Add hydrogens
     """
+    print("Preparing SMILES: {}".format(smiles))
     try:
         saltremover = SaltRemover.SaltRemover()
     except Exception as e:
