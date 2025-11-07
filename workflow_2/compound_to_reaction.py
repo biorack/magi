@@ -382,7 +382,7 @@ def find_precomputed_reactions(compounds_data, c2r_output_file, min_diameter = 1
             c2r_subset.to_csv(c2r_output_file, mode = 'a', header=False, index=False)
         else:
             not_precomputed_compounds.append(ix)
-    not_precomputed_compounds = compounds_data.iloc[not_precomputed_compounds]
+    not_precomputed_compounds = compounds_data.loc[not_precomputed_compounds]
     # Change data type to single pandas dataframe
     if len(precomputed_reactions) > 0:
         precomputed_reactions = pd.concat(precomputed_reactions)
